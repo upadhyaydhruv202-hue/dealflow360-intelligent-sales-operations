@@ -120,6 +120,26 @@ describe('LoginPage', () => {
     expect(screen.queryByText('Staff home')).not.toBeInTheDocument();
   });
 
+  it('offers signup and password reset from the login page', () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/login']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <ThemeProvider>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+            </Routes>
+          </AuthProvider>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Create account / Sign up' })).toHaveAttribute('href', '/register');
+    expect(screen.getByRole('link', { name: 'Forgot password' })).toHaveAttribute('href', '/forgot-password');
+  });
+
   it('lists seeded demo roles when the API reports demo mode', async () => {
     vi.stubGlobal(
       'fetch',
@@ -150,7 +170,9 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Sales rep')).toBeInTheDocument();
     expect(screen.getByText('Sales manager')).toBeInTheDocument();
-    expect(screen.getByText('Admin / finance')).toBeInTheDocument();
+    expect(screen.getByText('Admin / director')).toBeInTheDocument();
+    expect(screen.getByText('Finance')).toBeInTheDocument();
+    expect(screen.getByText('Operations')).toBeInTheDocument();
     expect(screen.getByText('Customer')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /demo\.staff@example\.com/i }));
     expect(screen.getByLabelText('Email')).toHaveValue('demo.staff@example.com');

@@ -2,6 +2,7 @@ import type { ProblemPermission } from './host';
 
 export const DEALFLOW_PERMISSIONS: readonly ProblemPermission[] = [
   { key: 'dealflow.catalog.read', description: 'Read DealFlow360 customers, products, warehouses, and policies' },
+  { key: 'dealflow.catalog.write', description: 'Edit DealFlow360 quantity breaks, role ranges, and governance thresholds' },
   { key: 'dealflow.quotes.read', description: 'Read quotes, assessments, and fulfillment plans' },
   { key: 'dealflow.quotes.write', description: 'Create and edit quotes, submit, confirm, and negotiate' },
   { key: 'dealflow.quotes.approve', description: 'Record an approval or rejection on a quote chain' },
@@ -28,5 +29,23 @@ export const DEALFLOW_ROLE_PERMISSIONS: Readonly<Record<string, readonly string[
     'dealflow.quotes.write',
     'dealflow.fulfillment.write',
     'dealflow.billing.write',
+  ],
+  finance: [
+    'dealflow.catalog.read',
+    'dealflow.quotes.read',
+    'dealflow.quotes.approve',
+    'dealflow.approvals.finance',
+    'dealflow.billing.write',
+    'notifications.read',
+    'reports.generate',
+    'analytics.read',
+    'audit.read',
+  ],
+  operations: [
+    'dealflow.catalog.read',
+    'dealflow.quotes.read',
+    'dealflow.fulfillment.write',
+    'notifications.read',
+    'analytics.read',
   ],
 };

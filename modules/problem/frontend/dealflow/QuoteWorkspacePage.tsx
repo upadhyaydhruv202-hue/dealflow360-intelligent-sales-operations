@@ -27,7 +27,9 @@ import {
   applyRecommendation,
   assessQuote,
   confirmQuote,
+  contactVendor,
   decideApproval,
+  downloadCustomerQuotePdf,
   generateBilling,
   getRecommendations,
   listQuoteAudit,
@@ -45,6 +47,7 @@ import {
   HealthBadge,
   NegotiationStory,
   OverrideForm,
+  RelatedDealLinks,
   RiskPanel,
   StatusBadge,
 } from './components';
@@ -60,11 +63,12 @@ import {
   formatDate,
   formatMoney,
   formatPercent,
+  isStaleQuoteConflict,
   ownerLabel,
   workspaceToast,
 } from './format';
-import { useCatalog, useQuote } from './hooks';
-import { contextualInsights, hybridCommercials, summarizeDealHealth } from './intelligence';
+import { useCatalog, useDealflowRealtime, useQuote } from './hooks';
+import { contextualInsights, hybridCommercials, previewUnitPrice, summarizeDealHealth, warehouseAvailability } from './intelligence';
 import type { AuditEvent, QuoteView, Recommendation } from './types';
 
 export function QuoteWorkspacePage() {
@@ -76,6 +80,10 @@ export function QuoteWorkspacePage() {
   const quoteState = useQuote(quoteId, accessToken);
   const catalog = useCatalog(accessToken);
   const quote = quoteState.data;
+  useDealflowRealtime(accessToken, () => {
+    void quoteState.reload();
+    void catalog.reload();
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [productId, setProductId] = useState('');
@@ -86,6 +94,9 @@ export function QuoteWorkspacePage() {
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [vendorProductId, setVendorProductId] = useState('');
+  const [vendorMessage, setVendorMessage] = useState('');
+  const [stale, setStale] = useState(false);
   const inflight = useRef(false);
 
   useEffect(() => {
@@ -120,6 +131,7 @@ export function QuoteWorkspacePage() {
     inflight.current = true;
     setBusy(true);
     setError(undefined);
+    setStale(false);
     try {
       const next = await action();
       if (next) {
@@ -142,7 +154,10 @@ export function QuoteWorkspacePage() {
       }
       toast({ title: workspaceToast(kind), variant: 'success' });
     } catch (caught) {
-      const message = getApiErrorMessage(caught, 'The API rejected this action');
+      const message = isStaleQuoteConflict(caught)
+        ? 'Quotation updated by another user.'
+        : getApiErrorMessage(caught, 'The API rejected this action');
+      setStale(isStaleQuoteConflict(caught));
       setError(message);
       toast({ title: message, variant: 'error' });
     } finally {
@@ -170,6 +185,9 @@ export function QuoteWorkspacePage() {
             <div className="flex flex-wrap items-center gap-2">
               <HealthBadge health={summarizeDealHealth(quote)} />
               <StatusBadge status={quote.status} />
+              {quote.health ? (
+                <span className="max-w-xl text-caption text-foreground-muted">{quote.health.explanation}</span>
+              ) : null}
             </div>
           ) : null
         }
@@ -179,6 +197,33 @@ export function QuoteWorkspacePage() {
         {quote ? (
           <div className="space-y-6">
             {error ? <Alert variant="error">{error}</Alert> : null}
+            {stale ? (
+              <Alert variant="warning" title="Quotation updated by another user.">
+                Review the latest version before editing again. Your last change was not saved.
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setStale(false);
+                      setError(undefined);
+                      void quoteState.reload();
+                    }}
+                  >
+                    Reload latest
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setStale(false);
+                      setError(undefined);
+                    }}
+                  >
+                    Cancel edit
+                  </Button>
+                </div>
+              </Alert>
+            ) : null}
             <section className="grid gap-6 border-y border-edge py-6 md:grid-cols-4">
               <div>
                 <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Customer tier</p>
@@ -188,7 +233,10 @@ export function QuoteWorkspacePage() {
               <div>
                 <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Net total</p>
                 <p className="mt-2 text-lg font-semibold">{formatMoney(quote.netTotal, true)}</p>
-                <p className="text-caption text-foreground-muted">List {formatMoney(quote.listTotal, true)}</p>
+                <p className="text-caption text-foreground-muted">
+                  List {formatMoney(quote.listTotal, true)} · Tax {formatMoney(quote.taxTotal ?? 0, true)} · Grand{' '}
+                  {formatMoney(quote.grandTotal ?? quote.netTotal, true)}
+                </p>
               </div>
               <div>
                 <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Blended discount</p>
@@ -226,11 +274,20 @@ export function QuoteWorkspacePage() {
             </Card>
 
             {busy ? <Alert variant="info">Saving quote… totals and risk refresh from the API.</Alert> : null}
-            {quote.odooSaleOrderId ? (
-              <Alert variant="info">Odoo sale order {quote.odooSaleOrderId}</Alert>
-            ) : ['confirmed', 'fulfillment', 'billing', 'completed'].includes(quote.status) ? (
-              <Alert variant="info">Confirmed locally. Live Odoo is unavailable, so no remote sale order ID exists.</Alert>
+            {quote.health ? (
+              <Alert variant={quote.health.status === 'healthy' ? 'info' : 'warning'} title={`Deal health ${quote.health.score} / 100 · ${quote.health.status.replaceAll('_', ' ')}`}>
+                <p>{quote.health.explanation}</p>
+                <p className="mt-2 text-caption">{quote.health.recommendedAction}</p>
+              </Alert>
             ) : null}
+            {quote.odooSaleOrderId || quote.odooIntegration?.saleOrderId ? (
+              <Alert variant="info">Odoo sale order {quote.odooSaleOrderId ?? quote.odooIntegration?.saleOrderId}</Alert>
+            ) : quote.odooIntegration?.configured === false &&
+              ['confirmed', 'fulfillment', 'billing', 'completed'].includes(quote.status) ? (
+              <Alert variant="info">Confirmed locally. Odoo is not configured, so no remote sale order was created.</Alert>
+            ) : null}
+
+            <RelatedDealLinks quoteId={quote.id} portalToken={quote.portalToken} />
 
             <QuoteActions
               quote={quote}
@@ -239,13 +296,32 @@ export function QuoteWorkspacePage() {
               accessToken={accessToken}
               onSubmit={() => accessToken && void run('submit', () => submitQuote(quote.id, accessToken))}
               onNegotiate={() => accessToken && void run('negotiate', () => startNegotiation(quote.id, accessToken))}
-              onConfirm={() => accessToken && void run('confirm', () => confirmQuote(quote.id, accessToken))}
-              onBill={() => accessToken && void run('bill', () => generateBilling(quote.id, accessToken))}
+              onConfirm={() => accessToken && void run('confirm', () => confirmQuote(quote.id, accessToken, quote.version))}
+              onBill={() => accessToken && void run('bill', () => generateBilling(quote.id, accessToken, quote.version))}
               onCopyPortal={() => {
                 void navigator.clipboard.writeText(`${window.location.origin}/portal/${quote.portalToken}`);
                 toast({ title: 'Portal link copied', variant: 'success' });
               }}
+              onDownloadPdf={() => {
+                if (!accessToken) return;
+                void downloadCustomerQuotePdf(quote.id, accessToken).catch((caught: unknown) => {
+                  toast({ title: getApiErrorMessage(caught, 'PDF download failed'), variant: 'error' });
+                });
+              }}
             />
+
+            {quote.assessment?.highValue ? (
+              <Alert variant="warning" title="High-value approval required">
+                Net {formatMoney(quote.netTotal, true)} meets the configured high-value threshold. The seeded chain
+                applies; Admin is not inserted unless a step already requires that role.
+              </Alert>
+            ) : null}
+            {quote.assessment?.mergeRisk ? (
+              <Alert variant="warning" title="Approval merge risk">
+                {quote.assessment.mergeRiskReasons?.[0] ??
+                  'Multiple product lines require review and stay itemized so a merge cannot hide line-level risk.'}
+              </Alert>
+            ) : null}
 
             <NegotiationStory quote={quote} />
 
@@ -257,7 +333,7 @@ export function QuoteWorkspacePage() {
                 onAdd={(relationId) =>
                   accessToken &&
                   void run('recommend', async () => {
-                    const next = await applyRecommendation(quote.id, relationId, accessToken);
+                    const next = await applyRecommendation(quote.id, relationId, accessToken, quote.version);
                     setDismissed((current) => [...current, relationId]);
                     return next;
                   })
@@ -275,16 +351,83 @@ export function QuoteWorkspacePage() {
                   label: 'Products',
                   content: (
                     <div className="space-y-4">
-                      <div className="overflow-x-auto">
+                      <ul className="space-y-3 lg:hidden">
+                        {quote.lines.map((line) => {
+                          const assessed = quote.assessment?.lines.find((item) => item.productId === line.productId);
+                          const canEdit = canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write');
+                          return (
+                            <li key={`${line.id}-card`} className="rounded-lg border border-edge p-3">
+                              <p className="font-medium">{line.product?.name ?? line.productId}</p>
+                              <p className="text-xs text-foreground-muted">{line.product?.sku}</p>
+                              {canEdit && accessToken ? (
+                                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                  <DiscountInput
+                                    key={`${line.id}-m-qty-${line.quantity}`}
+                                    label={`Quantity for ${line.product?.sku ?? 'line'}`}
+                                    value={line.quantity}
+                                    min={1}
+                                    onCommit={(next) => {
+                                      if (next === line.quantity) return;
+                                      void run('line', () =>
+                                        updateQuoteLine(quote.id, line.id, { quantity: next, expectedVersion: quote.version }, accessToken),
+                                      );
+                                    }}
+                                  />
+                                  <DiscountInput
+                                    key={`${line.id}-m-price-${line.listPrice}`}
+                                    label={`Unit price for ${line.product?.sku ?? 'line'}`}
+                                    value={assessed?.appliedPrice ?? line.listPrice}
+                                    min={0}
+                                    max={1_000_000}
+                                    onCommit={(next) => {
+                                      if (next === (assessed?.appliedPrice ?? line.listPrice)) return;
+                                      void run('line', () =>
+                                        updateQuoteLine(quote.id, line.id, { unitPrice: next, expectedVersion: quote.version }, accessToken),
+                                      );
+                                    }}
+                                  />
+                                  <DiscountInput
+                                    key={`${line.id}-m-disc-${line.discountPercent}`}
+                                    label={`Discount for ${line.product?.sku ?? 'line'}`}
+                                    value={line.discountPercent}
+                                    onCommit={(next) => {
+                                      if (next === line.discountPercent) return;
+                                      void run('line', () =>
+                                        updateQuoteLine(
+                                          quote.id,
+                                          line.id,
+                                          { discountPercent: next, expectedVersion: quote.version },
+                                          accessToken,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-sm">
+                                  Qty {line.quantity} · {formatMoney(assessed?.appliedPrice ?? line.listPrice, true)} ·{' '}
+                                  {formatPercent(line.discountPercent)}
+                                </p>
+                              )}
+                              <p className="mt-1 text-sm">Line {assessed ? formatMoney(assessed.netAmount, true) : '—'}</p>
+                              {assessed?.decision && assessed.decision !== 'allowed' ? (
+                                <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="hidden overflow-x-auto lg:block">
                         <table className="min-w-full text-left text-sm">
                           <caption className="sr-only">Quote lines</caption>
                           <thead className="text-xs uppercase text-foreground-muted">
                             <tr>
                               <th className="py-2 pr-3">Product</th>
                               <th className="py-2 pr-3">Qty</th>
-                              <th className="py-2 pr-3">Unit</th>
+                              <th className="py-2 pr-3">Base / applied</th>
                               <th className="py-2 pr-3">Discount</th>
-                              <th className="py-2 pr-3">Limit</th>
+                              <th className="py-2 pr-3">Margin</th>
+                              <th className="py-2 pr-3">Warehouses</th>
                               <th className="py-2">Line net</th>
                             </tr>
                           </thead>
@@ -297,6 +440,9 @@ export function QuoteWorkspacePage() {
                                   <td className="py-3 pr-3">
                                     <p className="font-medium">{line.product?.name ?? line.productId}</p>
                                     <p className="text-xs text-foreground-muted">{line.product?.sku} · {line.product?.billingType}</p>
+                                    {assessed?.decision && assessed.decision !== 'allowed' ? (
+                                      <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
+                                    ) : null}
                                   </td>
                                   <td className="py-3 pr-3">
                                     {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
@@ -307,14 +453,43 @@ export function QuoteWorkspacePage() {
                                         min={1}
                                         onCommit={(next) => {
                                           if (next === line.quantity || !accessToken) return;
-                                          void run('line', () => updateQuoteLine(quote.id, line.id, { quantity: next }, accessToken));
+                                          void run('line', () =>
+                                            updateQuoteLine(quote.id, line.id, { quantity: next, expectedVersion: quote.version }, accessToken),
+                                          );
                                         }}
                                       />
                                     ) : (
                                       line.quantity
                                     )}
                                   </td>
-                                  <td className="py-3 pr-3">{formatMoney(line.listPrice, true)}</td>
+                                  <td className="py-3 pr-3">
+                                    {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+                                      <DiscountInput
+                                        key={`${line.id}-price-${assessed?.appliedPrice ?? line.listPrice}`}
+                                        label={`Unit price for ${line.product?.sku ?? 'line'}`}
+                                        value={assessed?.appliedPrice ?? line.listPrice}
+                                        min={0}
+                                        max={1_000_000}
+                                        onCommit={(next) => {
+                                          if (next === (assessed?.appliedPrice ?? line.listPrice) || !accessToken) return;
+                                          void run('line', () =>
+                                            updateQuoteLine(
+                                              quote.id,
+                                              line.id,
+                                              { unitPrice: next, expectedVersion: quote.version },
+                                              accessToken,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    ) : (
+                                      <p>{formatMoney(assessed?.appliedPrice ?? line.listPrice, true)}</p>
+                                    )}
+                                    <p className="text-xs text-foreground-muted">
+                                      List {formatMoney(assessed?.basePrice ?? line.listPrice, true)}
+                                      {assessed?.pricingRuleName ? ` · ${assessed.pricingRuleName}` : ''}
+                                    </p>
+                                  </td>
                                   <td className="py-3 pr-3">
                                     {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
                                       <DiscountInput
@@ -323,15 +498,46 @@ export function QuoteWorkspacePage() {
                                         value={line.discountPercent}
                                         onCommit={(next) => {
                                           if (next === line.discountPercent || !accessToken) return;
-                                          void run('line', () => updateQuoteLine(quote.id, line.id, { discountPercent: next }, accessToken));
+                                          void run('line', () =>
+                                            updateQuoteLine(
+                                              quote.id,
+                                              line.id,
+                                              { discountPercent: next, expectedVersion: quote.version },
+                                              accessToken,
+                                            ),
+                                          );
                                         }}
                                       />
                                     ) : (
                                       formatPercent(line.discountPercent)
                                     )}
+                                    {policy ? (
+                                      <p className="text-xs text-foreground-muted">Policy {formatPercent(policy.approvalPercent)}</p>
+                                    ) : null}
+                                    {assessed?.roleLimitExceeded ? (
+                                      <p className="text-xs text-warning">Exceeds your authorized range</p>
+                                    ) : null}
                                   </td>
-                                  <td className="py-3 pr-3">{policy ? formatPercent(policy.approvalPercent) : '—'}</td>
-                                                  <td className="py-3">{assessed ? formatMoney(assessed.netAmount, true) : '—'}</td>
+                                  <td className="py-3 pr-3">
+                                    {assessed ? formatPercent(assessed.marginPercent) : '—'}
+                                  </td>
+                                  <td className="py-3 pr-3">
+                                    {assessed?.warehouses?.length ? (
+                                      <ul className="text-xs text-foreground-muted">
+                                        {assessed.warehouses.map((row) => (
+                                          <li key={row.warehouseId}>
+                                            {row.name}: {row.available}
+                                          </li>
+                                        ))}
+                                        {(assessed.shortfall ?? 0) > 0 ? (
+                                          <li className="text-warning">Shortfall {assessed.shortfall}</li>
+                                        ) : null}
+                                      </ul>
+                                    ) : (
+                                      '—'
+                                    )}
+                                  </td>
+                                  <td className="py-3">{assessed ? formatMoney(assessed.netAmount, true) : '—'}</td>
                                 </tr>
                               );
                             })}
@@ -348,7 +554,12 @@ export function QuoteWorkspacePage() {
                             void run('line', () =>
                               addQuoteLine(
                                 quote.id,
-                                { productId, quantity: Number(quantity), discountPercent: Number(discount) },
+                                {
+                                  productId,
+                                  quantity: Number(quantity),
+                                  discountPercent: Number(discount),
+                                  expectedVersion: quote.version,
+                                },
                                 accessToken,
                               ),
                             );
@@ -382,6 +593,108 @@ export function QuoteWorkspacePage() {
                           </div>
                         </form>
                       ) : null}
+                      {(() => {
+                        const product = catalog.data?.products.find((item) => item.id === productId);
+                        if (!product) return null;
+                        const qty = Number(quantity) || 1;
+                        const priced = previewUnitPrice(
+                          product,
+                          qty,
+                          catalog.data?.quantityBreaks,
+                          quote.customer.tier,
+                        );
+                        const houses = warehouseAvailability(catalog.data, product.id);
+                        const onHand = houses.reduce((sum, row) => sum + row.available, 0);
+                        return (
+                          <Card>
+                            <CardTitle className="text-base">Selected product</CardTitle>
+                            <CardDescription className="mt-1">
+                              {product.sku} · {product.name} · {product.billingType.replaceAll('_', '-')}
+                            </CardDescription>
+                            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                              <div>
+                                <dt className="text-xs text-foreground-muted">Base / applicable</dt>
+                                <dd className="font-medium">
+                                  {formatMoney(product.listPrice, true)} → {formatMoney(priced.unitPrice, true)}
+                                </dd>
+                                <dd className="text-xs text-foreground-muted">{priced.ruleName}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs text-foreground-muted">Whole quantity on hand</dt>
+                                <dd className="font-medium">{onHand}</dd>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <dt className="text-xs text-foreground-muted">In which warehouse?</dt>
+                                <dd>
+                                  {houses.length
+                                    ? houses.map((row) => `${row.name}: ${row.available} available / ${row.incoming} incoming`).join(' · ')
+                                    : 'No warehouse stock rows'}
+                                  {qty > onHand ? ` · shortfall ${qty - onHand}` : ''}
+                                </dd>
+                              </div>
+                            </dl>
+                          </Card>
+                        );
+                      })()}
+                      {hasPermission(user, 'dealflow.quotes.write') ? (
+                        <form
+                          className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            if (!accessToken || !vendorMessage.trim()) return;
+                            void (async () => {
+                              if (inflight.current) return;
+                              inflight.current = true;
+                              setBusy(true);
+                              setError(undefined);
+                              try {
+                                await contactVendor(
+                                  quote.id,
+                                  { productId: vendorProductId || undefined, message: vendorMessage.trim() },
+                                  accessToken,
+                                );
+                                setVendorMessage('');
+                                toast({
+                                  title: workspaceToast('vendor'),
+                                  description: 'Procurement note recorded. No vendor email was sent.',
+                                  variant: 'success',
+                                });
+                              } catch (caught) {
+                                const message = getApiErrorMessage(caught, 'Vendor contact could not be recorded');
+                                setError(message);
+                                toast({ title: message, variant: 'error' });
+                              } finally {
+                                inflight.current = false;
+                                setBusy(false);
+                              }
+                            })();
+                          }}
+                        >
+                          <Select
+                            label="Contact vendor about"
+                            value={vendorProductId}
+                            onChange={(event) => setVendorProductId(event.target.value)}
+                            options={[
+                              { value: '', label: 'Quote / procurement (no SKU)' },
+                              ...(catalog.data?.products ?? []).map((item) => ({
+                                value: item.id,
+                                label: `${item.sku} · ${item.name}`,
+                              })),
+                            ]}
+                          />
+                          <Input
+                            label="Procurement note"
+                            value={vendorMessage}
+                            onChange={(event) => setVendorMessage(event.target.value)}
+                            placeholder="Availability, lead time, or special pricing"
+                          />
+                          <div className="flex items-end">
+                            <Button type="submit" variant="outline" loading={busy} disabled={!vendorMessage.trim()}>
+                              Contact vendor
+                            </Button>
+                          </div>
+                        </form>
+                      ) : null}
                       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                         <div>
                           <dt className="text-xs text-foreground-muted">List</dt>
@@ -409,7 +722,8 @@ export function QuoteWorkspacePage() {
                         </div>
                       </dl>
                       <p className="text-caption text-foreground-muted">
-                        Tax and shipping are not collected on DealFlow quotations. Totals are commercial net from the API.
+                        Tax is calculated on the server from taxable products and the configured rate. Shipping is not
+                        collected on DealFlow quotations.
                       </p>
                     </div>
                   ),
@@ -505,14 +819,21 @@ export function QuoteWorkspacePage() {
                       <FulfillmentBoard quote={quote} catalog={catalog.data} />
                       {canPlan(quote.status) && hasPermission(user, 'dealflow.fulfillment.write') ? (
                         <div className="space-y-3">
-                          <Button loading={busy} onClick={() => accessToken && void run('plan', () => planFulfillment(quote.id, accessToken))}>
+                          <Button
+                            loading={busy}
+                            onClick={() =>
+                              accessToken && void run('plan', () => planFulfillment(quote.id, accessToken, quote.version))
+                            }
+                          >
                             Accept suggested split
                           </Button>
                           <OverrideForm
                             quote={quote}
                             catalog={catalog.data}
                             busy={busy}
-                            onSubmit={(overrides) => accessToken && void run('plan', () => planFulfillment(quote.id, accessToken, overrides))}
+                            onSubmit={(overrides) =>
+                              accessToken && void run('plan', () => planFulfillment(quote.id, accessToken, quote.version, overrides))
+                            }
                           />
                         </div>
                       ) : null}
@@ -559,6 +880,7 @@ function QuoteActions({
   onConfirm,
   onBill,
   onCopyPortal,
+  onDownloadPdf,
 }: {
   quote: QuoteView;
   user: ReturnType<typeof useAuth>['user'];
@@ -569,6 +891,7 @@ function QuoteActions({
   onConfirm: () => void;
   onBill: () => void;
   onCopyPortal: () => void;
+  onDownloadPdf: () => void;
 }) {
   return (
     <Card>
@@ -583,9 +906,9 @@ function QuoteActions({
           . Use the Approvals tab or Approval center. Staff cannot approve.
         </p>
       ) : null}
-      {canConfirm(quote.status) ? (
+      {canConfirm(quote.status) && quote.odooIntegration?.configured === false ? (
         <p className="mt-2 text-xs text-foreground-muted">
-          Confirmation is local only. Live Odoo is not configured, so no remote sale order is created.
+          Confirmation is local only. Odoo is not configured, so no remote sale order will be created.
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
@@ -612,6 +935,11 @@ function QuoteActions({
         {quote.portalToken ? (
           <Button variant="ghost" onClick={onCopyPortal}>
             Copy customer portal link
+          </Button>
+        ) : null}
+        {hasPermission(user, 'dealflow.quotes.read') ? (
+          <Button variant="ghost" onClick={onDownloadPdf}>
+            Download customer PDF
           </Button>
         ) : null}
       </div>
@@ -671,10 +999,12 @@ function DiscountInput({
   value,
   onCommit,
   min = 0,
+  max,
 }: {
   label: string;
   value: number;
   min?: number;
+  max?: number;
   onCommit: (next: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
@@ -686,12 +1016,12 @@ function DiscountInput({
       aria-label={label}
       type="number"
       min={min}
-      max={min > 0 ? undefined : 100}
+      max={max ?? (min > 0 ? undefined : 100)}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => {
         const next = Number(draft);
-        if (Number.isNaN(next) || next < min) {
+        if (Number.isNaN(next) || next < min || (max !== undefined && next > max)) {
           setDraft(String(value));
           return;
         }

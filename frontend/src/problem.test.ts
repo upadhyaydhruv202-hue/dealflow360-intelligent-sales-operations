@@ -12,7 +12,18 @@ describe('problem frontend registration', () => {
       ]),
     );
     expect(problemRoutes.map((route) => route.path)).toEqual(
-      expect.arrayContaining(['/dealflow', '/dealflow/quotes', '/dealflow/quotes/:quoteId', '/dealflow/approvals']),
+      expect.arrayContaining([
+        '/dealflow',
+        '/dealflow/quotes',
+        '/dealflow/quotes/:quoteId',
+        '/dealflow/approvals',
+        '/dealflow/approvals/:quoteId',
+        '/dealflow/fulfillment/:quoteId',
+        '/dealflow/subscriptions/:quoteId',
+        '/dealflow/invoices/:quoteId',
+        '/dealflow/catalog/products/:productId',
+        '/dealflow/catalog/policies',
+      ]),
     );
     expect(problemRoutes[0]?.element).toBeTruthy();
   });

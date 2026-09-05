@@ -40,15 +40,25 @@ const DEMO_USERS = [
     displayName: 'Demo User',
     role: ROLES.USER,
   },
+  {
+    email: 'demo.finance@example.com',
+    displayName: 'Demo Finance',
+    role: 'finance',
+  },
+  {
+    email: 'demo.operations@example.com',
+    displayName: 'Demo Operations',
+    role: 'operations',
+  },
 ] as const;
 
 const prisma = new PrismaClient();
 
 async function seed(): Promise<void> {
   const { roles } = await seedRbacCatalog(prisma);
-  await seedDealflowCatalog(prisma);
 
   if (!shouldSeedDemoDataFromEnv()) {
+    await seedDealflowCatalog(prisma);
     console.log('Seeded RBAC catalog. Skipped demo users because DEMO_MODE is off.');
     return;
   }
@@ -141,6 +151,8 @@ async function seed(): Promise<void> {
       await prisma.notification.create({ data: notification });
     }
   }
+
+  await seedDealflowCatalog(prisma);
 
   console.log('Seeded demo roles, permissions, users, notifications, and DealFlow360 catalog.');
   console.log('Demo login (local/demo only, not a real credential):');

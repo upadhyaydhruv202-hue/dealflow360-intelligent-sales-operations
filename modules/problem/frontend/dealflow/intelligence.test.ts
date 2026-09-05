@@ -7,6 +7,7 @@ import {
   detectAnomalies,
   hybridCommercials,
   portalStatusLabel,
+  previewUnitPrice,
   summarizeDealHealth,
 } from './intelligence';
 import { SAMPLE_QUOTE } from './test-fixtures';
@@ -107,6 +108,74 @@ describe('deal intelligence', () => {
     expect(hybrid.mixed).toBe(true);
     expect(hybrid.oneTimeNet).toBe(26880);
     expect(hybrid.recurringMonthly).toBeCloseTo(2016);
+  });
+
+  it('previews quantity-break prices and explains a price change', () => {
+    const product = SAMPLE_QUOTE.lines[0].product!;
+    const list = previewUnitPrice(product, 9, [
+      {
+        id: 'b1',
+        name: 'Core Gateway 1–9 list',
+        productId: product.id,
+        minQuantity: 1,
+        maxQuantity: 9,
+        adjustmentKind: 'fixed',
+        adjustmentValue: 4000,
+      },
+      {
+        id: 'b2',
+        name: 'Core Gateway 10–49 volume',
+        productId: product.id,
+        minQuantity: 10,
+        maxQuantity: 49,
+        adjustmentKind: 'fixed',
+        adjustmentValue: 3700,
+      },
+    ]);
+    const volume = previewUnitPrice(product, 10, [
+      {
+        id: 'b1',
+        name: 'Core Gateway 1–9 list',
+        productId: product.id,
+        minQuantity: 1,
+        maxQuantity: 9,
+        adjustmentKind: 'fixed',
+        adjustmentValue: 4000,
+      },
+      {
+        id: 'b2',
+        name: 'Core Gateway 10–49 volume',
+        productId: product.id,
+        minQuantity: 10,
+        maxQuantity: 49,
+        adjustmentKind: 'fixed',
+        adjustmentValue: 3700,
+      },
+    ]);
+    expect(list.unitPrice).toBe(4000);
+    expect(volume.unitPrice).toBe(3700);
+    expect(volume.ruleName).toContain('10–49');
+
+    const insights = contextualInsights(
+      {
+        ...SAMPLE_QUOTE,
+        assessment: {
+          ...SAMPLE_QUOTE.assessment!,
+          lines: [
+            {
+              ...SAMPLE_QUOTE.assessment!.lines[0],
+              quantity: 10,
+              basePrice: 4000,
+              appliedPrice: 3700,
+              pricingRuleName: 'Core Gateway 10–49 volume',
+            },
+          ],
+        },
+      },
+      catalog,
+      [],
+    );
+    expect(insights.some((item) => item.title.includes('Why did HW-CORE-1 price change'))).toBe(true);
   });
 
   it('maps portal-facing status labels without exposing internals', () => {

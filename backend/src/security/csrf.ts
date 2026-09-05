@@ -19,27 +19,53 @@ export function originFromReferer(referer: string | undefined): string | undefin
   }
 }
 
+export function expandLoopbackOrigins(origins: readonly string[]): string[] {
+  const expanded = new Set(origins);
+  for (const origin of origins) {
+    try {
+      const url = new URL(origin);
+      if (url.hostname === 'localhost') {
+        expanded.add(`${url.protocol}//127.0.0.1${url.port ? `:${url.port}` : ''}`);
+      } else if (url.hostname === '127.0.0.1') {
+        expanded.add(`${url.protocol}//localhost${url.port ? `:${url.port}` : ''}`);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [...expanded];
+}
+
+export function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+  } catch {
+    return false;
+  }
+}
+
 export function isTrustedOrigin(origin: string | undefined, config: AppConfig): boolean {
   if (!origin) {
     return false;
   }
 
-  if (config.corsOrigins.includes(origin)) {
+  if (!config.isProduction && isLoopbackOrigin(origin)) {
+    return true;
+  }
+
+  const trusted = new Set(
+    expandLoopbackOrigins([...config.corsOrigins, config.app.url, config.app.frontendUrl]),
+  );
+  if (trusted.has(origin)) {
     return true;
   }
 
   try {
-    if (new URL(config.app.url).origin === origin) {
-      return true;
-    }
-    if (new URL(config.app.frontendUrl).origin === origin) {
-      return true;
-    }
+    return trusted.has(new URL(origin).origin);
   } catch {
     return false;
   }
-
-  return false;
 }
 
 export function cookieCsrfProtection(config: AppConfig): RequestHandler {

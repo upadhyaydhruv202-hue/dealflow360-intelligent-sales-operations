@@ -49,6 +49,14 @@ export interface ProblemHost {
   events: EventBus;
   capabilities?: CapabilityRegistry | null;
   audit?: AuditService | null;
+  notifications?: {
+    notify: (input: {
+      userId: string;
+      type?: 'info' | 'success' | 'warning' | 'error';
+      title: string;
+      body: string;
+    }) => Promise<unknown>;
+  } | null;
   mount?: (basePath: string, router: Router) => void;
   http?: ProblemHttp;
   scheduler?: Scheduler | null;
@@ -58,6 +66,13 @@ export interface ProblemHost {
   automation?: AutomationRegistries | null;
   ai?: AIService | null;
   odoo?: OdooService | null;
+  realtime?: {
+    publish: (input: {
+      channel: string;
+      type: string;
+      payload?: Record<string, unknown>;
+    }) => Promise<unknown> | unknown;
+  } | null;
   search?: SearchService | null;
   analytics?: AnalyticsService | null;
   odooAdapters?: {

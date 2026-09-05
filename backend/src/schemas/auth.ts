@@ -18,6 +18,7 @@ export const registerBodySchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(72),
   displayName: z.string().trim().min(1).max(120),
+  companyName: z.string().trim().min(1).max(160).optional(),
 });
 
 export const loginBodySchema = z.object({

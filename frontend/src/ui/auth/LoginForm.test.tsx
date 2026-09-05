@@ -42,6 +42,16 @@ describe('LoginForm', () => {
     resolveSubmit?.();
   });
 
+  it('toggles password visibility without submitting', () => {
+    render(<LoginForm onSubmit={vi.fn()} />);
+    const password = screen.getByLabelText('Password');
+    expect(password).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(password).toHaveAttribute('type', 'text');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide password' }));
+    expect(password).toHaveAttribute('type', 'password');
+  });
+
   it('does not submit while the request is already loading', () => {
     const onSubmit = vi.fn();
     render(<LoginForm onSubmit={onSubmit} loading />);

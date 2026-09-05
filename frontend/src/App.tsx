@@ -17,7 +17,9 @@ import { AnomalyPage } from './pages/AnomalyPage';
 import { RealtimePage } from './pages/RealtimePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { HomePage } from './pages/HomePage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { UiKitPage } from './pages/UiKitPage';
 import { CustomerAccountPage, CustomerPortalPage, problemRoutes } from './problem';
@@ -36,6 +38,8 @@ export function App() {
                   <Route path="/portal/:token" element={<CustomerPortalPage />} />
                   <Route path="/account" element={<CustomerAccountPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route element={<AppLayout />}>
                     <Route path="/" element={<HomePage />} />
                     <Route path="/dashboard" element={<DashboardPage />} />

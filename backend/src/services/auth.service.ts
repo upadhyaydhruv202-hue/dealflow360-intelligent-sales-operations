@@ -23,14 +23,24 @@ export interface AuthServiceDependencies {
   tokenService: TokenService;
   defaultRole: string;
   revocation?: TokenRevocationStore | null;
-  onUserCreated?: (user: { id: string; email: string; displayName: string }) => void | Promise<void>;
+  onUserCreated?: (user: {
+    id: string;
+    email: string;
+    displayName: string;
+    companyName?: string;
+  }) => void | Promise<void>;
   audit?: AuditService | null;
 }
 
 export class AuthService {
   constructor(private readonly deps: AuthServiceDependencies) {}
 
-  async register(input: { email: string; password: string; displayName: string }): Promise<AuthSession> {
+  async register(input: {
+    email: string;
+    password: string;
+    displayName: string;
+    companyName?: string;
+  }): Promise<AuthSession> {
     const passwordHash = await this.deps.passwordService.hash(input.password);
 
     const session = await withTransaction(this.deps.prisma, async (tx) => {
@@ -67,6 +77,7 @@ export class AuthService {
         id: session.user.id,
         email: session.user.email,
         displayName: session.user.displayName,
+        companyName: input.companyName,
       });
     } catch {
       // Event emission must not fail registration.

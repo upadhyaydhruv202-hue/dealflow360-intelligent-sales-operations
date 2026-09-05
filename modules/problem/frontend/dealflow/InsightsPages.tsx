@@ -5,7 +5,7 @@ import { Badge, Breadcrumb, ChartArea, DataTable, ErrorState, LoadingState, Page
 
 import { DealflowGate, HealthBadge, StatusBadge } from './components';
 import { formatMoney, formatPercent } from './format';
-import { useCatalog, useQuotes } from './hooks';
+import { useAnomalies, useCatalog, useQuotes } from './hooks';
 import { dashboardAnalytics, summarizeDealHealth } from './intelligence';
 import type { DiscountPolicy, Product, QuoteView } from './types';
 
@@ -20,6 +20,8 @@ export function DealHealthPage() {
   const { accessToken } = useAuth();
   const navigate = useNavigate();
   const quotes = useQuotes(accessToken);
+  const anomalies = useAnomalies(accessToken);
+  const openAnomalies = (anomalies.data ?? []).filter((item) => item.status === 'open').slice(0, 6);
   const rows: HealthRow[] = (quotes.data ?? []).flatMap((quote) => {
     const items: HealthRow[] = [];
     if (quote.status === 'approval_required') {
@@ -43,11 +45,34 @@ export function DealHealthPage() {
         width="wide"
         breadcrumb={<Breadcrumb items={[{ label: 'Dashboard', to: '/dealflow' }, { label: 'Deal health' }]} />}
         title="Deal health"
-        description="Per-deal health score plus actionable exceptions from live quotes. No stored snapshot table and no kit anomaly scores."
+        description="Per-deal health score plus open anomalies from the same PostgreSQL book. The anomaly center remains the disposition workspace."
+        actions={
+          <Link className="text-sm font-medium hover:underline" to="/dealflow/anomalies">
+            Open anomaly center
+          </Link>
+        }
       >
         {quotes.loading ? <LoadingState label="Checking deals…" /> : null}
         {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}
         {!quotes.loading && !quotes.error ? (
+          <div className="space-y-8">
+            {openAnomalies.length > 0 ? (
+              <section>
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-foreground-muted">
+                  Open anomalies
+                </h2>
+                <ul className="divide-y divide-edge border-y border-edge">
+                  {openAnomalies.map((item) => (
+                    <li key={item.id} className="py-3">
+                      <p className="text-sm font-medium">{item.description}</p>
+                      <p className="text-caption capitalize text-foreground-muted">
+                        {item.severity} · {item.type.replaceAll('_', ' ')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           <DataTable<HealthRow>
             caption="Deal exceptions"
             rowId={(row) => row.id}
@@ -90,6 +115,7 @@ export function DealHealthPage() {
               { id: 'action', header: 'Recommended action', accessor: (row) => row.action },
             ]}
           />
+          </div>
         ) : null}
       </PageContainer>
     </DealflowGate>
@@ -124,7 +150,23 @@ export function ReportsPage() {
         width="wide"
         breadcrumb={<Breadcrumb items={[{ label: 'Dashboard', to: '/dealflow' }, { label: 'Reports' }]} />}
         title="Reports"
-        description="Revenue, discount, margin, approval, fulfillment, and hybrid billing metrics computed from current quotations. No export subsystem."
+        description="Revenue, discount, margin, approval, fulfillment, and hybrid billing metrics computed from current quotations. Customer quote PDF exists; there is no report export."
+        actions={
+          <div className="flex flex-wrap gap-3 text-sm font-medium">
+            <Link className="hover:underline" to="/dealflow/health">
+              Deal health
+            </Link>
+            <Link className="hover:underline" to="/dealflow/anomalies">
+              Anomalies
+            </Link>
+            <Link className="hover:underline" to="/dealflow/quotes">
+              Quotations
+            </Link>
+            <Link className="hover:underline" to="/dealflow/catalog">
+              Catalog
+            </Link>
+          </div>
+        }
       >
         {quotes.loading ? <LoadingState label="Loading report…" /> : null}
         {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}
@@ -186,6 +228,7 @@ export function ReportsPage() {
 
 export function CatalogPage() {
   const { accessToken } = useAuth();
+  const navigate = useNavigate();
   const catalog = useCatalog(accessToken);
   return (
     <DealflowGate permission="dealflow.catalog.read">
@@ -193,7 +236,17 @@ export function CatalogPage() {
         width="wide"
         breadcrumb={<Breadcrumb items={[{ label: 'Dashboard', to: '/dealflow' }, { label: 'Products / Policies' }]} />}
         title="Products & policies"
-        description="Read-only catalog from the DealFlow360 seed. Pricing rules are not edited in the frontend."
+        description="Read-only catalog from the DealFlow360 seed. Open a SKU for stock and quantity breaks, or open discount rules for chains."
+        actions={
+          <div className="flex flex-wrap gap-3 text-sm font-medium">
+            <Link className="hover:underline" to="/dealflow/catalog/policies">
+              Discount rules & chains
+            </Link>
+            <Link className="hover:underline" to="/dealflow/settings">
+              Configuration
+            </Link>
+          </div>
+        }
       >
         {catalog.loading ? <LoadingState label="Loading catalog…" /> : null}
         {catalog.error ? <ErrorState message={catalog.error} onRetry={() => void catalog.reload()} /> : null}
@@ -203,6 +256,7 @@ export function CatalogPage() {
               caption="Products"
               rowId={(row) => row.id}
               rows={catalog.data.products}
+              onRowClick={(row) => navigate(`/dealflow/catalog/products/${row.id}`)}
               columns={[
                 { id: 'sku', header: 'SKU', accessor: (row) => row.sku },
                 { id: 'name', header: 'Name', accessor: (row) => row.name },
@@ -215,6 +269,7 @@ export function CatalogPage() {
               caption="Discount policies"
               rowId={(row) => row.id}
               rows={catalog.data.policies}
+              onRowClick={() => navigate('/dealflow/catalog/policies')}
               columns={[
                 { id: 'name', header: 'Policy', accessor: (row) => row.name },
                 { id: 'warn', header: 'Warning', accessor: (row) => `${row.warningPercent}%` },

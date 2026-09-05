@@ -1,9 +1,10 @@
 import type { CorsOptions } from 'cors';
 
 import type { AppConfig } from '../types/config';
+import { expandLoopbackOrigins, isLoopbackOrigin } from './csrf';
 
 export function createCorsOptions(config: AppConfig): CorsOptions {
-  const allowlist = new Set(config.corsOrigins);
+  const allowlist = new Set(expandLoopbackOrigins(config.corsOrigins));
 
   return {
     origin(origin, callback) {
@@ -12,7 +13,7 @@ export function createCorsOptions(config: AppConfig): CorsOptions {
         return;
       }
 
-      callback(null, allowlist.has(origin));
+      callback(null, allowlist.has(origin) || (!config.isProduction && isLoopbackOrigin(origin)));
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

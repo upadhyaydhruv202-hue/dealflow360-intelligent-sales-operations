@@ -5,7 +5,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { hasPermission } from '@/lib/rbac';
 import { Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer, Pagination, Search } from '@/ui';
 
-import { CreateQuoteButton, DealflowGate, DecisionBadge, StatusBadge } from './components';
+import { CreateQuoteButton, DealflowGate, DecisionBadge, StatusBadge, StatusCards } from './components';
 import { formatDate, formatMoney, formatPercent, OPEN_STATUSES, ownerLabel } from './format';
 import { useCatalog, useQuotes } from './hooks';
 import type { QuoteStatus, QuoteView } from './types';
@@ -43,6 +43,14 @@ export function QuotesListPage() {
   }, [query, quotes.data, statusFilter]);
 
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const allRows = quotes.data ?? [];
+  const statusCards: Array<{ id: QuoteStatus; label: string; filter: QuoteStatus }> = [
+    { id: 'draft', label: 'Draft', filter: 'draft' },
+    { id: 'approval_required', label: 'Pending approval', filter: 'approval_required' },
+    { id: 'approved', label: 'Approved', filter: 'approved' },
+    { id: 'customer_negotiation', label: 'Negotiation', filter: 'customer_negotiation' },
+    { id: 'rejected', label: 'Declined', filter: 'rejected' },
+  ];
 
   return (
     <DealflowGate permission="dealflow.quotes.read">
@@ -62,6 +70,18 @@ export function QuotesListPage() {
           ) : null
         }
       >
+        <StatusCards
+          items={statusCards.map((card) => ({
+            id: card.id,
+            label: card.label,
+            value: allRows.filter((row) => row.status === card.filter).length,
+            active: statusFilter === card.filter,
+            onClick: () => {
+              setPage(1);
+              setParams({ status: card.filter });
+            },
+          }))}
+        />
         <div className="mb-5 flex flex-col gap-4">
           <Search value={query} onChange={setQuery} placeholder="Search number or customer" aria-label="Search quotations" />
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Quote status">

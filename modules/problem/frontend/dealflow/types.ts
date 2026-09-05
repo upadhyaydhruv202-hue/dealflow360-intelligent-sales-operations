@@ -47,6 +47,7 @@ export interface StockLevel {
   productId: string;
   quantityOnHand: number;
   reserved: number;
+  incoming?: number;
 }
 
 export interface DiscountPolicy {
@@ -90,6 +91,45 @@ export interface QuoteLine {
   product?: Product | null;
 }
 
+export interface WarehouseAvailability {
+  warehouseId: string;
+  name: string;
+  available: number;
+}
+
+export interface QuantityBreak {
+  id: string;
+  name: string;
+  productId: string;
+  customerTier?: CustomerTier | null;
+  minQuantity: number;
+  maxQuantity?: number | null;
+  adjustmentKind: 'fixed' | 'percent';
+  adjustmentValue: number;
+  active?: boolean;
+}
+
+export interface RoleAuthority {
+  roleKey: string;
+  maxDiscountPercent: number;
+  minMarginPercent: number;
+  maxPriceOverridePercent: number;
+  canNegotiate: boolean;
+  exceedAction: 'allow' | 'approval' | 'block';
+}
+
+export interface GovernanceSettings {
+  cumulativeWarningLimit: number;
+  materialDiscountDeltaPp: number;
+  materialTotalDeltaRatio: number;
+  highValueNetTotal: number;
+  maxApprovalLevels: number;
+  taxRatePercent?: number;
+  staleQuoteDays?: number;
+  unusualDiscountPercent?: number;
+  largeDealNetTotal?: number;
+}
+
 export interface LineAssessment {
   productId: string;
   sku: string;
@@ -104,6 +144,14 @@ export interface LineAssessment {
   policyName: string;
   decision: DiscountDecision;
   reasons: string[];
+  basePrice?: number;
+  appliedPrice?: number;
+  pricingRuleName?: string;
+  roleLimitExceeded?: boolean;
+  approvalScope?: 'line' | 'quote';
+  warehouses?: WarehouseAvailability[];
+  totalAvailable?: number;
+  shortfall?: number;
 }
 
 export interface QuoteAssessment {
@@ -123,6 +171,9 @@ export interface QuoteAssessment {
   requiredChainName?: string | null;
   lines: LineAssessment[];
   reasons: string[];
+  highValue?: boolean;
+  mergeRisk?: boolean;
+  mergeRiskReasons?: string[];
 }
 
 export interface QuoteApproval {
@@ -207,6 +258,20 @@ export interface QuoteView {
   portalToken: string;
   version: number;
   odooSaleOrderId?: number | null;
+  taxTotal?: number;
+  grandTotal?: number;
+  customerDecision?: 'none' | 'accepted' | 'declined';
+  health?: {
+    score: number;
+    status: 'healthy' | 'at_risk' | 'critical';
+    stage: string;
+    daysInStage: number;
+    recommendedAction: string;
+    explanation: string;
+    factors: Array<{ id: string; label: string; level: 'healthy' | 'warning' | 'critical'; detail: string }>;
+    computedAt: string;
+  };
+  odooIntegration?: { configured: boolean; saleOrderId: number | null };
   createdAt: string;
   updatedAt: string;
   customer: Customer;
@@ -216,6 +281,26 @@ export interface QuoteView {
   fulfillment: QuoteFulfillment;
   billing: BillingSchedule[];
   revisions: QuoteRevision[];
+}
+
+export interface CustomerQuote {
+  id: string;
+  number: string;
+  status: QuoteStatus;
+  listTotal: number;
+  discountTotal: number;
+  netTotal: number;
+  blendedDiscountPercent: number;
+  version: number;
+  portalToken: string;
+  customer: { name: string };
+  lines: Array<{
+    id: string;
+    quantity: number;
+    listPrice: number;
+    discountPercent: number;
+    product: { name: string; sku: string; billingType: BillingType | null } | null;
+  }>;
 }
 
 export interface Recommendation {
@@ -235,6 +320,9 @@ export interface DealflowCatalog {
   stock: StockLevel[];
   policies: DiscountPolicy[];
   chains: ApprovalChain[];
+  quantityBreaks?: QuantityBreak[];
+  roleAuthorities?: RoleAuthority[];
+  governance?: GovernanceSettings;
 }
 
 export interface AuditEvent {

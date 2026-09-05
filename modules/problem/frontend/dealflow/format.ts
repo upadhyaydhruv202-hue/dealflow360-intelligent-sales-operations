@@ -1,3 +1,4 @@
+import { ApiClientError } from '@/services/api';
 import type { BadgeTone } from '@/ui';
 
 import type {
@@ -144,13 +145,26 @@ export function canBill(status: QuoteStatus): boolean {
 }
 
 export function availableUnits(
-  stock: Array<{ warehouseId: string; productId: string; quantityOnHand: number; reserved: number }> | undefined,
+  stock: Array<{ warehouseId: string; productId: string; quantityOnHand: number; reserved: number; incoming?: number }> | undefined,
   warehouseId: string,
   productId: string,
 ): number {
   const row = stock?.find((item) => item.warehouseId === warehouseId && item.productId === productId);
   if (!row) return 0;
   return Math.max(0, Number(row.quantityOnHand || 0) - Number(row.reserved || 0));
+}
+
+export function incomingUnits(
+  stock: Array<{ warehouseId: string; productId: string; incoming?: number }> | undefined,
+  warehouseId: string,
+  productId: string,
+): number {
+  const row = stock?.find((item) => item.warehouseId === warehouseId && item.productId === productId);
+  return Math.max(0, Number(row?.incoming || 0));
+}
+
+export function isStaleQuoteConflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.statusCode === 409 && /another user/i.test(error.message);
 }
 
 export function workspaceToast(kind: string): string {
@@ -175,6 +189,8 @@ export function workspaceToast(kind: string): string {
       return 'Risk assessment refreshed';
     case 'line':
       return 'Quote lines updated';
+    case 'vendor':
+      return 'Vendor contact recorded';
     default:
       return 'Quote updated';
   }

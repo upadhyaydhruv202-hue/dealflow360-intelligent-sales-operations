@@ -1,17 +1,55 @@
+import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { useOptionalFeatures } from '@/features';
+import { getApiErrorMessage } from '@/services/api';
 import { Button } from '@/ui';
 import { useTheme } from '@/ui/theme/ThemeProvider';
 
-const DEMO_PORTAL_PATH = '/portal/df-demo-portal-token-northwind-0001';
+import { listMyQuotes } from './api';
+import { formatMoney } from './format';
+import type { CustomerQuote } from './types';
 
 export function CustomerAccountPage() {
-  const { user, logout, pending } = useAuth();
-  const features = useOptionalFeatures();
+  const { user, accessToken, logout, pending, ready } = useAuth();
   const { resolvedTheme, toggleTheme } = useTheme();
-  const demoMode = features?.isDemo() === true;
+  const [quotes, setQuotes] = useState<CustomerQuote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!accessToken) {
+      setQuotes([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    listMyQuotes(accessToken)
+      .then((items) => {
+        if (!cancelled) {
+          setQuotes(items);
+          setError(undefined);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(getApiErrorMessage(caught, 'Could not load your quotations.'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  if (!ready) {
+    return <p className="px-6 py-12 text-sm text-foreground-muted">Restoring session…</p>;
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -38,32 +76,47 @@ export function CustomerAccountPage() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-lg space-y-8 px-6 py-12">
+      <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
         <div>
-          <h2 className="text-display">This login cannot open the sales workspace</h2>
+          <h2 className="text-display">Quotations for {user.displayName}</h2>
           <p className="mt-3 text-sm leading-6 text-foreground-muted">
-            {user?.displayName ?? 'This account'} is a customer-style user. Internal quotations, approvals, risk,
-            fulfillment, and audit stay on staff, manager, and admin accounts. The API also rejects those requests.
+            This account is a customer identity. Internal margin, approvals, risk, fulfillment, and audit stay on staff
+            APIs — those requests are rejected even if a URL is guessed. Open a quotation through its portal link.
           </p>
-          <p className="mt-4 text-sm text-foreground">
-            Customers review a quotation through a unique portal link copied from the quote workspace — not through this
-            dashboard.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button onClick={() => void logout()}>Sign out and use a staff account</Button>
-            {demoMode ? (
-              <Link
-                to={DEMO_PORTAL_PATH}
-                className="inline-flex h-10 items-center rounded-control border border-edge px-3.5 text-sm font-medium hover:bg-surface-muted"
-              >
-                Open seeded demo portal
-              </Link>
-            ) : null}
-          </div>
         </div>
-        <p className="text-caption text-foreground-muted">
-          Staff: demo.staff@example.com · Manager: demo.manager@example.com · Admin: demo.admin@example.com
-        </p>
+        {loading ? <p className="text-sm text-foreground-muted">Loading quotations…</p> : null}
+        {error ? (
+          <p className="text-sm text-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {!loading && !error && quotes.length === 0 ? (
+          <p className="text-sm text-foreground-muted">
+            No quotations are linked to {user.email} yet. When sales issues a quote to this company, it appears here.
+          </p>
+        ) : null}
+        {!loading && quotes.length > 0 ? (
+          <ul className="divide-y divide-edge rounded-lg border border-edge">
+            {quotes.map((quote) => (
+              <li key={quote.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    {quote.number} · {quote.customer.name}
+                  </p>
+                  <p className="text-caption text-foreground-muted">
+                    {quote.status.replaceAll('_', ' ')} · {formatMoney(quote.netTotal)} · version {quote.version}
+                  </p>
+                </div>
+                <Link
+                  to={`/portal/${encodeURIComponent(quote.portalToken)}`}
+                  className="inline-flex h-10 items-center rounded-control border border-edge px-3.5 text-sm font-medium hover:bg-surface-muted"
+                >
+                  Open portal
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </main>
     </div>
   );

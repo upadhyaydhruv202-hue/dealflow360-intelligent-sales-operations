@@ -70,6 +70,7 @@ export async function resetDatabase(client: PrismaClient = getTestPrisma()): Pro
       df_quote_approvals,
       df_quote_lines,
       df_quotes,
+      df_anomalies,
       df_approval_chain_steps,
       df_approval_chains,
       df_discount_policies,

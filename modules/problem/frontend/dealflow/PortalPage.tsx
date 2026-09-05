@@ -4,15 +4,9 @@ import { useParams } from 'react-router-dom';
 import { getApiErrorMessage } from '@/services/api';
 import { Alert, Button, EmptyState, ErrorState, Input, LoadingState, useToast } from '@/ui';
 
-import { applyPortalChange, getPortalQuote } from './api';
-import { formatMoney, formatPercent, statusLabel } from './format';
-import {
-  hybridCommercials,
-  loadPortalIntent,
-  portalStatusLabel,
-  savePortalIntent,
-  type PortalIntent,
-} from './intelligence';
+import { applyPortalChange, decidePortalQuote, getPortalQuote, portalQuotePdfHref } from './api';
+import { formatMoney, formatPercent, isStaleQuoteConflict, statusLabel } from './format';
+import { hybridCommercials, portalStatusLabel } from './intelligence';
 import type { QuoteView } from './types';
 
 export function CustomerPortalPage() {
@@ -23,22 +17,27 @@ export function CustomerPortalPage() {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
-  const [intent, setIntent] = useState<PortalIntent | undefined>(() => (token ? loadPortalIntent(token) : undefined));
   const [note, setNote] = useState('');
+  const [stale, setStale] = useState(false);
   const inflight = useRef(false);
+
+  async function loadQuote(portalToken: string) {
+    const data = await getPortalQuote(portalToken);
+    setQuote(data);
+    setDiscounts(Object.fromEntries(data.lines.map((line) => [line.id, String(line.discountPercent)])));
+    setQuantities(Object.fromEntries(data.lines.map((line) => [line.id, String(line.quantity)])));
+    setError(undefined);
+    setStale(false);
+    return data;
+  }
 
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     setLoading(true);
-    void getPortalQuote(token)
-      .then((data) => {
-        if (cancelled) return;
-        setQuote(data);
-        setDiscounts(Object.fromEntries(data.lines.map((line) => [line.id, String(line.discountPercent)])));
-        setError(undefined);
-      })
+    void loadQuote(token)
       .catch((caught: unknown) => {
         if (!cancelled) setError(getApiErrorMessage(caught, 'This portal link is not valid'));
       })
@@ -52,7 +51,35 @@ export function CustomerPortalPage() {
 
   const negotiable = quote?.status === 'approved' || quote?.status === 'customer_negotiation';
   const commercial = quote ? hybridCommercials(quote) : undefined;
-  const canRespond = negotiable && !intent;
+  const decision = quote?.customerDecision ?? 'none';
+  const canRespond = negotiable && decision === 'none';
+
+  async function decide(action: 'accepted' | 'declined') {
+    if (!token || !quote || inflight.current) return;
+    inflight.current = true;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const next = await decidePortalQuote(token, {
+        expectedVersion: quote.version,
+        action,
+        comment: note.trim() || undefined,
+      });
+      setQuote(next);
+      toast({ title: action === 'accepted' ? 'Acceptance recorded' : 'Decline recorded', variant: 'success' });
+    } catch (caught) {
+      const staleConflict = isStaleQuoteConflict(caught);
+      const message = staleConflict
+        ? 'Quotation updated by another user.'
+        : getApiErrorMessage(caught, 'The decision could not be recorded');
+      setStale(staleConflict);
+      setError(message);
+      toast({ title: message, variant: 'error' });
+    } finally {
+      inflight.current = false;
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     if (!token || !quote || !negotiable || inflight.current) return;
@@ -62,13 +89,22 @@ export function CustomerPortalPage() {
     try {
       const next = await applyPortalChange(
         token,
-        quote.lines.map((line) => ({ lineId: line.id, discountPercent: Number(discounts[line.id] ?? line.discountPercent) })),
+        quote.lines.map((line) => ({
+          lineId: line.id,
+          quantity: Number(quantities[line.id] ?? line.quantity),
+          discountPercent: Number(discounts[line.id] ?? line.discountPercent),
+        })),
+        quote.version,
       );
       setQuote(next);
       setSubmitted(true);
       toast({ title: 'Negotiation submitted', variant: 'success' });
     } catch (caught) {
-      const message = getApiErrorMessage(caught, 'The quote could not be updated');
+      const staleConflict = isStaleQuoteConflict(caught);
+      const message = staleConflict
+        ? 'Quotation updated by another user.'
+        : getApiErrorMessage(caught, 'The quote could not be updated');
+      setStale(staleConflict);
       setError(message);
       toast({ title: message, variant: 'error' });
     } finally {
@@ -88,16 +124,36 @@ export function CustomerPortalPage() {
       </header>
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-10">
         {loading ? <LoadingState label="Loading your quote…" /> : null}
-        {error ? <ErrorState title="Unable to open this quote" message={error} /> : null}
+        {error && !quote ? <ErrorState title="Unable to open this quote" message={error} /> : null}
         {quote ? (
           <div className="space-y-10">
+            {stale ? (
+              <Alert variant="warning" title="Quotation updated by another user.">
+                Reload the latest quotation before submitting again. Your last change was not saved.
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!token) return;
+                      void loadQuote(token).catch((caught: unknown) => {
+                        setError(getApiErrorMessage(caught, 'The quote could not be reloaded'));
+                      });
+                    }}
+                  >
+                    Reload latest
+                  </Button>
+                </div>
+              </Alert>
+            ) : error ? (
+              <Alert variant="error">{error}</Alert>
+            ) : null}
             <section className="border-b border-edge pb-8">
               <p className="text-caption text-foreground-muted">{quote.number}</p>
               <h2 className="mt-1 text-title">
                 {quote.customer.name} · Status {statusLabel(quote.status)}
               </h2>
               <p className="mt-1 text-sm text-foreground-muted">{portalStatusLabel(quote.status)}</p>
-              <p className="mt-4 text-[34px] font-semibold tracking-tight">{formatMoney(quote.netTotal, true)}</p>
+                  <p className="mt-4 text-[34px] font-semibold tracking-tight">{formatMoney(quote.grandTotal ?? quote.netTotal, true)}</p>
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <dt className="text-caption text-foreground-muted">List</dt>
@@ -114,6 +170,10 @@ export function CustomerPortalPage() {
                 <div>
                   <dt className="text-caption text-foreground-muted">Recurring / month</dt>
                   <dd>{formatMoney(commercial?.recurringMonthly ?? 0, true)}</dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-foreground-muted">Tax</dt>
+                  <dd>{formatMoney(quote.taxTotal ?? 0, true)}</dd>
                 </div>
               </dl>
             </section>
@@ -134,11 +194,18 @@ export function CustomerPortalPage() {
                   <li key={line.id} className="py-4">
                     <p className="font-medium">{line.product?.name ?? 'Product'}</p>
                     <p className="text-caption text-foreground-muted">
-                      Qty {line.quantity} · {formatMoney(line.listPrice, true)} list ·{' '}
+                      Qty {line.quantity} · {formatMoney(line.listPrice, true)} each ·{' '}
                       {line.product?.billingType === 'recurring' ? 'Recurring' : 'One-time'}
                     </p>
                     {negotiable ? (
-                      <div className="mt-3 max-w-xs">
+                      <div className="mt-3 grid max-w-lg gap-3 sm:grid-cols-2">
+                        <Input
+                          label="Requested quantity"
+                          type="number"
+                          min={1}
+                          value={quantities[line.id] ?? String(line.quantity)}
+                          onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))}
+                        />
                         <Input
                           label="Requested discount %"
                           type="number"
@@ -162,53 +229,50 @@ export function CustomerPortalPage() {
                   label="Comment for your sales representative"
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  placeholder="Optional note stored with your response on this device"
+                  placeholder="Optional comment stored with your accept or decline"
                 />
                 <div className="sticky bottom-0 flex flex-wrap gap-2 border-t border-edge bg-surface/90 py-4 backdrop-blur">
                   <Button loading={busy} onClick={() => void submit()}>
                     Submit counter-offer
                   </Button>
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => {
-                      if (!token) return;
-                      savePortalIntent(token, 'accepted');
-                      setIntent('accepted');
-                      toast({ title: 'Acceptance recorded on this device', variant: 'success' });
-                    }}
-                  >
+                  <Button variant="outline" disabled={busy} onClick={() => void decide('accepted')}>
                     Accept quotation
                   </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => {
-                      if (!token) return;
-                      savePortalIntent(token, 'declined');
-                      setIntent('declined');
-                      toast({ title: 'Decline recorded on this device', variant: 'success' });
-                    }}
-                  >
+                  <Button variant="ghost" disabled={busy} onClick={() => void decide('declined')}>
                     Decline
                   </Button>
+                  {token ? (
+                    <a
+                      className="inline-flex h-10 items-center rounded-control border border-edge px-3.5 text-sm font-medium hover:bg-surface-muted"
+                      href={portalQuotePdfHref(token)}
+                    >
+                      Download PDF
+                    </a>
+                  ) : null}
                 </div>
                 <p className="text-caption text-foreground-muted">
-                  Accept and decline are recorded in this browser until staff confirms the quote in DealFlow360. Counter-offers
-                  still go through the portal API and may reopen approval.
+                  Accept and decline are stored on the quotation. A stale version is rejected. Counter-offers still go through
+                  the portal API and may reopen approval.
                 </p>
               </section>
             ) : null}
-            {intent === 'accepted' ? (
+            {decision === 'accepted' ? (
               <Alert variant="success" title="You accepted this quotation">
-                {note ? `${note} — ` : ''}A representative will confirm it in the staff workspace. This device no longer
-                offers another response.
+                A representative will confirm it in the staff workspace.
               </Alert>
             ) : null}
-            {intent === 'declined' ? (
+            {decision === 'declined' ? (
               <Alert variant="warning" title="You declined this quotation">
-                {note || 'The sales team can still open a revised quotation.'}
+                The sales team can still open a revised quotation.
               </Alert>
+            ) : null}
+            {token && !canRespond ? (
+              <a
+                className="inline-flex h-10 items-center rounded-control border border-edge px-3.5 text-sm font-medium hover:bg-surface-muted"
+                href={portalQuotePdfHref(token)}
+              >
+                Download PDF
+              </a>
             ) : null}
           </div>
         ) : null}

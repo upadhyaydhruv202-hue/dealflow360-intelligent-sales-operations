@@ -19,8 +19,8 @@ import {
 import { CreateQuoteButton, DecisionBadge, StatusBadge } from './components';
 import { DealflowGate } from './components';
 import { formatMoney, formatPercent, OPEN_STATUSES, ownerLabel, riskLabel } from './format';
-import { useCatalog, useQuotes } from './hooks';
-import { dashboardAnalytics, detectAnomalies } from './intelligence';
+import { useAnomalies, useCatalog, useDealflowRealtime, useQuotes } from './hooks';
+import { dashboardAnalytics } from './intelligence';
 
 function greeting(name?: string) {
   const hour = new Date().getHours();
@@ -35,6 +35,11 @@ export function DealflowDashboardPage() {
   const navigate = useNavigate();
   const quotes = useQuotes(accessToken);
   const catalog = useCatalog(accessToken);
+  const anomalies = useAnomalies(accessToken);
+  useDealflowRealtime(accessToken, () => {
+    void quotes.reload();
+    void anomalies.reload();
+  });
   const rows = quotes.data ?? [];
 
   const analytics = dashboardAnalytics(rows);
@@ -50,7 +55,7 @@ export function DealflowDashboardPage() {
       (item.status === 'confirmed' || item.status === 'fulfillment' || item.status === 'billing') &&
       (item.billing?.length ?? 0) === 0,
   );
-  const alerts = detectAnomalies(rows, catalog.data).slice(0, 4);
+  const alerts = (anomalies.data ?? []).filter((item) => item.status === 'open').slice(0, 4);
   const recent = [...rows]
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
     .slice(0, 6);
@@ -141,18 +146,21 @@ export function DealflowDashboardPage() {
                 <ChartArea title="Pipeline mix" description="Live quote counts by operational state.">
                   <SimpleBarChart title="Pipeline mix" data={pipeline} />
                 </ChartArea>
-                <TableSection title="Contextual alerts" description="Derived from policy, stock, and approval age — not a generic chatbot.">
+                <TableSection title="Contextual alerts" description="Persisted DealFlow anomalies from the PostgreSQL pipeline.">
                   <ul className="divide-y divide-edge">
                     {alerts.map((item) => (
                       <li key={item.id} className="py-3">
-                        <Link to={item.href} className="font-medium hover:underline">
-                          {item.quoteNumber} · {item.title}
+                        <Link
+                          to={item.quoteId ? `/dealflow/quotes/${item.quoteId}` : '/dealflow/anomalies'}
+                          className="font-medium hover:underline"
+                        >
+                          {item.type.replaceAll('_', ' ')} · {item.severity}
                         </Link>
-                        <p className="text-caption text-foreground-muted">{item.reason}</p>
+                        <p className="text-caption text-foreground-muted">{item.description}</p>
                       </li>
                     ))}
                     {alerts.length === 0 ? (
-                      <li className="py-6 text-sm text-foreground-muted">No contextual alerts on the current book.</li>
+                      <li className="py-6 text-sm text-foreground-muted">No open anomalies on the current book.</li>
                     ) : null}
                   </ul>
                   <Link to="/dealflow/anomalies" className="mt-3 inline-block text-sm font-medium hover:underline">

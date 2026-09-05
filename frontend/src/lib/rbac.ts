@@ -21,7 +21,10 @@ export function hasPermission(
 export function canAccessInternalDealflow(
   user: { roles?: string[]; permissions?: string[] } | null | undefined,
 ): boolean {
-  return hasPermission(user, 'dealflow.quotes.read') || hasRole(user, 'admin', 'manager', 'staff');
+  return (
+    hasPermission(user, 'dealflow.quotes.read') ||
+    hasRole(user, 'admin', 'manager', 'staff', 'finance', 'operations')
+  );
 }
 
 export function homePathForUser(

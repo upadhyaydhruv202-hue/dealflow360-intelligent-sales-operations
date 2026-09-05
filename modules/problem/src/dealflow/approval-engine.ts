@@ -8,10 +8,12 @@ import type {
 } from './types';
 import { APPROVAL_PERMISSIONS } from './types';
 
-export function buildApprovalSteps(quoteId: string, chain: ApprovalChain): QuoteApproval[] {
+export function buildApprovalSteps(quoteId: string, chain: ApprovalChain, maxLevels = 3): QuoteApproval[] {
+  const limit = Math.min(3, Math.max(1, maxLevels));
   return chain.steps
     .slice()
     .sort((left, right) => left.stepOrder - right.stepOrder)
+    .slice(0, limit)
     .map((step) => ({
       id: crypto.randomUUID(),
       quoteId,
@@ -28,12 +30,18 @@ export function autoApproveIfAllowed(
   assessment: QuoteAssessment,
   chain: ApprovalChain | undefined,
   actor: Actor,
+  maxLevels = 3,
 ): QuoteApproval[] {
   if (assessment.decision === 'allowed' || assessment.decision === 'warning') {
     if (!chain) {
       return [];
     }
-    return chain.steps.map((step) => ({
+    const limit = Math.min(3, Math.max(1, maxLevels));
+    return chain.steps
+      .slice()
+      .sort((left, right) => left.stepOrder - right.stepOrder)
+      .slice(0, limit)
+      .map((step) => ({
       id: crypto.randomUUID(),
       quoteId,
       chainId: chain.id,
@@ -52,7 +60,7 @@ export function autoApproveIfAllowed(
     throw conflict('Approval is required but no matching approval chain is configured');
   }
 
-  return buildApprovalSteps(quoteId, chain);
+  return buildApprovalSteps(quoteId, chain, maxLevels);
 }
 
 export function canActOnRole(actor: Actor, roleKey: ApprovalRoleKey): boolean {

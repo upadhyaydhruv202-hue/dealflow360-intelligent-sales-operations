@@ -10,8 +10,27 @@ export function login(email: string, password: string) {
   });
 }
 
-export function register(input: { email: string; password: string; displayName: string }) {
+export function register(input: {
+  email: string;
+  password: string;
+  displayName: string;
+  companyName?: string;
+}) {
   return apiRequest<AuthSessionPayload>(API_PATHS.auth.register, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function requestPasswordReset(email: string) {
+  return apiRequest<{ purpose: string; destination: string }>(API_PATHS.auth.passwordResetRequest, {
+    method: 'POST',
+    body: { email },
+  });
+}
+
+export function confirmPasswordReset(input: { email: string; code: string; password: string }) {
+  return apiRequest<{ reset: boolean }>(API_PATHS.auth.passwordResetConfirm, {
     method: 'POST',
     body: input,
   });

@@ -634,6 +634,17 @@ enum DfRelationKind {
   cross_sell
 }
 
+enum DfQuantityAdjustmentKind {
+  fixed
+  percent
+}
+
+enum DfAuthorityExceedAction {
+  allow
+  approval
+  block
+}
+
 model DfCustomer {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
@@ -657,12 +668,14 @@ model DfProduct {
   cost           Float
   billingType    DfBillingType      @map("billing_type")
   billingFrequency DfBillingFrequency? @map("billing_frequency")
+  taxable        Boolean            @default(true)
   odooProductId  Int?               @map("odoo_product_id")
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
   stock          DfStockLevel[]
   quoteLines     QuoteLine[]
+  quantityBreaks DfQuantityBreak[]
   sourceRelations DfProductRelation[] @relation("RelationSource")
   targetRelations DfProductRelation[] @relation("RelationTarget")
 
@@ -706,6 +719,7 @@ model DfStockLevel {
   productId      String @map("product_id") @db.Uuid
   quantityOnHand Float  @map("quantity_on_hand")
   reserved       Float  @default(0)
+  incoming       Float  @default(0)
 
   warehouse DfWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   product   DfProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -759,6 +773,53 @@ model DfApprovalChainStep {
   @@map("df_approval_chain_steps")
 }
 
+model DfQuantityBreak {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  productId        String                    @map("product_id") @db.Uuid
+  customerTier     DfCustomerTier?           @map("customer_tier")
+  minQuantity      Float                     @map("min_quantity")
+  maxQuantity      Float?                    @map("max_quantity")
+  adjustmentKind   DfQuantityAdjustmentKind  @map("adjustment_kind")
+  adjustmentValue  Float                     @map("adjustment_value")
+  active           Boolean                   @default(true)
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  product DfProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, minQuantity])
+  @@map("df_quantity_breaks")
+}
+
+model DfRoleAuthority {
+  roleKey                 String                   @id @map("role_key")
+  maxDiscountPercent      Float                    @map("max_discount_percent")
+  minMarginPercent        Float                    @map("min_margin_percent")
+  maxPriceOverridePercent Float                    @map("max_price_override_percent")
+  canNegotiate            Boolean                  @default(true) @map("can_negotiate")
+  exceedAction            DfAuthorityExceedAction  @map("exceed_action")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+
+  @@map("df_role_authorities")
+}
+
+model DfGovernanceConfig {
+  id                       String   @id @db.Uuid
+  cumulativeWarningLimit   Float    @map("cumulative_warning_limit")
+  materialDiscountDeltaPp  Float    @map("material_discount_delta_pp")
+  materialTotalDeltaRatio  Float    @map("material_total_delta_ratio")
+  highValueNetTotal        Float    @map("high_value_net_total")
+  maxApprovalLevels        Int      @map("max_approval_levels")
+  taxRatePercent           Float    @default(0) @map("tax_rate_percent")
+  staleQuoteDays           Float    @default(7) @map("stale_quote_days")
+  unusualDiscountPercent   Float    @default(25) @map("unusual_discount_percent")
+  largeDealNetTotal        Float    @default(50000) @map("large_deal_net_total")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("df_governance_config")
+}
+
 model Quote {
   id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   number                  String             @unique
@@ -777,6 +838,11 @@ model Quote {
   portalToken             String             @unique @map("portal_token")
   version                 Int                @default(1)
   odooSaleOrderId         Int?               @map("odoo_sale_order_id")
+  taxTotal                Float              @default(0) @map("tax_total")
+  customerDecision        String             @default("none") @map("customer_decision")
+  customerDecisionAt      DateTime?          @map("customer_decision_at")
+  customerDecisionComment String?            @map("customer_decision_comment")
+  customerDecisionVersion Int?               @map("customer_decision_version")
   createdAt               DateTime           @default(now()) @map("created_at")
   updatedAt               DateTime           @updatedAt @map("updated_at")
 
@@ -788,6 +854,7 @@ model Quote {
   backorders   QuoteBackorder[]
   schedules    QuoteBillingSchedule[]
   revisions    QuoteRevision[]
+  anomalies    DfAnomaly[]
 
   @@index([status, createdAt])
   @@index([customerId])
@@ -902,4 +969,26 @@ model QuoteRevision {
 
   @@index([quoteId, version])
   @@map("df_quote_revisions")
+}
+
+model DfAnomaly {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        String
+  severity    String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  quoteId     String?  @map("quote_id") @db.Uuid
+  description String
+  status      String   @default("open")
+  resolution  String?
+  resolverId  String?  @map("resolver_id")
+  detectedAt  DateTime @default(now()) @map("detected_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quote Quote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@index([status, detectedAt])
+  @@index([entityType, entityId])
+  @@index([quoteId])
+  @@map("df_anomalies")
 }

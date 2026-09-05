@@ -1,7 +1,7 @@
 import type { BadgeTone } from '@/ui';
 
 import { OPEN_STATUSES } from './format';
-import type { DealflowCatalog, QuoteStatus, QuoteView, Recommendation, StockLevel } from './types';
+import type { DealflowCatalog, Product, QuantityBreak, QuoteStatus, QuoteView, Recommendation, StockLevel } from './types';
 
 export type HealthLevel = 'healthy' | 'warning' | 'critical';
 
@@ -77,6 +77,16 @@ export function healthTone(level: HealthLevel): BadgeTone {
 }
 
 export function summarizeDealHealth(quote: QuoteView, now = Date.now()): DealHealthSummary {
+  if (quote.health) {
+    return {
+      level: quote.health.status === 'critical' ? 'critical' : quote.health.status === 'at_risk' ? 'warning' : 'healthy',
+      score: quote.health.score,
+      stage: quote.health.stage,
+      daysInStage: quote.health.daysInStage,
+      probability: winProbability(quote),
+      factors: quote.health.factors,
+    };
+  }
   const factors: HealthFactor[] = [];
   let score = 100;
 
@@ -151,7 +161,25 @@ export function summarizeDealHealth(quote: QuoteView, now = Date.now()): DealHea
       id: 'engagement',
       label: 'Customer engagement',
       level: 'warning',
-      detail: 'Customer is negotiating line discounts on the isolated portal.',
+      detail: 'Customer is negotiating quantity or discount on the isolated portal.',
+    });
+  }
+  if (quote.assessment?.highValue) {
+    score -= 8;
+    factors.push({
+      id: 'high-value',
+      label: 'High-value deal',
+      level: 'warning',
+      detail: 'Net total meets the configured high-value threshold. The configured chain applies; Admin is not auto-inserted.',
+    });
+  }
+  if (quote.assessment?.mergeRisk) {
+    score -= 6;
+    factors.push({
+      id: 'merge-risk',
+      label: 'Approval merge risk',
+      level: 'warning',
+      detail: quote.assessment.mergeRiskReasons?.[0] ?? 'Multiple line-level approvals stay itemized so a merge cannot hide product risk.',
     });
   }
 
@@ -201,6 +229,51 @@ export function availableProductUnits(stock: StockLevel[] | undefined, productId
   return (stock ?? [])
     .filter((row) => row.productId === productId)
     .reduce((sum, row) => sum + Math.max(0, row.quantityOnHand - row.reserved), 0);
+}
+
+export function previewUnitPrice(
+  product: Product,
+  quantity: number,
+  breaks: QuantityBreak[] | undefined,
+  customerTier?: string | null,
+): { unitPrice: number; ruleName: string } {
+  const selected = (breaks ?? [])
+    .filter(
+      (item) =>
+        item.productId === product.id && (item.customerTier == null || item.customerTier === customerTier),
+    )
+    .filter((item) => quantity >= item.minQuantity && (item.maxQuantity == null || quantity <= item.maxQuantity))
+    .sort((left, right) => {
+      const spec = (right.customerTier ? 1 : 0) - (left.customerTier ? 1 : 0);
+      if (spec !== 0) return spec;
+      return right.minQuantity - left.minQuantity;
+    })[0];
+  if (!selected) {
+    return { unitPrice: product.listPrice, ruleName: 'List price' };
+  }
+  if (selected.adjustmentKind === 'percent') {
+    return {
+      unitPrice: Math.round(product.listPrice * (1 + selected.adjustmentValue / 100) * 100) / 100,
+      ruleName: selected.name,
+    };
+  }
+  return { unitPrice: selected.adjustmentValue, ruleName: selected.name };
+}
+
+export function warehouseAvailability(
+  catalog: DealflowCatalog | undefined,
+  productId: string,
+): Array<{ warehouseId: string; name: string; available: number; incoming: number }> {
+  if (!catalog) return [];
+  return catalog.warehouses.map((warehouse) => {
+    const rows = catalog.stock.filter((row) => row.warehouseId === warehouse.id && row.productId === productId);
+    return {
+      warehouseId: warehouse.id,
+      name: warehouse.name,
+      available: rows.reduce((sum, row) => sum + Math.max(0, row.quantityOnHand - row.reserved), 0),
+      incoming: rows.reduce((sum, row) => sum + Math.max(0, row.incoming ?? 0), 0),
+    };
+  });
 }
 
 export function detectAnomalies(
@@ -354,6 +427,47 @@ export function contextualInsights(
         tone: 'warning',
       });
     }
+  }
+
+  for (const line of quote.assessment?.lines ?? []) {
+    if (line.pricingRuleName && line.appliedPrice != null && line.basePrice != null && line.appliedPrice !== line.basePrice) {
+      insights.push({
+        id: `price-${line.sku}`,
+        title: `Why did ${line.sku} price change?`,
+        detail: `Quantity ${line.quantity} selected "${line.pricingRuleName}". Applied unit price is ${line.appliedPrice} instead of list ${line.basePrice}.`,
+        href: `/dealflow/quotes/${quote.id}?tab=lines`,
+        tone: 'info',
+      });
+    }
+    if (line.roleLimitExceeded) {
+      insights.push({
+        id: `role-${line.sku}`,
+        title: `Can I give this discount on ${line.sku}?`,
+        detail:
+          line.reasons.find((reason) => reason.includes('authorized range') || reason.includes('Unit price override')) ??
+          'This change exceeds your role authority and requires approval.',
+        href: `/dealflow/quotes/${quote.id}?tab=risk`,
+        tone: 'warning',
+      });
+    }
+    if ((line.shortfall ?? 0) > 0) {
+      insights.push({
+        id: `wh-${line.sku}`,
+        title: `Which warehouse can fulfill ${line.sku}?`,
+        detail: `${line.sku} needs ${line.quantity}; ${line.totalAvailable ?? 0} are available across warehouses (shortfall ${line.shortfall}). Use the existing split planner.`,
+        href: `/dealflow/quotes/${quote.id}?tab=fulfillment`,
+        tone: 'warning',
+      });
+    }
+  }
+  if (quote.assessment?.highValue) {
+    insights.push({
+      id: 'high-value',
+      title: 'Can this quote be approved automatically?',
+      detail: 'No. Net total meets the high-value threshold, so the configured chain must complete. Admin is not auto-added.',
+      href: `/dealflow/quotes/${quote.id}?tab=approvals`,
+      tone: 'warning',
+    });
   }
 
   if (quote.blendedDiscountPercent >= 12 && quote.blendedDiscountPercent < 20) {

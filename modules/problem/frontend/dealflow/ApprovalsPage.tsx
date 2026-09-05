@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { hasPermission } from '@/lib/rbac';
@@ -13,15 +13,30 @@ import { formatMoney, formatPercent, roleLabel } from './format';
 import { useQuotes } from './hooks';
 import { approvalPriority, approvalSlaLabel } from './intelligence';
 
+type ApprovalFilter = 'pending' | 'approved' | 'declined';
+
 export function ApprovalsPage() {
   const { accessToken, user } = useAuth();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const { toast } = useToast();
   const quotes = useQuotes(accessToken);
-  const rows = useMemo(
-    () => (quotes.data ?? []).filter((item) => item.status === 'approval_required' || item.approvals.some((step) => step.status === 'pending')),
-    [quotes.data],
-  );
+  const filter = (params.get('filter') ?? 'pending') as ApprovalFilter;
+  const rows = useMemo(() => {
+    const all = quotes.data ?? [];
+    if (filter === 'approved') {
+      return all.filter(
+        (item) =>
+          item.approvals.some((step) => step.status === 'approved') &&
+          !item.approvals.some((step) => step.status === 'pending') &&
+          item.status !== 'rejected',
+      );
+    }
+    if (filter === 'declined') {
+      return all.filter((item) => item.status === 'rejected' || item.approvals.some((step) => step.status === 'rejected'));
+    }
+    return all.filter((item) => item.status === 'approval_required' || item.approvals.some((step) => step.status === 'pending'));
+  }, [filter, quotes.data]);
   const [selectedId, setSelectedId] = useState<string>();
   const [reason, setReason] = useState('Approved after risk review');
   const [busy, setBusy] = useState(false);
@@ -52,12 +67,52 @@ export function ApprovalsPage() {
         title="Approval center"
         description="Quotes waiting on a backend approval chain. Select a request, review context, then decide the current step."
       >
+        <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Approval status">
+          {(
+            [
+              { id: 'pending', label: 'Pending' },
+              { id: 'approved', label: 'Approved' },
+              { id: 'declined', label: 'Declined' },
+            ] as const
+          ).map((item) => {
+            const active = filter === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`rounded-full border px-3 py-1.5 text-caption transition-colors duration-df ${
+                  active
+                    ? 'border-foreground bg-foreground text-foreground-inverted'
+                    : 'border-edge text-foreground-muted hover:border-foreground/30 hover:text-foreground'
+                }`}
+                onClick={() => {
+                  setSelectedId(undefined);
+                  setParams(item.id === 'pending' ? {} : { filter: item.id });
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
         {quotes.loading ? <LoadingState label="Loading approvals…" /> : null}
         {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}
         {!quotes.loading && !quotes.error && rows.length === 0 ? (
           <EmptyState
-            title="No approvals yet"
-            description="You're all caught up. Submit a discounted quote to create a live approval chain."
+            title={
+              filter === 'approved'
+                ? 'No approved chains'
+                : filter === 'declined'
+                  ? 'No declined approvals'
+                  : 'No approvals yet'
+            }
+            description={
+              filter === 'pending'
+                ? "You're all caught up. Submit a discounted quote to create a live approval chain."
+                : 'Switch filters or open quotations to find a deal in this state.'
+            }
             action={
               <Button variant="outline" onClick={() => navigate('/dealflow/quotes')}>
                 Open quotations
@@ -132,8 +187,11 @@ export function ApprovalsPage() {
                   <dd className="text-sm font-medium">{selected.assessment?.reasons[0] ?? 'Policy or chain review required.'}</dd>
                 </div>
               </dl>
-              <div className="mt-8">
-                <Button variant="outline" onClick={() => navigate(`/dealflow/quotes/${selected.id}?tab=approvals`)}>
+              <div className="mt-8 flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => navigate(`/dealflow/approvals/${selected.id}`)}>
+                  Open approval detail
+                </Button>
+                <Button variant="ghost" onClick={() => navigate(`/dealflow/quotes/${selected.id}?tab=approvals`)}>
                   Open full workspace
                 </Button>
               </div>

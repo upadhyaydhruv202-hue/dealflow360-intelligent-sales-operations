@@ -192,4 +192,46 @@ describeDatabase('problem module permissions and validation', () => {
     expect(invalid.status).toBe(400);
     expect(invalid.body.error.code).toBe(ERROR_CODES.VALIDATION_ERROR);
   });
+
+  it('lets finance read quotes and billing routes but not catalog write', async () => {
+    const finance = await register('problem-finance@example.com');
+    await assignRole(finance.user.id, 'finance');
+
+    const quotes = await request(app)
+      .get('/api/v1/dealflow/quotes')
+      .set(authHeader(finance.tokens.accessToken));
+    const governance = await request(app)
+      .patch('/api/v1/dealflow/catalog/governance')
+      .set(authHeader(finance.tokens.accessToken))
+      .send({ taxRatePercent: 8 });
+    const create = await request(app)
+      .post('/api/v1/dealflow/quotes')
+      .set(authHeader(finance.tokens.accessToken))
+      .send({ customerId: '11111111-1111-4111-8111-111111111111' });
+
+    expect(quotes.status).toBe(200);
+    expect(governance.status).toBe(403);
+    expect(create.status).toBe(403);
+  });
+
+  it('lets operations read quotes and denies billing and catalog write', async () => {
+    const operations = await register('problem-operations@example.com');
+    await assignRole(operations.user.id, 'operations');
+
+    const quotes = await request(app)
+      .get('/api/v1/dealflow/quotes')
+      .set(authHeader(operations.tokens.accessToken));
+    const billing = await request(app)
+      .post('/api/v1/dealflow/quotes/11111111-1111-4111-8111-111111111111/billing/generate')
+      .set(authHeader(operations.tokens.accessToken))
+      .send({ expectedVersion: 1 });
+    const governance = await request(app)
+      .patch('/api/v1/dealflow/catalog/governance')
+      .set(authHeader(operations.tokens.accessToken))
+      .send({ taxRatePercent: 8 });
+
+    expect(quotes.status).toBe(200);
+    expect(billing.status).toBe(403);
+    expect(governance.status).toBe(403);
+  });
 });

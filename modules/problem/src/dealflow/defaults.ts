@@ -4,6 +4,8 @@ import type {
   DiscountPolicy,
   Product,
   ProductRelation,
+  QuantityBreak,
+  RoleAuthority,
   StockLevel,
   Warehouse,
 } from './types';
@@ -12,7 +14,7 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
   {
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Northwind Retail',
-    email: 'procurement@northwind.example',
+    email: 'demo.user@example.com',
     tier: 'standard',
   },
   {
@@ -94,7 +96,7 @@ export const DEFAULT_WAREHOUSES: Warehouse[] = [
 ];
 
 export const DEFAULT_STOCK: StockLevel[] = [
-  { warehouseId: DEFAULT_WAREHOUSES[0].id, productId: DEFAULT_PRODUCTS[0].id, quantityOnHand: 4, reserved: 0 },
+  { warehouseId: DEFAULT_WAREHOUSES[0].id, productId: DEFAULT_PRODUCTS[0].id, quantityOnHand: 4, reserved: 0, incoming: 6 },
   { warehouseId: DEFAULT_WAREHOUSES[1].id, productId: DEFAULT_PRODUCTS[0].id, quantityOnHand: 3, reserved: 0 },
   { warehouseId: DEFAULT_WAREHOUSES[0].id, productId: DEFAULT_PRODUCTS[1].id, quantityOnHand: 10, reserved: 0 },
   { warehouseId: DEFAULT_WAREHOUSES[1].id, productId: DEFAULT_PRODUCTS[1].id, quantityOnHand: 2, reserved: 0 },
@@ -179,6 +181,74 @@ export const DEFAULT_CHAINS: ApprovalChain[] = [
       { id: 'ddddddd2-dddd-4ddd-8ddd-ddddddddddd5', chainId: 'ddddddd1-dddd-4ddd-8ddd-ddddddddddd3', stepOrder: 2, roleKey: 'finance', label: 'Finance' },
       { id: 'ddddddd2-dddd-4ddd-8ddd-ddddddddddd6', chainId: 'ddddddd1-dddd-4ddd-8ddd-ddddddddddd3', stepOrder: 3, roleKey: 'final', label: 'Final approval' },
     ],
+  },
+];
+
+export const DEFAULT_QUANTITY_BREAKS: QuantityBreak[] = [
+  {
+    id: 'fffffff1-ffff-4fff-8fff-fffffffffff1',
+    name: 'Core Gateway 1–9 list',
+    productId: DEFAULT_PRODUCTS[0].id,
+    minQuantity: 1,
+    maxQuantity: 9,
+    adjustmentKind: 'fixed',
+    adjustmentValue: DEFAULT_PRODUCTS[0].listPrice,
+    active: true,
+  },
+  {
+    id: 'fffffff1-ffff-4fff-8fff-fffffffffff2',
+    name: 'Core Gateway 10–49 volume',
+    productId: DEFAULT_PRODUCTS[0].id,
+    minQuantity: 10,
+    maxQuantity: 49,
+    adjustmentKind: 'fixed',
+    adjustmentValue: 3700,
+    active: true,
+  },
+  {
+    id: 'fffffff1-ffff-4fff-8fff-fffffffffff3',
+    name: 'Core Gateway 50+ contract',
+    productId: DEFAULT_PRODUCTS[0].id,
+    minQuantity: 50,
+    adjustmentKind: 'fixed',
+    adjustmentValue: 3400,
+    active: true,
+  },
+  {
+    id: 'fffffff1-ffff-4fff-8fff-fffffffffff4',
+    name: 'Edge Sensor 10+ volume',
+    productId: DEFAULT_PRODUCTS[1].id,
+    minQuantity: 10,
+    adjustmentKind: 'fixed',
+    adjustmentValue: 1350,
+    active: true,
+  },
+];
+
+export const DEFAULT_ROLE_AUTHORITIES: RoleAuthority[] = [
+  {
+    roleKey: 'staff',
+    maxDiscountPercent: 5,
+    minMarginPercent: 20,
+    maxPriceOverridePercent: 0,
+    canNegotiate: true,
+    exceedAction: 'approval',
+  },
+  {
+    roleKey: 'manager',
+    maxDiscountPercent: 12,
+    minMarginPercent: 18,
+    maxPriceOverridePercent: 3,
+    canNegotiate: true,
+    exceedAction: 'approval',
+  },
+  {
+    roleKey: 'admin',
+    maxDiscountPercent: 40,
+    minMarginPercent: 10,
+    maxPriceOverridePercent: 15,
+    canNegotiate: true,
+    exceedAction: 'approval',
   },
 ];
 

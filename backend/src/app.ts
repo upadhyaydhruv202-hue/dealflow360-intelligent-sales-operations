@@ -198,13 +198,15 @@ export function createApp(options: CreateAppOptions): AppContext {
           revocation,
           audit: auditService,
           onUserCreated: (user) => {
-            if (!isFeatureEnabled(options.config, 'automation')) {
-              return;
-            }
             void events.emit({
               type: 'user.created',
               id: eventIdFor('user.created', user.id),
-              payload: { userId: user.id, email: user.email, displayName: user.displayName },
+              payload: {
+                userId: user.id,
+                email: user.email,
+                displayName: user.displayName,
+                companyName: user.companyName,
+              },
             });
           },
         })
@@ -708,6 +710,11 @@ export function createApp(options: CreateAppOptions): AppContext {
         prisma,
         capabilities: capabilityRegistry,
         audit: auditService,
+        notifications: notificationService
+          ? {
+              notify: (input) => notificationService.notify(input),
+            }
+          : null,
         app,
         http: {
           authenticate: authenticateUser,
@@ -721,6 +728,16 @@ export function createApp(options: CreateAppOptions): AppContext {
         automation: automationService?.registries ?? null,
         ai: aiService,
         odoo: odooService,
+        realtime: realtime
+          ? {
+              publish: (input) =>
+                realtime.publish({
+                  channel: input.channel as 'dashboard',
+                  type: input.type as 'dashboard.updated',
+                  payload: input.payload,
+                }),
+            }
+          : null,
         search: searchService,
         analytics: analyticsService,
       }),

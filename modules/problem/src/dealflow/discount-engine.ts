@@ -1,4 +1,6 @@
+import { resolveUnitPrice } from './pricing-engine';
 import type {
+  Actor,
   ApprovalChain,
   CustomerTier,
   DiscountDecision,
@@ -6,8 +8,12 @@ import type {
   GovernanceConfig,
   LineAssessment,
   Product,
+  QuantityBreak,
   QuoteAssessment,
   QuoteLine,
+  RoleAuthority,
+  StockLevel,
+  Warehouse,
 } from './types';
 import { DEFAULT_GOVERNANCE } from './types';
 
@@ -127,14 +133,31 @@ function worse(left: DiscountDecision, right: DiscountDecision): DiscountDecisio
   return DECISION_RANK[left] >= DECISION_RANK[right] ? left : right;
 }
 
+export function selectRoleAuthority(
+  authorities: readonly RoleAuthority[] | undefined,
+  actor?: Actor,
+): RoleAuthority | undefined {
+  if (!authorities?.length || !actor) return undefined;
+  const keys = new Set([actor.role, ...(actor.roles ?? [])].filter(Boolean));
+  return [...authorities]
+    .filter((item) => keys.has(item.roleKey))
+    .sort((left, right) => right.maxDiscountPercent - left.maxDiscountPercent)[0];
+}
+
 export function assessQuote(input: {
   customerTier: CustomerTier;
   lines: Array<{ line: QuoteLine; product: Product }>;
   policies: readonly DiscountPolicy[];
   chains: readonly ApprovalChain[];
   config?: GovernanceConfig;
+  actor?: Actor;
+  quantityBreaks?: readonly QuantityBreak[];
+  roleAuthorities?: readonly RoleAuthority[];
+  stock?: readonly StockLevel[];
+  warehouses?: readonly Warehouse[];
 }): QuoteAssessment {
   const config = input.config ?? DEFAULT_GOVERNANCE;
+  const authority = selectRoleAuthority(input.roleAuthorities, input.actor);
   const lineResults: LineAssessment[] = [];
 
   let listTotal = 0;
@@ -145,8 +168,17 @@ export function assessQuote(input: {
   let rejectedCount = 0;
 
   for (const { line, product } of input.lines) {
-    const listAmount = round(product.listPrice * line.quantity);
-    const netAmount = round(product.listPrice * (1 - line.discountPercent / 100) * line.quantity);
+    const priced = resolveUnitPrice({
+      product,
+      quantity: line.quantity,
+      breaks: input.quantityBreaks,
+      customerTier: input.customerTier,
+    });
+    const rulePrice = priced.unitPrice;
+    const appliedPrice = Math.abs(line.listPrice - rulePrice) > 0.005 ? line.listPrice : rulePrice;
+    const overridePercent = rulePrice === 0 ? 0 : round((Math.abs(appliedPrice - rulePrice) / rulePrice) * 100, 2);
+    const listAmount = round(appliedPrice * line.quantity);
+    const netAmount = round(appliedPrice * (1 - line.discountPercent / 100) * line.quantity);
     const costAmount = round(product.cost * line.quantity);
     const standardMargin = (product.listPrice - product.cost) * line.quantity;
     const actualMargin = netAmount - costAmount;
@@ -159,10 +191,58 @@ export function assessQuote(input: {
       marginErosionPercent,
       policy,
     });
+    let decision = decided.decision;
+    const reasons = [...decided.reasons];
+    let roleLimitExceeded = false;
 
-    if (decided.decision === 'warning') warningCount += 1;
-    if (decided.decision === 'approval_required') approvalLineCount += 1;
-    if (decided.decision === 'rejected') rejectedCount += 1;
+    if (authority && line.discountPercent > authority.maxDiscountPercent) {
+      roleLimitExceeded = true;
+      const message = `Requested ${line.discountPercent}% exceeds ${authority.roleKey} authorized range ${authority.maxDiscountPercent}%`;
+      reasons.push(message);
+      if (authority.exceedAction === 'block') {
+        decision = 'rejected';
+      } else if (authority.exceedAction === 'approval') {
+        decision = worse(decision, 'approval_required');
+      }
+    }
+    if (authority && marginPercent < authority.minMarginPercent && netAmount > 0) {
+      reasons.push(
+        `Margin ${marginPercent}% is below the ${authority.roleKey} floor of ${authority.minMarginPercent}%`,
+      );
+      if (authority.exceedAction === 'block') {
+        decision = 'rejected';
+      } else {
+        decision = worse(decision, 'approval_required');
+      }
+    }
+    if (authority && overridePercent > authority.maxPriceOverridePercent) {
+      roleLimitExceeded = true;
+      reasons.push(
+        `Unit price override ${overridePercent}% exceeds ${authority.roleKey} authorized ${authority.maxPriceOverridePercent}%`,
+      );
+      if (authority.exceedAction === 'block') {
+        decision = 'rejected';
+      } else if (authority.exceedAction === 'approval') {
+        decision = worse(decision, 'approval_required');
+      }
+    }
+
+    const warehouses = (input.warehouses ?? []).map((warehouse) => {
+      const row = input.stock?.find(
+        (item) => item.warehouseId === warehouse.id && item.productId === product.id,
+      );
+      return {
+        warehouseId: warehouse.id,
+        name: warehouse.name,
+        available: Math.max(0, (row?.quantityOnHand ?? 0) - (row?.reserved ?? 0)),
+      };
+    });
+    const totalAvailable = warehouses.reduce((sum, item) => sum + item.available, 0);
+    const shortfall = Math.max(0, line.quantity - totalAvailable);
+
+    if (decision === 'warning') warningCount += 1;
+    if (decision === 'approval_required') approvalLineCount += 1;
+    if (decision === 'rejected') rejectedCount += 1;
 
     listTotal += listAmount;
     netTotal += netAmount;
@@ -180,8 +260,16 @@ export function assessQuote(input: {
       marginErosionPercent,
       policyId: policy.id,
       policyName: policy.name,
-      decision: decided.decision,
-      reasons: decided.reasons,
+      decision,
+      reasons,
+      basePrice: product.listPrice,
+      appliedPrice,
+      pricingRuleName: overridePercent > 0 ? `${priced.ruleName} · override` : priced.ruleName,
+      roleLimitExceeded,
+      approvalScope: decision === 'approval_required' || decision === 'rejected' ? 'line' : 'quote',
+      warehouses,
+      totalAvailable,
+      shortfall,
     });
   }
 
@@ -217,6 +305,27 @@ export function assessQuote(input: {
     );
   }
 
+  const highValue = netTotal >= config.highValueNetTotal;
+  if (highValue) {
+    reasons.push(
+      `High-value approval: net ${round(netTotal)} meets or exceeds the configured threshold ${config.highValueNetTotal}`,
+    );
+    if (decision !== 'rejected') {
+      decision = worse(decision, 'approval_required');
+    }
+  }
+
+  const lineApprovals = lineResults.filter((line) => line.approvalScope === 'line');
+  const mergeRisk = lineApprovals.length >= 2;
+  const mergeRiskReasons = mergeRisk
+    ? [
+        `Approval merge risk: ${lineApprovals.length} product lines each require review. They stay itemized on one quote chain so a product-specific risk is not hidden.`,
+      ]
+    : [];
+  if (mergeRisk) {
+    reasons.push(...mergeRiskReasons);
+  }
+
   const chain =
     decision === 'approval_required' || decision === 'rejected'
       ? selectApprovalChain(input.chains, riskScore, blendedDiscountPercent)
@@ -242,6 +351,9 @@ export function assessQuote(input: {
     requiredChainName: chain?.name ?? null,
     lines: lineResults,
     reasons,
+    highValue,
+    mergeRisk,
+    mergeRiskReasons,
   };
 }
 

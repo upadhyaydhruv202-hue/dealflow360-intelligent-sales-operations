@@ -11,9 +11,10 @@ afterEach(() => {
 });
 
 function Probe() {
-  const { isAuthenticated, user, login, logout, error } = useAuth();
+  const { isAuthenticated, ready, user, login, logout, error } = useAuth();
   return (
     <div>
+      <p>{ready ? 'ready' : 'restoring'}</p>
       <p>{isAuthenticated ? `hello ${user?.displayName}` : 'signed out'}</p>
       {error ? <p>{error}</p> : null}
       <button type="button" onClick={() => void login('demo.admin@example.com', 'demo-password')}>
@@ -191,6 +192,33 @@ describe('AuthProvider', () => {
       roles: ['admin'],
       permissions: ['users.read'],
     });
+  });
+
+  it('stays unready until the refresh cookie check finishes', async () => {
+    let resolveRefresh: ((value: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Promise<Response>((resolve) => {
+        resolveRefresh = resolve;
+      })),
+    );
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByText('restoring')).toBeInTheDocument();
+    expect(screen.getByText('signed out')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(resolveRefresh).toBeTypeOf('function');
+    });
+    resolveRefresh?.(jsonResponse({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required', details: {} } }, 401));
+    await waitFor(() => {
+      expect(screen.getByText('ready')).toBeInTheDocument();
+    });
+    expect(screen.getByText('signed out')).toBeInTheDocument();
   });
 
   it('ignores and clears a malformed stored user', async () => {

@@ -5,7 +5,9 @@ import {
   DEFAULT_CUSTOMERS,
   DEFAULT_POLICIES,
   DEFAULT_PRODUCTS,
+  DEFAULT_QUANTITY_BREAKS,
   DEFAULT_RELATIONS,
+  DEFAULT_ROLE_AUTHORITIES,
   DEFAULT_STOCK,
   DEFAULT_WAREHOUSES,
 } from './defaults';
@@ -15,19 +17,26 @@ import type {
   Customer,
   DiscountPolicy,
   FulfillmentSplit,
+  GovernanceConfig,
   Product,
   ProductRelation,
+  QuantityBreak,
   QuoteAggregate,
   QuoteApproval,
   QuoteLine,
   QuoteRevision,
+  RoleAuthority,
   StockLevel,
   Warehouse,
+  DealflowAnomaly,
 } from './types';
+import { DEFAULT_GOVERNANCE } from './types';
 
 export interface DealflowStore {
   listCustomers(): Promise<Customer[]>;
   getCustomer(id: string): Promise<Customer | null>;
+  findCustomersByEmail(email: string): Promise<Customer[]>;
+  upsertCustomer(input: { name: string; email: string; tier?: Customer['tier'] }): Promise<Customer>;
   listProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   listWarehouses(): Promise<Warehouse[]>;
@@ -37,12 +46,20 @@ export interface DealflowStore {
   listChains(): Promise<ApprovalChain[]>;
   getChain(id: string): Promise<ApprovalChain | null>;
   listRelations(): Promise<ProductRelation[]>;
+  listQuantityBreaks(): Promise<QuantityBreak[]>;
+  replaceQuantityBreaks(items: QuantityBreak[]): Promise<QuantityBreak[]>;
+  listRoleAuthorities(): Promise<RoleAuthority[]>;
+  replaceRoleAuthorities(items: RoleAuthority[]): Promise<RoleAuthority[]>;
+  getGovernance(): Promise<GovernanceConfig>;
+  replaceGovernance(config: GovernanceConfig): Promise<GovernanceConfig>;
   nextQuoteNumber(): Promise<string>;
   newPortalToken(): string;
   listQuoteSummaries(): Promise<QuoteAggregate[]>;
   getQuote(id: string): Promise<QuoteAggregate | null>;
   getQuoteByToken(token: string): Promise<QuoteAggregate | null>;
   saveQuote(aggregate: QuoteAggregate): Promise<QuoteAggregate>;
+  listAnomalies(): Promise<DealflowAnomaly[]>;
+  upsertAnomaly(item: DealflowAnomaly): Promise<DealflowAnomaly>;
 }
 
 function clone<T>(value: T): T {
@@ -57,7 +74,11 @@ export function createMemoryStore(): DealflowStore {
   const policies = clone(DEFAULT_POLICIES);
   const chains = clone(DEFAULT_CHAINS);
   const relations = clone(DEFAULT_RELATIONS);
+  const quantityBreaks = clone(DEFAULT_QUANTITY_BREAKS);
+  const roleAuthorities = clone(DEFAULT_ROLE_AUTHORITIES);
+  let governance = clone(DEFAULT_GOVERNANCE);
   const quotes = new Map<string, QuoteAggregate>();
+  const anomalies: DealflowAnomaly[] = [];
   let quoteSeq = 0;
 
   const attach = (aggregate: QuoteAggregate): QuoteAggregate => {
@@ -81,6 +102,27 @@ export function createMemoryStore(): DealflowStore {
     },
     async getCustomer(id) {
       return clone(customers.find((item) => item.id === id) ?? null);
+    },
+    async findCustomersByEmail(email) {
+      const needle = email.trim().toLowerCase();
+      return clone(customers.filter((item) => item.email.toLowerCase() === needle));
+    },
+    async upsertCustomer(input) {
+      const needle = input.email.trim().toLowerCase();
+      const existing = customers.find((item) => item.email.toLowerCase() === needle);
+      if (existing) {
+        existing.name = input.name;
+        if (input.tier) existing.tier = input.tier;
+        return clone(existing);
+      }
+      const created: Customer = {
+        id: crypto.randomUUID(),
+        name: input.name,
+        email: input.email.trim(),
+        tier: input.tier ?? 'standard',
+      };
+      customers.push(created);
+      return clone(created);
     },
     async listProducts() {
       return clone(products);
@@ -109,6 +151,27 @@ export function createMemoryStore(): DealflowStore {
     async listRelations() {
       return clone(relations);
     },
+    async listQuantityBreaks() {
+      return clone(quantityBreaks);
+    },
+    async replaceQuantityBreaks(items) {
+      quantityBreaks.splice(0, quantityBreaks.length, ...clone(items));
+      return clone(quantityBreaks);
+    },
+    async listRoleAuthorities() {
+      return clone(roleAuthorities);
+    },
+    async replaceRoleAuthorities(items) {
+      roleAuthorities.splice(0, roleAuthorities.length, ...clone(items));
+      return clone(roleAuthorities);
+    },
+    async getGovernance() {
+      return clone(governance);
+    },
+    async replaceGovernance(next) {
+      governance = clone(next);
+      return clone(governance);
+    },
     async nextQuoteNumber() {
       quoteSeq += 1;
       return `DF-${String(quoteSeq).padStart(5, '0')}`;
@@ -130,6 +193,18 @@ export function createMemoryStore(): DealflowStore {
     async saveQuote(aggregate) {
       quotes.set(aggregate.quote.id, clone(aggregate));
       return attach(aggregate);
+    },
+    async listAnomalies() {
+      return clone(anomalies);
+    },
+    async upsertAnomaly(item) {
+      const index = anomalies.findIndex((row) => row.id === item.id);
+      if (index >= 0) {
+        anomalies[index] = clone(item);
+      } else {
+        anomalies.push(clone(item));
+      }
+      return clone(item);
     },
   };
 }

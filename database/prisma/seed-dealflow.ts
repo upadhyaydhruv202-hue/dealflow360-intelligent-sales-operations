@@ -5,10 +5,13 @@ import {
   DEFAULT_CUSTOMERS,
   DEFAULT_POLICIES,
   DEFAULT_PRODUCTS,
+  DEFAULT_QUANTITY_BREAKS,
   DEFAULT_RELATIONS,
+  DEFAULT_ROLE_AUTHORITIES,
   DEFAULT_STOCK,
   DEFAULT_WAREHOUSES,
 } from '../../modules/problem/src/dealflow/defaults';
+import { DEFAULT_GOVERNANCE, GOVERNANCE_CONFIG_ID } from '../../modules/problem/src/dealflow/types';
 
 export async function seedDealflowCatalog(prisma: PrismaClient): Promise<void> {
   for (const customer of DEFAULT_CUSTOMERS) {
@@ -49,7 +52,7 @@ export async function seedDealflowCatalog(prisma: PrismaClient): Promise<void> {
   for (const row of DEFAULT_STOCK) {
     await prisma.dfStockLevel.upsert({
       where: { warehouseId_productId: { warehouseId: row.warehouseId, productId: row.productId } },
-      update: { quantityOnHand: row.quantityOnHand, reserved: row.reserved },
+      update: { quantityOnHand: row.quantityOnHand, reserved: row.reserved, incoming: row.incoming ?? 0 },
       create: row,
     });
   }
@@ -128,6 +131,38 @@ export async function seedDealflowCatalog(prisma: PrismaClient): Promise<void> {
       },
     });
   }
+
+  for (const item of DEFAULT_QUANTITY_BREAKS) {
+    await prisma.dfQuantityBreak.upsert({
+      where: { id: item.id },
+      update: {},
+      create: {
+        id: item.id,
+        name: item.name,
+        productId: item.productId,
+        customerTier: item.customerTier ?? null,
+        minQuantity: item.minQuantity,
+        maxQuantity: item.maxQuantity ?? null,
+        adjustmentKind: item.adjustmentKind,
+        adjustmentValue: item.adjustmentValue,
+        active: item.active !== false,
+      },
+    });
+  }
+
+  for (const item of DEFAULT_ROLE_AUTHORITIES) {
+    await prisma.dfRoleAuthority.upsert({
+      where: { roleKey: item.roleKey },
+      update: {},
+      create: item,
+    });
+  }
+
+  await prisma.dfGovernanceConfig.upsert({
+    where: { id: GOVERNANCE_CONFIG_ID },
+    update: {},
+    create: { id: GOVERNANCE_CONFIG_ID, ...DEFAULT_GOVERNANCE },
+  });
 
   const demoQuoteId = 'ffffffff-ffff-4fff-8fff-fffffffffff1';
   const hardware = DEFAULT_PRODUCTS[0];

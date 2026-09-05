@@ -3,7 +3,7 @@ import { isPermissionKey, normalizePermissionKey, normalizeRoleName } from './na
 import type { ProblemModule, ProblemPermission } from '../problem/types';
 
 export interface MergedRbacCatalog {
-  roles: typeof DEFAULT_ROLES;
+  roles: Array<{ name: string; description: string }>;
   permissions: Array<{ key: string; description: string }>;
   rolePermissions: Record<string, readonly string[]>;
 }
@@ -45,7 +45,19 @@ export function mergeRbacCatalog(module?: Pick<ProblemModule, 'permissions' | 'r
 
   rolePermissions[ROLES.ADMIN] = permissions.map((permission) => permission.key);
 
-  return { roles: DEFAULT_ROLES, permissions, rolePermissions };
+  const extraRoles = Object.keys(rolePermissions)
+    .filter((name) => !DEFAULT_ROLES.some((role) => role.name === name))
+    .map((name) => ({
+      name,
+      description:
+        name === 'finance'
+          ? 'Billing, financial approvals, and commercial reporting'
+          : name === 'operations'
+            ? 'Warehouses, inventory, fulfillment, and backorders'
+            : `Application role: ${name}`,
+    }));
+
+  return { roles: [...DEFAULT_ROLES, ...extraRoles], permissions, rolePermissions };
 }
 
 export function describeProblemPermissions(module?: Pick<ProblemModule, 'permissions'> | null): ProblemPermission[] {

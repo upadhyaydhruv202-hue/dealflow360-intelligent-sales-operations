@@ -35,6 +35,48 @@ export type RelationKind = (typeof RELATION_KINDS)[number];
 export const APPROVAL_ROLE_KEYS = ['manager', 'finance', 'final'] as const;
 export type ApprovalRoleKey = (typeof APPROVAL_ROLE_KEYS)[number];
 
+export const CUSTOMER_DECISIONS = ['none', 'accepted', 'declined'] as const;
+export type CustomerDecision = (typeof CUSTOMER_DECISIONS)[number];
+
+export const ANOMALY_SEVERITIES = ['warning', 'critical'] as const;
+export type AnomalySeverity = (typeof ANOMALY_SEVERITIES)[number];
+
+export const ANOMALY_STATUSES = ['open', 'acknowledged', 'resolved', 'dismissed'] as const;
+export type AnomalyStatus = (typeof ANOMALY_STATUSES)[number];
+
+export interface DealHealthFactor {
+  id: string;
+  label: string;
+  level: 'healthy' | 'warning' | 'critical';
+  detail: string;
+}
+
+export interface DealHealth {
+  score: number;
+  status: 'healthy' | 'at_risk' | 'critical';
+  stage: string;
+  daysInStage: number;
+  recommendedAction: string;
+  explanation: string;
+  factors: DealHealthFactor[];
+  computedAt: string;
+}
+
+export interface DealflowAnomaly {
+  id: string;
+  type: string;
+  severity: AnomalySeverity;
+  entityType: string;
+  entityId: string;
+  quoteId?: string | null;
+  description: string;
+  status: AnomalyStatus;
+  resolution?: string | null;
+  resolverId?: string | null;
+  detectedAt: string;
+  updatedAt: string;
+}
+
 export interface Actor {
   id: string;
   email?: string;
@@ -60,6 +102,7 @@ export interface Product {
   cost: number;
   billingType: BillingType;
   billingFrequency?: BillingFrequency | null;
+  taxable?: boolean;
   odooProductId?: number | null;
 }
 
@@ -85,6 +128,7 @@ export interface StockLevel {
   productId: string;
   quantityOnHand: number;
   reserved: number;
+  incoming?: number;
 }
 
 export interface DiscountPolicy {
@@ -97,6 +141,36 @@ export interface DiscountPolicy {
   rejectPercent: number;
   maxMarginImpactPercent: number;
   priority: number;
+}
+
+export type QuantityAdjustmentKind = 'fixed' | 'percent';
+export type AuthorityExceedAction = 'allow' | 'approval' | 'block';
+
+export interface QuantityBreak {
+  id: string;
+  name: string;
+  productId: string;
+  customerTier?: CustomerTier | null;
+  minQuantity: number;
+  maxQuantity?: number | null;
+  adjustmentKind: QuantityAdjustmentKind;
+  adjustmentValue: number;
+  active?: boolean;
+}
+
+export interface RoleAuthority {
+  roleKey: string;
+  maxDiscountPercent: number;
+  minMarginPercent: number;
+  maxPriceOverridePercent: number;
+  canNegotiate: boolean;
+  exceedAction: AuthorityExceedAction;
+}
+
+export interface WarehouseAvailability {
+  warehouseId: string;
+  name: string;
+  available: number;
 }
 
 export interface ApprovalChainStep {
@@ -145,6 +219,11 @@ export interface Quote {
   portalToken: string;
   version: number;
   odooSaleOrderId?: number | null;
+  taxTotal: number;
+  customerDecision: CustomerDecision;
+  customerDecisionAt?: string | null;
+  customerDecisionComment?: string | null;
+  customerDecisionVersion?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +313,14 @@ export interface LineAssessment {
   policyName: string;
   decision: DiscountDecision;
   reasons: string[];
+  basePrice?: number;
+  appliedPrice?: number;
+  pricingRuleName?: string;
+  roleLimitExceeded?: boolean;
+  approvalScope?: 'line' | 'quote';
+  warehouses?: WarehouseAvailability[];
+  totalAvailable?: number;
+  shortfall?: number;
 }
 
 export interface QuoteAssessment {
@@ -253,6 +340,9 @@ export interface QuoteAssessment {
   requiredChainName?: string | null;
   lines: LineAssessment[];
   reasons: string[];
+  highValue?: boolean;
+  mergeRisk?: boolean;
+  mergeRiskReasons?: string[];
 }
 
 export interface FulfillmentPlan {
@@ -277,13 +367,27 @@ export interface GovernanceConfig {
   cumulativeWarningLimit: number;
   materialDiscountDeltaPp: number;
   materialTotalDeltaRatio: number;
+  highValueNetTotal: number;
+  maxApprovalLevels: number;
+  taxRatePercent: number;
+  staleQuoteDays: number;
+  unusualDiscountPercent: number;
+  largeDealNetTotal: number;
 }
 
 export const DEFAULT_GOVERNANCE: GovernanceConfig = {
   cumulativeWarningLimit: 2,
   materialDiscountDeltaPp: 2,
   materialTotalDeltaRatio: 0.1,
+  highValueNetTotal: 25_000,
+  maxApprovalLevels: 3,
+  taxRatePercent: 0,
+  staleQuoteDays: 7,
+  unusualDiscountPercent: 25,
+  largeDealNetTotal: 50_000,
 };
+
+export const GOVERNANCE_CONFIG_ID = '99999999-9999-4999-8999-999999999901';
 
 export const APPROVAL_PERMISSIONS: Record<ApprovalRoleKey, string> = {
   manager: 'dealflow.approvals.manager',

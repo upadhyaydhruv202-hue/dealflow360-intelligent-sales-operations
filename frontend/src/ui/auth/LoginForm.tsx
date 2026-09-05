@@ -27,6 +27,7 @@ export function LoginForm({
 }) {
   const [email, setEmail] = useState(emailValue ?? '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
 
@@ -72,14 +73,23 @@ export function LoginForm({
           onEmailChange?.(event.target.value);
         }}
       />
-      <Input
-        label="Password"
-        type="password"
-        name="password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
+      <div className="space-y-2">
+        <Input
+          label="Password"
+          type={showPassword ? 'text' : 'password'}
+          name="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        <button
+          type="button"
+          className="text-caption text-foreground-muted underline-offset-2 hover:text-foreground hover:underline"
+          onClick={() => setShowPassword((current) => !current)}
+        >
+          {showPassword ? 'Hide password' : 'Show password'}
+        </button>
+      </div>
       {message ? (
         <p className="text-sm text-danger" role="alert">
           {message}

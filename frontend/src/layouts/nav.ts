@@ -102,6 +102,42 @@ export function breadcrumbForPath(pathname: string): Array<{ label: string; to?:
       { label: 'Workspace' },
     ];
   }
+  if (pathname.startsWith('/dealflow/approvals/') && pathname !== '/dealflow/approvals') {
+    return [
+      { label: 'Approvals', to: '/dealflow/approvals' },
+      { label: 'Detail' },
+    ];
+  }
+  if (pathname.startsWith('/dealflow/fulfillment/') && pathname !== '/dealflow/fulfillment') {
+    return [
+      { label: 'Fulfillment', to: '/dealflow/fulfillment' },
+      { label: 'Plan' },
+    ];
+  }
+  if (pathname.startsWith('/dealflow/subscriptions/') && pathname !== '/dealflow/subscriptions') {
+    return [
+      { label: 'Subscriptions', to: '/dealflow/subscriptions' },
+      { label: 'Billing' },
+    ];
+  }
+  if (pathname.startsWith('/dealflow/invoices/') && pathname !== '/dealflow/invoices') {
+    return [
+      { label: 'Invoices', to: '/dealflow/invoices' },
+      { label: 'Invoice' },
+    ];
+  }
+  if (pathname.startsWith('/dealflow/catalog/products/')) {
+    return [
+      { label: 'Products / Policies', to: '/dealflow/catalog' },
+      { label: 'Product' },
+    ];
+  }
+  if (pathname === '/dealflow/catalog/policies') {
+    return [
+      { label: 'Products / Policies', to: '/dealflow/catalog' },
+      { label: 'Discount rules' },
+    ];
+  }
   const item = findNavItem(pathname);
   if (!item) return [{ label: 'DealFlow360' }];
   if (item.to === '/dealflow' || item.to === '/') {

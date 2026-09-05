@@ -16,7 +16,13 @@ export { secureCookieOptions } from './cookies';
 export type { SecureCookieOptions } from './cookies';
 export { parseTrustProxy } from './trust-proxy';
 export type { TrustProxySetting } from './trust-proxy';
-export { cookieCsrfProtection, isTrustedOrigin, originFromReferer } from './csrf';
+export {
+  cookieCsrfProtection,
+  expandLoopbackOrigins,
+  isLoopbackOrigin,
+  isTrustedOrigin,
+  originFromReferer,
+} from './csrf';
 export { parseCookiesMiddleware } from '../auth/session-cookies';
 export { assertSafeExternalUrl, assertHttpUrl, fetchExternal, isBlockedHost, createPinnedLookup } from './ssrf';
 export type { DnsLookup } from './ssrf';

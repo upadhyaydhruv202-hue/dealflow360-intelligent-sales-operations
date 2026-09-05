@@ -9,7 +9,12 @@ import {
   type ReactNode,
 } from 'react';
 
-import { login as loginRequest, logout as logoutRequest, refreshSession } from '../services/auth';
+import {
+  login as loginRequest,
+  logout as logoutRequest,
+  refreshSession,
+  register as registerRequest,
+} from '../services/auth';
 import { toLoginErrorMessage } from './login-errors';
 import type { AuthUser } from '../types/api';
 
@@ -27,9 +32,16 @@ interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | undefined;
   isAuthenticated: boolean;
+  ready: boolean;
   pending: boolean;
   error: string | undefined;
   login: (email: string, password: string) => Promise<boolean>;
+  register: (input: {
+    email: string;
+    password: string;
+    displayName: string;
+    companyName?: string;
+  }) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -90,6 +102,7 @@ export function AuthProvider({
   initialSession?: AuthSession | null;
 }) {
   const [session, setSession] = useState<AuthSession | null>(() => initialSession);
+  const [ready, setReady] = useState(Boolean(initialSession));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const loginInFlight = useRef(false);
@@ -101,6 +114,7 @@ export function AuthProvider({
 
   useEffect(() => {
     if (initialSession) {
+      setReady(true);
       return;
     }
     clearLegacyTokens();
@@ -114,6 +128,11 @@ export function AuthProvider({
       .catch(() => {
         if (!cancelled) {
           applySession(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setReady(true);
         }
       });
     return () => {
@@ -150,6 +169,35 @@ export function AuthProvider({
     [applySession],
   );
 
+  const register = useCallback(
+    async (input: { email: string; password: string; displayName: string; companyName?: string }) => {
+      if (loginInFlight.current) {
+        return false;
+      }
+      loginInFlight.current = true;
+      setPending(true);
+      setError(undefined);
+      try {
+        const payload = await registerRequest(input);
+        const next = toSession(payload);
+        if (!next) {
+          setError('Account creation failed');
+          return false;
+        }
+        applySession(next);
+        return true;
+      } catch (caught) {
+        applySession(null);
+        setError(toLoginErrorMessage(caught));
+        return false;
+      } finally {
+        loginInFlight.current = false;
+        setPending(false);
+      }
+    },
+    [applySession],
+  );
+
   const logout = useCallback(async () => {
     const current = session;
     setPending(true);
@@ -166,12 +214,14 @@ export function AuthProvider({
       user: session?.user ?? null,
       accessToken: session?.accessToken || undefined,
       isAuthenticated: Boolean(session?.accessToken),
+      ready,
       pending,
       error,
       login,
+      register,
       logout,
     }),
-    [error, login, logout, pending, session],
+    [error, login, logout, pending, ready, register, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

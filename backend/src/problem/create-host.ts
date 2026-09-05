@@ -34,6 +34,7 @@ export interface CreateProblemHostOptions {
   prisma?: PrismaClient | null;
   capabilities?: CapabilityRegistry | null;
   audit?: AuditService | null;
+  notifications?: ProblemHost['notifications'];
   app?: Express;
   http?: Omit<
     ProblemHttp,
@@ -54,6 +55,7 @@ export interface CreateProblemHostOptions {
   odoo?: OdooService | null;
   search?: SearchService | null;
   analytics?: AnalyticsService | null;
+  realtime?: ProblemHost['realtime'];
 }
 
 export function createProblemHost(options: CreateProblemHostOptions): ProblemHost {
@@ -69,6 +71,7 @@ export function createProblemHost(options: CreateProblemHostOptions): ProblemHos
     events: options.events,
     capabilities: options.capabilities ?? null,
     audit: options.audit ?? null,
+    notifications: options.notifications ?? null,
     mount: options.app ? mountProblemRouter(options.app) : undefined,
     http: options.http
       ? {
@@ -89,6 +92,7 @@ export function createProblemHost(options: CreateProblemHostOptions): ProblemHos
     automation: options.automation ?? null,
     ai: options.ai ?? null,
     odoo,
+    realtime: options.realtime ?? null,
     search: options.search ?? null,
     analytics: options.analytics ?? null,
     odooAdapters: odoo

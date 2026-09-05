@@ -13,6 +13,7 @@ import {
   CardTitle,
   EmptyState,
   Input,
+  LoadingState,
   Modal,
   Select,
 } from '@/ui';
@@ -21,6 +22,7 @@ import { createQuote } from './api';
 import {
   approvalTone,
   availableUnits,
+  incomingUnits,
   decisionTone,
   formatDate,
   formatMoney,
@@ -41,6 +43,51 @@ import type {
   QuoteView,
 } from './types';
 
+export function StatusCards({
+  items,
+}: {
+  items: Array<{ id: string; label: string; value: number; onClick?: () => void; active?: boolean }>;
+}) {
+  return (
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={item.onClick}
+          className={`rounded-lg border px-4 py-3 text-left transition-colors duration-df ${
+            item.active ? 'border-foreground bg-surface-muted' : 'border-edge hover:border-foreground/30'
+          }`}
+        >
+          <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">{item.label}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight">{item.value}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function RelatedDealLinks({ quoteId, portalToken }: { quoteId: string; portalToken?: string }) {
+  const links = [
+    { to: `/dealflow/quotes/${quoteId}`, label: 'Workspace' },
+    { to: `/dealflow/approvals/${quoteId}`, label: 'Approval detail' },
+    { to: `/dealflow/fulfillment/${quoteId}`, label: 'Fulfillment' },
+    { to: `/dealflow/subscriptions/${quoteId}`, label: 'Subscriptions' },
+    { to: `/dealflow/invoices/${quoteId}`, label: 'Invoices' },
+    portalToken ? { to: `/portal/${encodeURIComponent(portalToken)}`, label: 'Customer portal' } : null,
+  ].filter(Boolean) as Array<{ to: string; label: string }>;
+
+  return (
+    <nav aria-label="Related deal screens" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+      {links.map((item) => (
+        <Link key={item.to} className="font-medium hover:underline" to={item.to}>
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export function DealflowGate({
   permission,
   children,
@@ -48,7 +95,10 @@ export function DealflowGate({
   permission: string;
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, ready } = useAuth();
+  if (!ready) {
+    return <LoadingState label="Restoring session…" />;
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -107,11 +157,22 @@ export function RiskPanel({
               ? `Approval: ${who}`
               : 'The backend assessment requires review before this quote can proceed.'}
         </p>
-        {assessment?.reasons[0] ? (
-          <p>
+        {assessment?.reasons.slice(0, 4).map((reason) => (
+          <p key={reason}>
             <span className="font-semibold">Why: </span>
-            {assessment.reasons[0]}
+            {reason}
           </p>
+        ))}
+        {assessment?.highValue ? (
+          <Alert variant="warning" title="High-value approval required">
+            Net total meets the configured high-value threshold. Admin is not inserted unless a chain step says so.
+          </Alert>
+        ) : null}
+        {assessment?.mergeRisk ? (
+          <Alert variant="warning" title="Approval merge risk">
+            {assessment.mergeRiskReasons?.[0] ??
+              'Multiple product lines require review and stay itemized on this quote chain.'}
+          </Alert>
         ) : null}
       </div>
       <div className="space-y-3">
@@ -129,7 +190,7 @@ export function RiskPanel({
                 </div>
                 <Badge tone={decisionTone(line.decision)}>{line.decision.replaceAll('_', ' ')}</Badge>
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                 <div>
                   <dt className="text-xs text-foreground-muted">Requested</dt>
                   <dd className="font-medium">{formatPercent(line.discountPercent)}</dd>
@@ -144,7 +205,17 @@ export function RiskPanel({
                     {delta == null ? '—' : `${delta > 0 ? '+' : ''}${Number(delta.toFixed(2))} pts`}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-foreground-muted">Margin</dt>
+                  <dd className="font-medium">{formatPercent(line.marginPercent)}</dd>
+                </div>
               </dl>
+              {line.pricingRuleName ? (
+                <p className="mt-2 text-xs text-foreground-muted">
+                  Pricing rule {line.pricingRuleName}
+                  {line.appliedPrice != null ? ` · applied ${formatMoney(line.appliedPrice, true)}` : ''}
+                </p>
+              ) : null}
               {line.reasons.length ? (
                 <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-foreground-muted">
                   {line.reasons.map((reason) => (
@@ -243,13 +314,15 @@ export function FulfillmentBoard({
   quote: QuoteView;
   catalog?: DealflowCatalog;
 }) {
-  const byWarehouse = new Map<string, { quantity: number; available: number }>();
+  const byWarehouse = new Map<string, { quantity: number; available: number; incoming: number }>();
   for (const allocation of quote.fulfillment.allocations.filter((item) => !item.isBackorder)) {
     const line = quote.lines.find((item) => item.id === allocation.quoteLineId);
     const available = line ? availableUnits(catalog?.stock, allocation.warehouseId, line.productId) : 0;
-    const current = byWarehouse.get(allocation.warehouseId) ?? { quantity: 0, available };
+    const incoming = line ? incomingUnits(catalog?.stock, allocation.warehouseId, line.productId) : 0;
+    const current = byWarehouse.get(allocation.warehouseId) ?? { quantity: 0, available, incoming };
     current.quantity += allocation.quantity;
     current.available = Math.min(current.available || available, available);
+    current.incoming = Math.max(current.incoming, incoming);
     byWarehouse.set(allocation.warehouseId, current);
   }
   const required = quote.lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -262,7 +335,9 @@ export function FulfillmentBoard({
         Required {required} · Allocated {allocated} · Backorder {quote.fulfillment.backorderQuantity} · Shipments{' '}
         {quote.fulfillment.shipmentCount}
       </p>
-      <p className="text-xs text-foreground-muted">Available stock is on-hand minus reserved from the catalog API.</p>
+      <p className="text-xs text-foreground-muted">
+        Available stock is on-hand minus reserved. Incoming stock is shown for planning and is not treated as available.
+      </p>
       <div className="grid gap-3 md:grid-cols-3">
         {[...byWarehouse.entries()].map(([warehouseId, split]) => {
           const warehouse = catalog?.warehouses.find((item) => item.id === warehouseId);
@@ -272,7 +347,7 @@ export function FulfillmentBoard({
               <CardTitle className="mt-1 text-base">{warehouse?.name ?? warehouseId.slice(0, 8)}</CardTitle>
               <p className="mt-3 text-2xl font-semibold">{split.quantity}</p>
               <p className="text-xs text-foreground-muted">
-                Allocated · available {split.available} (on-hand minus reserved)
+                Allocated · available {split.available} (on-hand minus reserved) · incoming {split.incoming}
               </p>
             </Card>
           );

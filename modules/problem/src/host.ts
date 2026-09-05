@@ -38,6 +38,14 @@ export interface ProblemHost {
     emit: (input: { type: string; payload?: Record<string, unknown> }) => Promise<unknown>;
   };
   prisma?: unknown;
+  notifications?: {
+    notify: (input: {
+      userId: string;
+      type?: 'info' | 'success' | 'warning' | 'error';
+      title: string;
+      body: string;
+    }) => Promise<unknown>;
+  } | null;
   audit?: {
     record: (input: {
       actorId?: string;
@@ -78,7 +86,17 @@ export interface ProblemHost {
     }) => unknown;
   };
   ai?: unknown;
-  odoo?: unknown;
+  odoo?: {
+    runtime?: { enabled?: boolean };
+    create?: (input: Record<string, unknown>) => Promise<unknown>;
+  } | null;
+  realtime?: {
+    publish: (input: {
+      channel: string;
+      type: string;
+      payload?: Record<string, unknown>;
+    }) => Promise<unknown> | unknown;
+  } | null;
   search?: {
     registerIndex: (definition: unknown) => unknown;
     index: (document: unknown, actor: unknown) => Promise<unknown>;

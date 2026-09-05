@@ -45,8 +45,10 @@ flowchart LR
 | --- | --- | --- | --- |
 | Staff | `demo.staff@example.com` | Create, submit, fulfill, bill, confirm | Approve a chain step (API 403) |
 | Manager | `demo.manager@example.com` | First approval step; also has quote write | Act as Finance or Final |
+| Finance | `demo.finance@example.com` | Billing, finance approvals, reports, and audit | Admin settings or catalog write |
+| Operations | `demo.operations@example.com` | Inventory, warehouses, fulfillment, and backorders | Finance billing or admin governance write |
 | Admin | `demo.admin@example.com` | Finance + Final; every catalog permission after RBAC merge; may act on any step | Treat the customer portal as an internal console |
-| Customer | `demo.user@example.com` | `/account` only | Open `/dealflow` or staff APIs |
+| Customer | `demo.user@example.com` or `/register` | `/account` + portal links for their quotes | Open `/dealflow` or staff APIs |
 | Portal holder | Unguessable `portalToken` | See commercial totals and change line discounts | See risk score, reasons, approvals, fulfillment, billing ops, revisions, or staff IDs |
 
 ---
@@ -132,7 +134,7 @@ Planning reads live stock. Available units are **on-hand minus reserved**. The s
 
 ### 6. Customer portal isolation
 
-`GET/PATCH /api/v1/dealflow/portal/:token` returns commercial totals, blended discount %, customer name, and lines. It **omits** risk score, policy reasons, approvals, fulfillment, billing operations, revisions, and staff identifiers. Unknown tokens 404. Customer JWT login (`demo.user@example.com`) cannot open `/dealflow`. The portal token is not the customer JWT.
+`GET/PATCH /api/v1/dealflow/portal/:token` returns commercial totals, blended discount %, customer name, and lines. It **omits** risk score, policy reasons, approvals, fulfillment, billing operations, revisions, and staff identifiers. Unknown tokens 404. Customer JWT login (`demo.user@example.com`) cannot open `/dealflow`. `GET /api/v1/dealflow/me/quotes` lists that buyer’s quotations as the same portal DTO plus the portal token. Public `/register` creates a `user` + `DfCustomer` (never an internal role). The portal token is not the customer JWT.
 
 ---
 
@@ -154,6 +156,7 @@ Planning reads live stock. Available units are **on-hand minus reserved**. The s
 | Audit trail | ✅ | Kit `AuditEvent` + quote revisions |
 | Deal Health / Reports | ✅ | Derived from live quotes — no snapshot table |
 | Auth + JWT + RBAC | ✅ | Required when `DATABASE_URL` is set |
+| Customer signup | ✅ | `/register` creates `user` + `DfCustomer`; default role is never admin |
 | Odoo adapter | ⚙️ | Allowlisted JSON-2 client; `FEATURE_ODOO=false` in `.env.example` |
 | AI toolkit | ⚙️ | `FEATURE_AI=true`; mock when `DEMO_MODE` and no Gemini key. **Not used for pricing** |
 | Kit copilot / intents / planning | ⚙️ | On in `.env.example`; not the golden path |
@@ -310,6 +313,10 @@ All of the following run on the server (`modules/problem/src/dealflow`).
 
 **Policy match.** More specific policies win (customer tier and/or product category), then lower `priority`. Northwind is `standard`, so hardware at 16% hits **Default ceiling** (warning 3%, approval 5%, reject 25%).
 
+**Quantity breaks.** Seeded volume prices (for example Core Gateway 1–9 list / 10–49 volume / 50+ contract) reprice the line when quantity changes. The golden path uses ×8, so HW-CORE-1 stays at list $4,000.
+
+**Role authority.** Staff / manager / admin have configured max discount %, min margin, and exceed → approval (not an automatic Admin step). High-value quotes (net ≥ $25,000) also require the selected chain; Admin is not inserted unless that chain already includes a matching role.
+
 **Line decision.**
 
 ```text
@@ -400,6 +407,7 @@ Public probe: `GET /api/v1/problem` and `GET /api/v1/dealflow`.
 | Area | Method | Path | Auth |
 | --- | --- | --- | --- |
 | Catalog | `GET` | `/api/v1/dealflow/catalog` | `dealflow.catalog.read` |
+| Governance config | `PUT` `PATCH` | `/api/v1/dealflow/catalog/quantity-breaks` · `/role-authorities` · `/governance` | `dealflow.catalog.write` |
 | Quotes | `GET` `POST` | `/api/v1/dealflow/quotes` | read / write |
 | Quote | `GET` | `/api/v1/dealflow/quotes/:id` | read |
 | Lines | `POST` `PATCH` `DELETE` | `/api/v1/dealflow/quotes/:id/lines…` | write |
@@ -411,6 +419,7 @@ Public probe: `GET /api/v1/problem` and `GET /api/v1/dealflow`.
 | Fulfillment | `POST` | `/api/v1/dealflow/quotes/:id/fulfillment/plan` | fulfillment.write |
 | Billing | `POST` | `/api/v1/dealflow/quotes/:id/billing/generate` · `/billing/:scheduleId/cancel` | billing.write |
 | Confirm / complete | `POST` | `/api/v1/dealflow/quotes/:id/confirm` · `/complete` | write |
+| Vendor contact | `POST` | `/api/v1/dealflow/quotes/:id/vendor-contact` | write |
 | Portal | `GET` `PATCH` | `/api/v1/dealflow/portal/:token` | token, not staff JWT |
 
 Operational: `GET /health`, `GET /ready`.
@@ -426,12 +435,17 @@ Operational: `GET /health`, `GET /ready`.
 | `/dealflow/quotes` | Quotation list + workspace |
 | `/dealflow/quotes/:quoteId` | Lines, risk, approvals, fulfillment, billing, activity |
 | `/dealflow/approvals` | Approval queue + decision |
-| `/dealflow/fulfillment` | Splits and backorders |
+| `/dealflow/approvals/:quoteId` | Dedicated approval detail (risk, chain, decide) |
+| `/dealflow/fulfillment` | Stock overview + fulfillment history |
+| `/dealflow/fulfillment/:quoteId` | Warehouse split, overrides, complete deal |
 | `/dealflow/subscriptions` · `/invoices` | Recurring vs one-time schedules |
+| `/dealflow/subscriptions/:quoteId` · `/invoices/:quoteId` | Billing / invoice detail from live schedules |
 | `/dealflow/health` · `/reports` · `/catalog` | Exceptions, book metrics, read-only catalog |
+| `/dealflow/catalog/products/:productId` | Read-only SKU, stock, and quantity breaks |
+| `/dealflow/catalog/policies` | Discount policies and approval chains |
 | `/dealflow/assistant` | Contextual deal insights from assessment, stock, and catalog relations |
 | `/dealflow/anomalies` | Live-quote exceptions with resolve / ignore in-session |
-| `/dealflow/settings` | Seeded products, policies, chains, warehouses, billing rules, roles |
+| `/dealflow/settings` | Catalog plus editable quantity breaks, role ranges, and governance (write requires `dealflow.catalog.write`) |
 | `/account` | Customer-role landing (no staff workspace) |
 | `/portal/:token` | Isolated customer quote |
 

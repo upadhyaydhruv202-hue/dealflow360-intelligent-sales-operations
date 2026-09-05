@@ -13,7 +13,11 @@ export function SessionGate({
   title?: string;
   hint?: string;
 }) {
-  const { isAuthenticated, login, pending, error } = useAuth();
+  const { isAuthenticated, ready, login, pending, error } = useAuth();
+
+  if (!ready) {
+    return <p className="text-sm text-foreground-muted">Restoring session…</p>;
+  }
 
   if (!isAuthenticated) {
     return (

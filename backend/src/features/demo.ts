@@ -7,6 +7,8 @@ export const SEEDED_DEMO_ACCOUNT_EMAILS = [
   'demo.manager@example.com',
   'demo.staff@example.com',
   'demo.user@example.com',
+  'demo.finance@example.com',
+  'demo.operations@example.com',
 ] as const;
 
 export function parseOptionalBoolean(value: unknown): boolean | undefined {

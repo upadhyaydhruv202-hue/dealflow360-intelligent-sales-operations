@@ -70,6 +70,13 @@ describe('cookie CSRF protection', () => {
       .set('Referer', 'http://localhost:5173/app')
       .send({});
     expect(fromReferer.status).toBe(200);
+
+    const fromVitePort = await request(csrfApp())
+      .post('/mutate')
+      .set('Cookie', `${ACCESS_COOKIE_NAME}=cookie-token`)
+      .set('Origin', 'http://127.0.0.1:5174')
+      .send({});
+    expect(fromVitePort.status).toBe(200);
   });
 
   it('does not apply to safe methods or requests without session cookies', async () => {
@@ -93,6 +100,8 @@ describe('origin helpers', () => {
     });
     expect(originFromReferer('http://localhost:5173/login?next=/')).toBe('http://localhost:5173');
     expect(isTrustedOrigin('http://localhost:5173', config)).toBe(true);
+    expect(isTrustedOrigin('http://127.0.0.1:5173', config)).toBe(true);
+    expect(isTrustedOrigin('http://127.0.0.1:5174', config)).toBe(true);
     expect(isTrustedOrigin('http://localhost:5000', config)).toBe(true);
     expect(isTrustedOrigin('https://evil.example', config)).toBe(false);
     expect(isTrustedOrigin(undefined, config)).toBe(false);

@@ -6,6 +6,9 @@ export function toPortalView(quote: {
   id: string;
   number: string;
   status: string;
+  version?: number;
+  customerDecision?: string;
+  taxTotal?: number;
   listTotal: number;
   discountTotal: number;
   netTotal: number;
@@ -27,6 +30,10 @@ export function toPortalView(quote: {
     discountTotal: quote.discountTotal,
     netTotal: quote.netTotal,
     blendedDiscountPercent: quote.blendedDiscountPercent,
+    version: quote.version ?? 1,
+    taxTotal: quote.taxTotal ?? 0,
+    grandTotal: quote.netTotal + (quote.taxTotal ?? 0),
+    customerDecision: quote.customerDecision ?? 'none',
     customer: { name: quote.customer.name },
     lines: quote.lines.map((line) => ({
       id: line.id,

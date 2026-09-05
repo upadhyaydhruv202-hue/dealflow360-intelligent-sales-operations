@@ -19,6 +19,8 @@ describe('frontend RBAC helpers (UX only)', () => {
     expect(homePathForUser({ roles: ['user'], permissions: [] })).toBe('/account');
     expect(canAccessInternalDealflow({ roles: ['user'], permissions: [] })).toBe(false);
     expect(homePathForUser({ roles: ['staff'], permissions: [] })).toBe('/dealflow');
+    expect(homePathForUser({ roles: ['finance'], permissions: [] })).toBe('/dealflow');
+    expect(homePathForUser({ roles: ['operations'], permissions: [] })).toBe('/dealflow');
     expect(homePathForUser({ roles: ['user'], permissions: ['dealflow.quotes.read'] })).toBe('/dealflow');
   });
 });

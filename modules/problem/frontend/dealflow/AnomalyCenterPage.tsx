@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
+import { getApiErrorMessage } from '@/services/api';
 import {
   Badge,
   Breadcrumb,
@@ -15,46 +16,60 @@ import {
   useToast,
 } from '@/ui';
 
+import { disposeAnomaly, listAnomalies } from './api';
 import { DealflowGate } from './components';
-import { formatMoney } from './format';
-import { useCatalog, useQuotes } from './hooks';
-import {
-  detectAnomalies,
-  healthTone,
-  loadAnomalyDispositions,
-  saveAnomalyDisposition,
-  type AnomalyDisposition,
-  type DealAnomaly,
-} from './intelligence';
 
-interface AnomalyRow extends DealAnomaly {
-  disposition: AnomalyDisposition;
+type Tab = 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+
+interface AnomalyRow {
+  id: string;
+  type: string;
+  severity: string;
+  entityType: string;
+  entityId: string;
+  quoteId?: string | null;
+  description: string;
+  status: string;
+  resolution?: string | null;
+  detectedAt: string;
 }
 
 export function AnomalyCenterPage() {
   const { accessToken } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
-  const quotes = useQuotes(accessToken);
-  const catalog = useCatalog(accessToken);
-  const [dispositions, setDispositions] = useState(loadAnomalyDispositions);
-  const [tab, setTab] = useState<AnomalyDisposition>('open');
+  const [rows, setRows] = useState<AnomalyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [tab, setTab] = useState<Tab>('open');
 
-  const rows = useMemo<AnomalyRow[]>(() => {
-    return detectAnomalies(quotes.data ?? [], catalog.data).map((item) => ({
-      ...item,
-      disposition: dispositions[item.id] ?? 'open',
-    }));
-  }, [catalog.data, dispositions, quotes.data]);
+  const reload = useCallback(async () => {
+    if (!accessToken) return;
+    setLoading(true);
+    try {
+      setRows(await listAnomalies(accessToken));
+      setError(undefined);
+    } catch (caught) {
+      setError(getApiErrorMessage(caught, 'Could not load anomalies.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
 
-  const visible = rows.filter((item) => item.disposition === tab);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
-  function setDisposition(id: string, disposition: AnomalyDisposition) {
-    setDispositions(saveAnomalyDisposition(id, disposition));
-    toast({
-      title: disposition === 'resolved' ? 'Anomaly resolved' : disposition === 'ignored' ? 'Anomaly ignored' : 'Reopened',
-      variant: 'success',
-    });
+  const visible = useMemo(() => rows.filter((item) => item.status === tab), [rows, tab]);
+
+  async function setDisposition(id: string, status: Tab) {
+    if (!accessToken) return;
+    try {
+      const next = await disposeAnomaly(id, { status }, accessToken);
+      setRows((current) => current.map((item) => (item.id === id ? { ...item, ...next } : item)));
+      toast({ title: `Anomaly ${status}`, variant: 'success' });
+    } catch (caught) {
+      toast({ title: getApiErrorMessage(caught, 'Disposition failed'), variant: 'error' });
+    }
   }
 
   return (
@@ -63,83 +78,65 @@ export function AnomalyCenterPage() {
         width="wide"
         breadcrumb={<Breadcrumb items={[{ label: 'Dashboard', to: '/dealflow' }, { label: 'Anomalies' }]} />}
         title="Anomaly center"
-        description="Operational exceptions derived from live quotations, stock, and approval age. These are not kit FEATURE_ANOMALY scores."
+        description="Persisted DealFlow exceptions from live quotations. Disposition is stored in PostgreSQL and audited."
       >
-        {quotes.loading ? <LoadingState label="Scanning the book…" /> : null}
-        {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}
-        {!quotes.loading && !quotes.error ? (
+        {loading ? <LoadingState label="Loading anomalies…" /> : null}
+        {error ? <ErrorState message={error} onRetry={() => void reload()} /> : null}
+        {!loading && !error ? (
           <Tabs
             value={tab}
-            onChange={(id) => setTab(id as AnomalyDisposition)}
+            onChange={(id) => setTab(id as Tab)}
             items={(
               [
                 ['open', 'Open'],
+                ['acknowledged', 'Acknowledged'],
                 ['resolved', 'Resolved'],
-                ['ignored', 'Ignored'],
+                ['dismissed', 'Dismissed'],
               ] as const
             ).map(([id, label]) => ({
               id,
-              label: `${label} (${rows.filter((item) => item.disposition === id).length})`,
+              label: `${label} (${rows.filter((item) => item.status === id).length})`,
               content:
                 visible.length === 0 ? (
-                  <EmptyState
-                    title={tab === 'open' ? 'No open anomalies' : `No ${tab} anomalies`}
-                    description={
-                      tab === 'open'
-                        ? 'Live quotes are currently within policy, stock, and approval SLAs.'
-                        : 'Move an open item here after you investigate it.'
-                    }
-                  />
+                  <EmptyState title="No anomalies in this state" />
                 ) : (
-                  <DataTable<AnomalyRow>
-                    caption="Detected anomalies"
+                  <DataTable
+                    caption={`${label} anomalies`}
                     rowId={(row) => row.id}
                     rows={visible}
-                    onRowClick={(row) => navigate(row.href)}
                     columns={[
+                      { id: 'severity', header: 'Severity', accessor: (row) => <Badge tone={row.severity === 'critical' ? 'danger' : 'warning'}>{row.severity}</Badge> },
+                      { id: 'type', header: 'Type', accessor: (row) => row.type.replaceAll('_', ' ') },
+                      { id: 'description', header: 'Description', accessor: (row) => row.description },
                       {
-                        id: 'severity',
-                        header: 'Severity',
-                        accessor: (row) => (
-                          <Badge tone={healthTone(row.severity)}>{row.severity}</Badge>
-                        ),
-                      },
-                      {
-                        id: 'deal',
-                        header: 'Deal',
-                        accessor: (row) => (
-                          <Link className="font-medium hover:underline" to={`/dealflow/quotes/${row.quoteId}`}>
-                            {row.quoteNumber}
-                          </Link>
-                        ),
-                      },
-                      { id: 'customer', header: 'Customer', accessor: (row) => row.customerName },
-                      { id: 'title', header: 'Detection', accessor: (row) => row.title },
-                      { id: 'reason', header: 'Reason', accessor: (row) => row.reason },
-                      { id: 'impact', header: 'Financial impact', accessor: (row) => row.impact },
-                      { id: 'action', header: 'Recommended action', accessor: (row) => row.action },
-                      {
-                        id: 'ops',
-                        header: 'Investigate',
-                        accessor: (row) => (
-                          <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                            <Button size="sm" variant="outline" onClick={() => navigate(row.href)}>
+                        id: 'quote',
+                        header: 'Quote',
+                        accessor: (row) =>
+                          row.quoteId ? (
+                            <Link className="text-accent hover:underline" to={`/dealflow/quotes/${row.quoteId}`}>
                               Open
+                            </Link>
+                          ) : (
+                            '—'
+                          ),
+                      },
+                      {
+                        id: 'actions',
+                        header: '',
+                        accessor: (row) => (
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => void setDisposition(row.id, 'acknowledged')}>
+                              Acknowledge
                             </Button>
-                            {tab === 'open' ? (
-                              <>
-                                <Button size="sm" variant="outline" onClick={() => setDisposition(row.id, 'resolved')}>
-                                  Resolve
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setDisposition(row.id, 'ignored')}>
-                                  Ignore
-                                </Button>
-                              </>
-                            ) : (
-                              <Button size="sm" variant="ghost" onClick={() => setDisposition(row.id, 'open')}>
-                                Reopen
-                              </Button>
-                            )}
+                            <Button size="sm" variant="ghost" onClick={() => void setDisposition(row.id, 'resolved')}>
+                              Resolve
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => void setDisposition(row.id, 'dismissed')}>
+                              Dismiss
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => void setDisposition(row.id, 'open')}>
+                              Reopen
+                            </Button>
                           </div>
                         ),
                       },
@@ -149,10 +146,6 @@ export function AnomalyCenterPage() {
             }))}
           />
         ) : null}
-        <p className="mt-6 text-caption text-foreground-muted">
-          Resolve and ignore stay in this browser session so the demo queue stays usable. Totals still come from{' '}
-          {formatMoney((quotes.data ?? []).reduce((sum, item) => sum + item.netTotal, 0))} of live quote value.
-        </p>
       </PageContainer>
     </DealflowGate>
   );

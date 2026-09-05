@@ -22,6 +22,27 @@ describe('mergeRbacCatalog', () => {
     expect(catalog.rolePermissions[ROLES.USER]).not.toContain('problem.sample.read');
   });
 
+  it('adds finance and operations as distinct catalog roles', () => {
+    const catalog = mergeRbacCatalog({
+      permissions: [
+        { key: 'dealflow.quotes.read', description: 'Read quotes' },
+        { key: 'dealflow.billing.write', description: 'Bill' },
+        { key: 'dealflow.fulfillment.write', description: 'Fulfill' },
+      ],
+      rolePermissions: {
+        finance: ['dealflow.quotes.read', 'dealflow.billing.write'],
+        operations: ['dealflow.quotes.read', 'dealflow.fulfillment.write'],
+      },
+    });
+
+    expect(catalog.roles.some((role) => role.name === 'finance')).toBe(true);
+    expect(catalog.roles.some((role) => role.name === 'operations')).toBe(true);
+    expect(catalog.rolePermissions.finance).toContain('dealflow.billing.write');
+    expect(catalog.rolePermissions.operations).toContain('dealflow.fulfillment.write');
+    expect(catalog.rolePermissions.finance).not.toContain('dealflow.fulfillment.write');
+    expect(catalog.rolePermissions.operations).not.toContain('dealflow.billing.write');
+  });
+
   it('rejects colliding or invalid keys', () => {
     expect(() =>
       mergeRbacCatalog({

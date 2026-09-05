@@ -18,6 +18,7 @@ describe('problemModule', () => {
     const Router = vi.fn(() => ({
       get: vi.fn(),
       post: vi.fn(),
+      put: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
     }));
@@ -38,6 +39,7 @@ describe('problemModule', () => {
     expect(process).toHaveBeenCalledWith(DEALFLOW_JOB_NAME, expect.any(Function));
     expect(allow).toHaveBeenCalledWith(DEALFLOW_JOB_NAME);
     expect(on).toHaveBeenCalledWith(DEALFLOW_EVENT_TYPE, expect.any(Function));
+    expect(on).toHaveBeenCalledWith('user.created', expect.any(Function));
     expect(mount).not.toHaveBeenCalled();
 
     problemModule.register({
