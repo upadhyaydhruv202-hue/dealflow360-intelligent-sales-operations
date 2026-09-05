@@ -6,6 +6,13 @@ import { Alert, Button, EmptyState, ErrorState, Input, LoadingState, useToast } 
 
 import { applyPortalChange, getPortalQuote } from './api';
 import { formatMoney, formatPercent, statusLabel } from './format';
+import {
+  hybridCommercials,
+  loadPortalIntent,
+  portalStatusLabel,
+  savePortalIntent,
+  type PortalIntent,
+} from './intelligence';
 import type { QuoteView } from './types';
 
 export function CustomerPortalPage() {
@@ -17,6 +24,8 @@ export function CustomerPortalPage() {
   const [busy, setBusy] = useState(false);
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [intent, setIntent] = useState<PortalIntent | undefined>(() => (token ? loadPortalIntent(token) : undefined));
+  const [note, setNote] = useState('');
   const inflight = useRef(false);
 
   useEffect(() => {
@@ -42,6 +51,8 @@ export function CustomerPortalPage() {
   }, [token]);
 
   const negotiable = quote?.status === 'approved' || quote?.status === 'customer_negotiation';
+  const commercial = quote ? hybridCommercials(quote) : undefined;
+  const canRespond = negotiable && !intent;
 
   async function submit() {
     if (!token || !quote || !negotiable || inflight.current) return;
@@ -85,8 +96,9 @@ export function CustomerPortalPage() {
               <h2 className="mt-1 text-title">
                 {quote.customer.name} · Status {statusLabel(quote.status)}
               </h2>
+              <p className="mt-1 text-sm text-foreground-muted">{portalStatusLabel(quote.status)}</p>
               <p className="mt-4 text-[34px] font-semibold tracking-tight">{formatMoney(quote.netTotal, true)}</p>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <dt className="text-caption text-foreground-muted">List</dt>
                   <dd>{formatMoney(quote.listTotal, true)}</dd>
@@ -96,8 +108,12 @@ export function CustomerPortalPage() {
                   <dd>{formatMoney(quote.discountTotal, true)}</dd>
                 </div>
                 <div>
-                  <dt className="text-caption text-foreground-muted">Blended</dt>
-                  <dd>{formatPercent(quote.blendedDiscountPercent)}</dd>
+                  <dt className="text-caption text-foreground-muted">One-time</dt>
+                  <dd>{formatMoney(commercial?.oneTimeNet ?? 0, true)}</dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-foreground-muted">Recurring / month</dt>
+                  <dd>{formatMoney(commercial?.recurringMonthly ?? 0, true)}</dd>
                 </div>
               </dl>
             </section>
@@ -118,7 +134,8 @@ export function CustomerPortalPage() {
                   <li key={line.id} className="py-4">
                     <p className="font-medium">{line.product?.name ?? 'Product'}</p>
                     <p className="text-caption text-foreground-muted">
-                      Qty {line.quantity} · {formatMoney(line.listPrice, true)} list
+                      Qty {line.quantity} · {formatMoney(line.listPrice, true)} list ·{' '}
+                      {line.product?.billingType === 'recurring' ? 'Recurring' : 'One-time'}
                     </p>
                     {negotiable ? (
                       <div className="mt-3 max-w-xs">
@@ -139,12 +156,59 @@ export function CustomerPortalPage() {
               </ul>
               {quote.lines.length === 0 ? <EmptyState title="No lines" /> : null}
             </section>
-            {negotiable ? (
-              <div className="sticky bottom-0 border-t border-edge bg-surface/90 py-4 backdrop-blur">
-                <Button loading={busy} onClick={() => void submit()}>
-                  Submit negotiation
-                </Button>
-              </div>
+            {canRespond ? (
+              <section className="space-y-3">
+                <Input
+                  label="Comment for your sales representative"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Optional note stored with your response on this device"
+                />
+                <div className="sticky bottom-0 flex flex-wrap gap-2 border-t border-edge bg-surface/90 py-4 backdrop-blur">
+                  <Button loading={busy} onClick={() => void submit()}>
+                    Submit counter-offer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!token) return;
+                      savePortalIntent(token, 'accepted');
+                      setIntent('accepted');
+                      toast({ title: 'Acceptance recorded on this device', variant: 'success' });
+                    }}
+                  >
+                    Accept quotation
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!token) return;
+                      savePortalIntent(token, 'declined');
+                      setIntent('declined');
+                      toast({ title: 'Decline recorded on this device', variant: 'success' });
+                    }}
+                  >
+                    Decline
+                  </Button>
+                </div>
+                <p className="text-caption text-foreground-muted">
+                  Accept and decline are recorded in this browser until staff confirms the quote in DealFlow360. Counter-offers
+                  still go through the portal API and may reopen approval.
+                </p>
+              </section>
+            ) : null}
+            {intent === 'accepted' ? (
+              <Alert variant="success" title="You accepted this quotation">
+                {note ? `${note} — ` : ''}A representative will confirm it in the staff workspace. This device no longer
+                offers another response.
+              </Alert>
+            ) : null}
+            {intent === 'declined' ? (
+              <Alert variant="warning" title="You declined this quotation">
+                {note || 'The sales team can still open a revised quotation.'}
+              </Alert>
             ) : null}
           </div>
         ) : null}

@@ -42,6 +42,7 @@ import {
   DealflowGate,
   DecisionBadge,
   FulfillmentBoard,
+  HealthBadge,
   NegotiationStory,
   OverrideForm,
   RiskPanel,
@@ -63,6 +64,7 @@ import {
   workspaceToast,
 } from './format';
 import { useCatalog, useQuote } from './hooks';
+import { contextualInsights, hybridCommercials, summarizeDealHealth } from './intelligence';
 import type { AuditEvent, QuoteView, Recommendation } from './types';
 
 export function QuoteWorkspacePage() {
@@ -77,6 +79,7 @@ export function QuoteWorkspacePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [productId, setProductId] = useState('');
+  const [productQuery, setProductQuery] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [discount, setDiscount] = useState('16');
   const [reason, setReason] = useState('Approved after risk review');
@@ -162,7 +165,14 @@ export function QuoteWorkspacePage() {
         }
         title={quote ? `${quote.number} · ${quote.customer.name}` : 'Quotation workspace'}
         description="What is being sold, what discount was given, why it is risky, and who must approve it."
-        actions={quote ? <StatusBadge status={quote.status} /> : null}
+        actions={
+          quote ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <HealthBadge health={summarizeDealHealth(quote)} />
+              <StatusBadge status={quote.status} />
+            </div>
+          ) : null
+        }
       >
         {quoteState.loading ? <LoadingState label="Loading quotation…" /> : null}
         {quoteState.error ? <ErrorState message={quoteState.error} onRetry={() => void quoteState.reload()} /> : null}
@@ -257,7 +267,7 @@ export function QuoteWorkspacePage() {
             ) : null}
 
             <Tabs
-              value={['lines', 'risk', 'approvals', 'fulfillment', 'billing', 'activity'].includes(tab) ? tab : 'lines'}
+              value={['lines', 'insights', 'risk', 'approvals', 'fulfillment', 'billing', 'activity'].includes(tab) ? tab : 'lines'}
               onChange={(id) => setParams(id === 'lines' ? {} : { tab: id })}
               items={[
                 {
@@ -331,7 +341,7 @@ export function QuoteWorkspacePage() {
                       {quote.lines.length === 0 ? <EmptyState title="No products yet" description="Add a one-time and a recurring product for the golden path." /> : null}
                       {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
                         <form
-                          className="grid gap-3 md:grid-cols-4"
+                          className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"
                           onSubmit={(event) => {
                             event.preventDefault();
                             if (!accessToken) return;
@@ -344,14 +354,24 @@ export function QuoteWorkspacePage() {
                             );
                           }}
                         >
+                          <Input
+                            label="Product search"
+                            value={productQuery}
+                            onChange={(event) => setProductQuery(event.target.value)}
+                            placeholder="SKU or name"
+                          />
                           <Select
                             label="Product"
                             value={productId}
                             onChange={(event) => setProductId(event.target.value)}
-                            options={(catalog.data?.products ?? []).map((item) => ({
-                              value: item.id,
-                              label: `${item.sku} · ${item.name} (${item.billingType})`,
-                            }))}
+                            options={(catalog.data?.products ?? [])
+                              .filter((item) =>
+                                `${item.sku} ${item.name} ${item.category}`.toLowerCase().includes(productQuery.trim().toLowerCase()),
+                              )
+                              .map((item) => ({
+                                value: item.id,
+                                label: `${item.sku} · ${item.name} (${item.billingType})`,
+                              }))}
                           />
                           <Input label="Quantity" type="number" min={1} value={quantity} onChange={(event) => setQuantity(event.target.value)} />
                           <Input label="Discount %" type="number" min={0} max={100} value={discount} onChange={(event) => setDiscount(event.target.value)} />
@@ -362,9 +382,9 @@ export function QuoteWorkspacePage() {
                           </div>
                         </form>
                       ) : null}
-                      <dl className="grid gap-3 sm:grid-cols-4">
+                      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                         <div>
-                          <dt className="text-xs text-foreground-muted">Subtotal</dt>
+                          <dt className="text-xs text-foreground-muted">List</dt>
                           <dd className="font-semibold">{formatMoney(quote.listTotal, true)}</dd>
                         </div>
                         <div>
@@ -372,15 +392,40 @@ export function QuoteWorkspacePage() {
                           <dd className="font-semibold">{formatMoney(quote.discountTotal, true)}</dd>
                         </div>
                         <div>
-                          <dt className="text-xs text-foreground-muted">Total</dt>
-                          <dd className="font-semibold">{formatMoney(quote.netTotal, true)}</dd>
+                          <dt className="text-xs text-foreground-muted">One-time</dt>
+                          <dd className="font-semibold">{formatMoney(hybridCommercials(quote).oneTimeNet, true)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-foreground-muted">Recurring / month</dt>
+                          <dd className="font-semibold">{formatMoney(hybridCommercials(quote).recurringMonthly, true)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-foreground-muted">Due today</dt>
+                          <dd className="font-semibold">{formatMoney(hybridCommercials(quote).dueToday, true)}</dd>
                         </div>
                         <div>
                           <dt className="text-xs text-foreground-muted">Owner</dt>
                           <dd className="font-semibold">{ownerLabel(quote.ownerId, user?.id, user?.displayName)}</dd>
                         </div>
                       </dl>
+                      <p className="text-caption text-foreground-muted">
+                        Tax and shipping are not collected on DealFlow quotations. Totals are commercial net from the API.
+                      </p>
                     </div>
+                  ),
+                },
+                {
+                  id: 'insights',
+                  label: 'Assistant',
+                  content: (
+                    <ul className="divide-y divide-edge">
+                      {contextualInsights(quote, catalog.data, visibleRecs).map((item) => (
+                        <li key={item.id} className="py-3">
+                          <p className="font-medium">{item.title}</p>
+                          <p className="mt-1 text-sm text-foreground-muted">{item.detail}</p>
+                        </li>
+                      ))}
+                    </ul>
                   ),
                 },
                 {

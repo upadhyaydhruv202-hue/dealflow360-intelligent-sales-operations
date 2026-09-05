@@ -2,7 +2,6 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { SessionGate } from '@/auth/SessionGate';
 import { hasPermission } from '@/lib/rbac';
 import {
   Alert,
@@ -31,6 +30,8 @@ import {
   statusLabel,
   statusTone,
 } from './format';
+import type { DealHealthSummary } from './intelligence';
+import { healthTone } from './intelligence';
 import type {
   ApprovalRoleKey,
   DealflowCatalog,
@@ -47,12 +48,11 @@ export function DealflowGate({
   permission: string;
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
-  return (
-    <SessionGate title="Sign in to DealFlow360" hint="Use a seeded staff, manager, or admin account.">
-      {hasPermission(user, permission) ? children : <Navigate to="/account" replace />}
-    </SessionGate>
-  );
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return hasPermission(user, permission) ? children : <Navigate to="/account" replace />;
 }
 
 export function StatusBadge({ status }: { status: QuoteView['status'] }) {
@@ -61,6 +61,14 @@ export function StatusBadge({ status }: { status: QuoteView['status'] }) {
 
 export function DecisionBadge({ decision }: { decision: QuoteView['assessmentDecision'] }) {
   return <Badge tone={decisionTone(decision)}>{decision.replaceAll('_', ' ')}</Badge>;
+}
+
+export function HealthBadge({ health }: { health: DealHealthSummary }) {
+  return (
+    <Badge tone={healthTone(health.level)}>
+      {health.level} · {health.score}
+    </Badge>
+  );
 }
 
 export function policyForLine(policies: DiscountPolicy[], assessment?: LineAssessment): DiscountPolicy | undefined {
@@ -199,19 +207,20 @@ export function ApprovalTimeline({ approvals }: { approvals: QuoteApproval[] }) 
 export function NegotiationStory({ quote }: { quote: QuoteView }) {
   const material = quote.revisions.some((item) => item.materialChange);
   const invalidated = quote.approvals.some((item) => item.status === 'invalidated');
-  const pending = quote.approvals.some((item) => item.status === 'pending');
+  const accepted = ['confirmed', 'fulfillment', 'billing', 'completed'].includes(quote.status);
   const steps = [
-    { id: 'approved', label: 'Approved', active: quote.status === 'approved' || material || invalidated },
-    { id: 'negotiate', label: 'Customer negotiation', active: quote.status === 'customer_negotiation' || material },
-    { id: 'material', label: 'Material change', active: material },
-    { id: 'reapprove', label: 'Re-approval required', active: quote.status === 'approval_required' && (material || invalidated) },
-    { id: 'chain', label: 'Approval chain', active: pending || (quote.status === 'approved' && invalidated) },
-    { id: 'again', label: 'Approved again', active: quote.status === 'approved' && invalidated },
+    { id: 'sent', label: 'Quotation ready', active: quote.lines.length > 0 },
+    { id: 'approved', label: 'Approved', active: quote.status === 'approved' || material || invalidated || accepted },
+    { id: 'negotiate', label: 'Customer viewed', active: quote.status === 'customer_negotiation' || material || accepted },
+    { id: 'material', label: 'Counter-offer', active: material || quote.status === 'customer_negotiation' },
+    { id: 'reapprove', label: 'Re-approval', active: quote.status === 'approval_required' && (material || invalidated) },
+    { id: 'again', label: 'Final approval', active: (quote.status === 'approved' && (material || invalidated)) || accepted },
+    { id: 'accepted', label: 'Accepted', active: accepted },
   ];
   return (
     <Card>
       <CardTitle className="mb-3">Negotiation path</CardTitle>
-      <ol className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      <ol className="grid gap-2 sm:grid-cols-3 xl:grid-cols-7">
         {steps.map((step) => (
           <li
             key={step.id}

@@ -11,6 +11,7 @@ import { ApprovalTimeline } from './components';
 import { decideApproval } from './api';
 import { formatMoney, formatPercent, roleLabel } from './format';
 import { useQuotes } from './hooks';
+import { approvalPriority, approvalSlaLabel } from './intelligence';
 
 export function ApprovalsPage() {
   const { accessToken, user } = useAuth();
@@ -29,11 +30,11 @@ export function ApprovalsPage() {
     ? [...selected.approvals].filter((item) => item.status === 'pending').sort((a, b) => a.stepOrder - b.stepOrder)[0]
     : undefined;
 
-  async function decide(decision: 'approved' | 'rejected') {
+  async function decide(decision: 'approved' | 'rejected', nextReason = reason) {
     if (!accessToken || !selected || !current) return;
     setBusy(true);
     try {
-      await decideApproval(selected.id, current.id, { decision, reason }, accessToken);
+      await decideApproval(selected.id, current.id, { decision, reason: nextReason }, accessToken);
       toast({ title: decision === 'approved' ? 'Approval recorded' : 'Returned to sender', variant: 'success' });
       await quotes.reload();
     } catch (caught) {
@@ -86,6 +87,9 @@ export function ApprovalsPage() {
                         </div>
                         <p className="mt-1 pl-3.5 text-caption">{item.customer?.name ?? 'Customer'}</p>
                         <p className="pl-3.5 text-sm font-medium text-foreground">{formatMoney(item.netTotal)}</p>
+                        <p className="pl-3.5 text-caption">
+                          {approvalPriority(item)} · {approvalSlaLabel(item)}
+                        </p>
                       </button>
                     </li>
                   );
@@ -111,6 +115,18 @@ export function ApprovalsPage() {
                     {current ? `${current.label} · ${roleLabel(current.roleKey)}` : 'No pending step'}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-caption text-foreground-muted">Priority</dt>
+                  <dd className="text-sm font-medium capitalize">{approvalPriority(selected)}</dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-foreground-muted">SLA</dt>
+                  <dd className="text-sm font-medium">{approvalSlaLabel(selected)}</dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-foreground-muted">Margin</dt>
+                  <dd className="text-sm font-medium">{formatPercent(selected.marginPercent)}</dd>
+                </div>
                 <div className="sm:col-span-2">
                   <dt className="text-caption text-foreground-muted">Why it needs review</dt>
                   <dd className="text-sm font-medium">{selected.assessment?.reasons[0] ?? 'Policy or chain review required.'}</dd>
@@ -128,9 +144,22 @@ export function ApprovalsPage() {
               {current && hasPermission(user, 'dealflow.quotes.approve') ? (
                 <div className="mt-6 space-y-3">
                   <Input label="Reason" value={reason} onChange={(event) => setReason(event.target.value)} />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
+                      className="flex-1"
+                      loading={busy}
+                      disabled={!canActOnStep(user?.permissions, user?.roles, current.roleKey)}
+                      onClick={() => {
+                        const next = reason.trim() || 'Please revise the requested discount';
+                        setReason(next);
+                        void decide('rejected', next);
+                      }}
+                    >
+                      Request changes
+                    </Button>
+                    <Button
+                      variant="ghost"
                       className="flex-1"
                       loading={busy}
                       disabled={!canActOnStep(user?.permissions, user?.roles, current.roleKey)}

@@ -95,7 +95,7 @@ export function AccountMenu({ onShortcuts }: { onShortcuts?: () => void }) {
           ),
           destructive: true,
           onSelect: () => {
-            void auth.logout();
+            void auth.logout().then(() => navigate('/login', { replace: true }));
           },
         },
       ]}

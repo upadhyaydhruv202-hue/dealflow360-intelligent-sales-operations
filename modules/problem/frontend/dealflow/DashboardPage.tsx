@@ -20,6 +20,7 @@ import { CreateQuoteButton, DecisionBadge, StatusBadge } from './components';
 import { DealflowGate } from './components';
 import { formatMoney, formatPercent, OPEN_STATUSES, ownerLabel, riskLabel } from './format';
 import { useCatalog, useQuotes } from './hooks';
+import { dashboardAnalytics, detectAnomalies } from './intelligence';
 
 function greeting(name?: string) {
   const hour = new Date().getHours();
@@ -36,18 +37,20 @@ export function DealflowDashboardPage() {
   const catalog = useCatalog(accessToken);
   const rows = quotes.data ?? [];
 
+  const analytics = dashboardAnalytics(rows);
   const open = rows.filter((item) => OPEN_STATUSES.includes(item.status));
-  const pending = rows.filter((item) => item.status === 'approval_required');
+  const pending = analytics.pending;
   const atRisk = rows.filter(
     (item) => item.assessmentDecision === 'approval_required' || item.assessmentDecision === 'rejected' || item.riskScore >= 70,
   );
-  const activeValue = open.reduce((sum, item) => sum + item.netTotal, 0);
+  const activeValue = analytics.openValue;
   const fulfillmentIssues = rows.filter((item) => (item.fulfillment?.backorderQuantity ?? 0) > 0);
   const billingIssues = rows.filter(
     (item) =>
       (item.status === 'confirmed' || item.status === 'fulfillment' || item.status === 'billing') &&
       (item.billing?.length ?? 0) === 0,
   );
+  const alerts = detectAnomalies(rows, catalog.data).slice(0, 4);
   const recent = [...rows]
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
     .slice(0, 6);
@@ -116,6 +119,21 @@ export function DealflowDashboardPage() {
                 <Link to="/dealflow/invoices" className="block rounded-control focus:outline-none focus-visible:ring-2">
                   <KpiCard label="Billing gaps" value={String(billingIssues.length)} hint="Confirmed without schedules" />
                 </Link>
+                <Link to="/dealflow/reports" className="block rounded-control focus:outline-none focus-visible:ring-2">
+                  <KpiCard
+                    label="Conversion"
+                    value={formatPercent(analytics.conversion)}
+                    hint={`${analytics.won.length} confirmed or later`}
+                  />
+                </Link>
+                <Link to="/dealflow/reports" className="block rounded-control focus:outline-none focus-visible:ring-2">
+                  <KpiCard
+                    label="Weighted forecast"
+                    value={formatMoney(analytics.forecast)}
+                    hint="Open value × stage probability"
+                    delta={{ label: `${analytics.agingApprovals} aging approvals`, trend: analytics.agingApprovals ? 'down' : 'flat' }}
+                  />
+                </Link>
               </>
             }
             charts={
@@ -123,6 +141,24 @@ export function DealflowDashboardPage() {
                 <ChartArea title="Pipeline mix" description="Live quote counts by operational state.">
                   <SimpleBarChart title="Pipeline mix" data={pipeline} />
                 </ChartArea>
+                <TableSection title="Contextual alerts" description="Derived from policy, stock, and approval age — not a generic chatbot.">
+                  <ul className="divide-y divide-edge">
+                    {alerts.map((item) => (
+                      <li key={item.id} className="py-3">
+                        <Link to={item.href} className="font-medium hover:underline">
+                          {item.quoteNumber} · {item.title}
+                        </Link>
+                        <p className="text-caption text-foreground-muted">{item.reason}</p>
+                      </li>
+                    ))}
+                    {alerts.length === 0 ? (
+                      <li className="py-6 text-sm text-foreground-muted">No contextual alerts on the current book.</li>
+                    ) : null}
+                  </ul>
+                  <Link to="/dealflow/anomalies" className="mt-3 inline-block text-sm font-medium hover:underline">
+                    Open anomaly center
+                  </Link>
+                </TableSection>
                 <TableSection title="Action required" description="Highest-risk open deals from the live quote list.">
                   <ul className="divide-y divide-edge">
                     {atRisk.slice(0, 5).map((item) => (

@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from './AuthProvider';
 import { Button } from '../ui';
 
 export function AuthStatus() {
   const { user, isAuthenticated, logout, pending } = useAuth();
+  const navigate = useNavigate();
 
   if (!isAuthenticated) {
     return (
@@ -22,7 +23,14 @@ export function AuthStatus() {
       <span className="hidden max-w-[10rem] truncate text-xs text-foreground-muted sm:inline">
         {user?.displayName ?? user?.email}
       </span>
-      <Button variant="ghost" size="sm" loading={pending} onClick={() => void logout()}>
+      <Button
+        variant="ghost"
+        size="sm"
+        loading={pending}
+        onClick={() => {
+          void logout().then(() => navigate('/login', { replace: true }));
+        }}
+      >
         Sign out
       </Button>
     </div>

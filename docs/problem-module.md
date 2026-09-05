@@ -50,6 +50,7 @@ DealFlow360 occupies this slot:
 | `/api/v1/dealflow/*` | Quote governance, approvals, fulfillment, billing |
 | Job `dealflow.odoo.sync` | Registered on API (when processing jobs) and worker |
 | `/dealflow` | Frontend workspace probe |
+| `/dealflow/assistant` · `/anomalies` · `/settings` | Contextual insights, live-quote exceptions, seeded configuration |
 
 ## Related
 

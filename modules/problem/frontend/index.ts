@@ -1,12 +1,15 @@
 import { createElement, type ReactElement } from 'react';
 
+import { AnomalyCenterPage } from './dealflow/AnomalyCenterPage';
 import { ApprovalsPage } from './dealflow/ApprovalsPage';
+import { AssistantPage } from './dealflow/AssistantPage';
 import { InvoicesPage, SubscriptionsPage } from './dealflow/BillingPages';
 import { CatalogPage, DealHealthPage, ReportsPage } from './dealflow/InsightsPages';
 import { DealflowDashboardPage } from './dealflow/DashboardPage';
 import { FulfillmentPage } from './dealflow/FulfillmentPage';
 import { QuoteWorkspacePage } from './dealflow/QuoteWorkspacePage';
 import { QuotesListPage } from './dealflow/QuotesListPage';
+import { SettingsPage } from './dealflow/SettingsPage';
 
 export { CustomerPortalPage } from './dealflow/PortalPage';
 export { CustomerAccountPage } from './dealflow/CustomerAccountPage';
@@ -31,8 +34,11 @@ export const problemNav: ProblemNavItem[] = [
   { to: '/dealflow/subscriptions', label: 'Subscriptions' },
   { to: '/dealflow/invoices', label: 'Invoices' },
   { to: '/dealflow/health', label: 'Deal Health' },
+  { to: '/dealflow/anomalies', label: 'Anomalies' },
+  { to: '/dealflow/assistant', label: 'Assistant' },
   { to: '/dealflow/reports', label: 'Reports' },
   { to: '/dealflow/catalog', label: 'Products / Policies' },
+  { to: '/dealflow/settings', label: 'Configuration' },
 ];
 
 export const problemRoutes: ProblemRoute[] = [
@@ -44,6 +50,9 @@ export const problemRoutes: ProblemRoute[] = [
   { path: '/dealflow/subscriptions', element: createElement(SubscriptionsPage) },
   { path: '/dealflow/invoices', element: createElement(InvoicesPage) },
   { path: '/dealflow/health', element: createElement(DealHealthPage) },
+  { path: '/dealflow/anomalies', element: createElement(AnomalyCenterPage) },
+  { path: '/dealflow/assistant', element: createElement(AssistantPage) },
   { path: '/dealflow/reports', element: createElement(ReportsPage) },
   { path: '/dealflow/catalog', element: createElement(CatalogPage) },
+  { path: '/dealflow/settings', element: createElement(SettingsPage) },
 ];

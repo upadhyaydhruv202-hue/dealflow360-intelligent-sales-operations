@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   Bell,
   Boxes,
@@ -9,6 +10,7 @@ import {
   Package,
   Receipt,
   Repeat,
+  Settings,
   ShieldCheck,
   Sparkles,
   Warehouse,
@@ -37,6 +39,8 @@ export const appNavGroups: AppNavGroup[] = [
     items: [
       { to: '/dealflow', label: 'Dashboard', icon: LayoutDashboard, end: true, command: 'Open overview', rail: true },
       { to: '/dealflow/health', label: 'Deal Health', icon: Activity, command: 'Open deal health', rail: true },
+      { to: '/dealflow/anomalies', label: 'Anomalies', icon: AlertTriangle, command: 'Open anomaly center', rail: true },
+      { to: '/dealflow/assistant', label: 'Assistant', icon: Sparkles, command: 'Open sales assistant', rail: true },
       { to: '/dealflow/reports', label: 'Reports', icon: BarChart3, command: 'Open reports', rail: true },
     ],
   },
@@ -56,6 +60,7 @@ export const appNavGroups: AppNavGroup[] = [
       { to: '/dealflow/subscriptions', label: 'Subscriptions', icon: Repeat, command: 'Open subscriptions', rail: true },
       { to: '/dealflow/invoices', label: 'Invoices', icon: Receipt, command: 'Open invoices', rail: true },
       { to: '/dealflow/catalog', label: 'Products / Policies', icon: Package, command: 'Open catalog', rail: true },
+      { to: '/dealflow/settings', label: 'Configuration', icon: Settings, command: 'Open sales configuration', rail: true },
     ],
   },
   {

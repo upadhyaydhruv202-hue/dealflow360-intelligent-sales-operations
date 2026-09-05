@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  approvalPriority,
+  contextualInsights,
+  dashboardAnalytics,
+  detectAnomalies,
+  hybridCommercials,
+  portalStatusLabel,
+  summarizeDealHealth,
+} from './intelligence';
+import { SAMPLE_QUOTE } from './test-fixtures';
+import type { DealflowCatalog, QuoteView } from './types';
+
+const catalog: DealflowCatalog = {
+  customers: [SAMPLE_QUOTE.customer],
+  products: SAMPLE_QUOTE.lines[0].product ? [SAMPLE_QUOTE.lines[0].product] : [],
+  warehouses: [{ id: 'west', name: 'West DC', fulfillmentCostPerUnit: 18 }],
+  stock: [
+    {
+      warehouseId: 'west',
+      productId: SAMPLE_QUOTE.lines[0].productId,
+      quantityOnHand: 4,
+      reserved: 0,
+    },
+  ],
+  policies: [],
+  chains: [],
+};
+
+describe('deal intelligence', () => {
+  it('scores an approval-required high-risk quote as critical', () => {
+    const health = summarizeDealHealth(SAMPLE_QUOTE, Date.parse('2026-09-08T05:10:00.000Z'));
+    expect(health.level).toBe('critical');
+    expect(health.score).toBeLessThan(75);
+    expect(health.factors.some((item) => item.id === 'approval')).toBe(true);
+    expect(health.probability).toBe(42);
+  });
+
+  it('detects discount, stock, and aging approval anomalies', () => {
+    const anomalies = detectAnomalies([SAMPLE_QUOTE], catalog, Date.parse('2026-09-08T05:10:00.000Z'));
+    expect(anomalies.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        `${SAMPLE_QUOTE.id}-discount`,
+        `${SAMPLE_QUOTE.id}-sla`,
+        `${SAMPLE_QUOTE.id}-stock-${SAMPLE_QUOTE.lines[0].id}`,
+      ]),
+    );
+  });
+
+  it('builds contextual insights from assessment and recommendations', () => {
+    const insights = contextualInsights(SAMPLE_QUOTE, catalog, [
+      {
+        relationId: 'rel-1',
+        kind: 'cross_sell',
+        product: {
+          id: 'edge',
+          sku: 'HW-EDGE-2',
+          name: 'Edge Sensor Pack',
+          category: 'hardware',
+          listPrice: 900,
+          cost: 400,
+          billingType: 'one_time',
+        },
+        reason: 'Pairs with Core Gateway deployments.',
+        priceImpact: 900,
+        marginImpact: 500,
+      },
+    ]);
+    expect(insights.some((item) => item.title.includes('approval is still pending'))).toBe(true);
+    expect(insights.some((item) => item.title.includes('Edge Sensor Pack'))).toBe(true);
+  });
+
+  it('computes conversion, forecast, and hybrid commercial totals', () => {
+    const won: QuoteView = {
+      ...SAMPLE_QUOTE,
+      id: 'won',
+      status: 'confirmed',
+      assessmentDecision: 'allowed',
+      riskScore: 10,
+      lines: [
+        SAMPLE_QUOTE.lines[0],
+        {
+          ...SAMPLE_QUOTE.lines[0],
+          id: 'line-sw',
+          productId: 'sw',
+          listPrice: 2400,
+          quantity: 1,
+          discountPercent: 16,
+          product: {
+            id: 'sw',
+            sku: 'SW-CTRL-1',
+            name: 'Control Suite',
+            category: 'software',
+            listPrice: 2400,
+            cost: 400,
+            billingType: 'recurring',
+            billingFrequency: 'monthly',
+          },
+        },
+      ],
+    };
+    const analytics = dashboardAnalytics([SAMPLE_QUOTE, won]);
+    expect(analytics.conversion).toBe(50);
+    expect(analytics.forecast).toBeGreaterThan(0);
+    const hybrid = hybridCommercials(won);
+    expect(hybrid.mixed).toBe(true);
+    expect(hybrid.oneTimeNet).toBe(26880);
+    expect(hybrid.recurringMonthly).toBeCloseTo(2016);
+  });
+
+  it('maps portal-facing status labels without exposing internals', () => {
+    expect(portalStatusLabel('approval_required')).toBe('In review');
+    expect(portalStatusLabel('approved')).toBe('Ready to accept');
+    expect(approvalPriority(SAMPLE_QUOTE, Date.parse('2026-09-08T05:10:00.000Z'))).toBe('critical');
+  });
+});
