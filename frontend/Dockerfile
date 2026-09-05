@@ -30,7 +30,7 @@ ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build -w @hackathon/api-contract && npm run build -w frontend
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS production
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS production
 COPY infra/nginx/frontend.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 EXPOSE 8080
