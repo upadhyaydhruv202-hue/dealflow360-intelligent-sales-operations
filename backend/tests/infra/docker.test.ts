@@ -126,6 +126,20 @@ describe('Dockerfiles', () => {
     expect(frontendDocker).toContain('packages/api-contract');
   });
 
+  it('does not exclude the problem module from the Docker build context', () => {
+    const dockerignore = readRepoFile('.dockerignore')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+    expect(dockerignore).not.toContain('modules');
+    expect(dockerignore).not.toContain('/modules');
+    expect(dockerignore).not.toContain('modules/');
+    expect(dockerignore).not.toContain('modules/**');
+    expect(dockerignore).not.toContain('modules/problem');
+    expect(dockerignore).not.toContain('modules/problem/');
+  });
+
   it('re-resolves the backend hostname from the frontend nginx proxy', () => {
     const frontendNginx = readRepoFile('infra/nginx/frontend.conf');
     expect(frontendNginx).toContain('resolver 127.0.0.11');

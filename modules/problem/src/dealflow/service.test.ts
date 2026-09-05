@@ -142,7 +142,8 @@ describe('DealFlow360 golden path', () => {
     expect(negotiated.approvals.some((item) => item.status === 'invalidated')).toBe(true);
     expect(negotiated.approvals.some((item) => item.status === 'pending')).toBe(true);
 
-    let reapproved = negotiated;
+    let reapproved: { status: string; approvals: Array<{ id: string; status: string; roleKey: string }> } =
+      negotiated;
     for (const step of reapproved.approvals.filter((item) => item.status === 'pending')) {
       const actor = step.roleKey === 'manager' ? manager : finance;
       reapproved = (await service.decide(created.id, step.id, { decision: 'approved', reason: 're-approve' }, actor)) as typeof submitted;

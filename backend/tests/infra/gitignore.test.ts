@@ -39,6 +39,7 @@ const REQUIRED_PATTERNS = [
   '/storage/',
   '/backend/job-queue/',
   '/job-queue/',
+  '/reports/',
   '.vite/',
   'dump.rdb',
   '*.aof',
@@ -114,7 +115,10 @@ describe('.gitignore hygiene', () => {
 
   it('does not hide storage source, migrations, or env templates', () => {
     expect(lines).not.toContain('storage/');
+    expect(lines).not.toContain('reports/');
     expect(isIgnored('backend/src/integrations/storage/storage.service.ts')).toBe(false);
+    expect(isIgnored('backend/src/integrations/reports/index.ts')).toBe(false);
+    expect(isIgnored('reports/junit-unit.xml')).toBe(true);
     expect(isIgnored('database/prisma/migrations/20260828120000_init/migration.sql')).toBe(false);
     expect(isIgnored('docs/configuration.md')).toBe(false);
     expect(isIgnored('docs/prerequisites.md')).toBe(false);

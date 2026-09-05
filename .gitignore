@@ -41,9 +41,9 @@ desktop.ini
 # Tool caches
 .eslintcache
 
-# Test / coverage extras
+# Test / coverage extras (root JUnit dumps only — not src/integrations/reports)
 .nyc_output/
-reports/
+/reports/
 *.lcov
 
 # Vite sidecar timestamps (generated next to vite.config.ts)

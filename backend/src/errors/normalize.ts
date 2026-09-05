@@ -1,7 +1,13 @@
 import { Prisma } from '@prisma/client';
 
 import { mapPrismaError } from '../lib/prisma-error';
-import { AppError, ExternalServiceError, TimeoutError, ValidationError } from './app-error';
+import {
+  AppError,
+  ExternalServiceError,
+  TimeoutError,
+  ValidationError,
+  type ErrorDetails,
+} from './app-error';
 
 export function normalizeError(error: unknown): unknown {
   if (error instanceof AppError) {
@@ -55,7 +61,7 @@ export function normalizeError(error: unknown): unknown {
 
 function isOperationalHttpError(
   error: unknown,
-): error is Error & { code: string; statusCode: number; details?: Record<string, unknown> | unknown[]; isOperational: true } {
+): error is Error & { code: string; statusCode: number; details?: ErrorDetails; isOperational: true } {
   if (!error || typeof error !== 'object') {
     return false;
   }
