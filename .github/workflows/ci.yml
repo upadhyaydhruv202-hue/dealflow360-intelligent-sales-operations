@@ -1,0 +1,188 @@
+# Reusable CI pipeline. Customization: docs/ci-cd.md
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hackathon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hackathon_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hackathon_test
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js and cache dependencies
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Migrate
+        run: npm run db:migrate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: >-
+          npm run test:unit --
+          --reporter=default
+          --reporter=junit
+          --outputFile=reports/junit-unit.xml
+          --coverage
+
+      - name: Integration tests
+        run: >-
+          npm run test:integration --
+          --reporter=default
+          --reporter=junit
+          --outputFile=reports/junit-integration.xml
+
+      - name: End-to-end tests
+        run: >-
+          npm run test:e2e --
+          --reporter=default
+          --reporter=junit
+          --outputFile=reports/junit-e2e.xml
+
+      - name: Secret scan
+        run: npm run security:secrets
+
+      - name: Dependency audit
+        continue-on-error: ${{ vars.AUDIT_CONTINUE_ON_ERROR != 'false' }}
+        run: npm run security:audit
+
+      - name: Frontend build
+        run: npm run build -w @hackathon/api-contract && npm run build -w frontend
+
+      - name: Backend build
+        run: npm run build -w @hackathon/api-contract && npm run build -w @hackathon/problem && npm run build -w backend && npm run build -w workers
+
+      - name: Upload test reports, coverage, and build artifacts
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-reports-${{ github.run_id }}
+          path: |
+            **/reports/**
+            **/coverage/**
+            frontend/dist/**
+            backend/dist/**
+            workers/dist/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  docker:
+    name: Docker build validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Copy environment
+        run: cp .env.demo.example .env
+
+      - name: Validate production images
+        run: |
+          docker build -f backend/Dockerfile --target production -t hackathon-backend:ci .
+          docker build -f frontend/Dockerfile --target production -t hackathon-frontend:ci .
+
+      # Do not `compose up --wait` the full stack here. Worker/frontend wait on
+      # backend `service_healthy` (/ready). GitHub's Compose treats a failing
+      # healthcheck during migrate/seed as unhealthy and aborts in ~20s, before
+      # start_period (90s) can apply. Start data stores, then the API, wait with
+      # retries, then the rest.
+      - name: Start data stores
+        run: docker compose up --build -d --wait --wait-timeout 60 postgres redis
+
+      - name: Start API
+        run: docker compose up --build -d --no-deps backend
+
+      - name: Wait for API health and readiness
+        env:
+          HEALTHCHECK_URL: http://127.0.0.1:5000/health
+          READYCHECK_URL: http://127.0.0.1:5000/ready
+          HEALTHCHECK_RETRIES: '36'
+          HEALTHCHECK_INTERVAL_MS: '5000'
+          HEALTHCHECK_TIMEOUT_MS: '5000'
+        run: node infra/scripts/healthcheck.mjs
+
+      - name: Start worker and frontend
+        run: docker compose up --build -d --no-deps worker frontend
+
+      - name: Smoke
+        run: node infra/scripts/smoke.mjs
+
+      - name: Collect Compose logs
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker inspect hackathon-backend --format '{{json .State.Health}}' || true
+          docker compose logs | tee compose-logs.txt
+
+      - name: Upload Compose logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-compose-logs-${{ github.run_id }}
+          path: compose-logs.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down

@@ -1,0 +1,98 @@
+# Environment (never commit local secrets; keep example templates)
+.env
+.env.*
+!.env.example
+!.env.test.example
+!.env.demo.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite cache (node_modules/.vite is covered by node_modules/)
+.vite/
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Runtime
+tmp/
+temp/
+
+# IDE (Cursor rules stay local; AGENTS.md is the tracked copy)
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Tool caches
+.eslintcache
+
+# Test / coverage extras
+.nyc_output/
+reports/
+*.lcov
+
+# Vite sidecar timestamps (generated next to vite.config.ts)
+vite.config.ts.timestamp-*
+vite.config.*.timestamp-*
+
+# Local Cursor / agent dumps if created in-tree
+agent-transcripts/
+
+# Generated files
+uploads/
+generated/
+
+# Runtime object storage and file-backed jobs (not source under src/)
+/backend/storage/
+/storage/
+/backend/job-queue/
+/job-queue/
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+credentials.json
+**/secrets/
+service-account*.json
+google-services.json
+.env.local
+.env.production
+.env.development
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Docker
+docker-data/
+
+# Redis persistence if a local server uses the repository directory
+dump.rdb
+*.aof
+
+# Do not ignore: package-lock.json, database/prisma/, Dockerfiles,
+# docker-compose.yml, .github/workflows, *.example env templates, or source.
+

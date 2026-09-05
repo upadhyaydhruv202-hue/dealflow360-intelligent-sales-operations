@@ -1,0 +1,42 @@
+name: hackathon-starter-kit
+
+# Postgres and Redis only. Included by the root docker-compose.yml.
+
+services:
+  # REQUIRED — PostgreSQL 16. Shared by API, worker, and host-based npm run dev.
+  postgres:
+    image: postgres:16-alpine
+    container_name: hackathon-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-hackathon}
+    ports:
+      # Host 5433 avoids clashing with a native PostgreSQL install on 5432 (common on Windows).
+      # Bound to loopback so the unauthenticated local image is not published on the LAN.
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - ../docker-data/postgres:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # REQUIRED — Redis 7. BullMQ, cache, rate limits, OTP, idempotency.
+  redis:
+    image: redis:7-alpine
+    container_name: hackathon-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - ../docker-data/redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s

@@ -1,0 +1,244 @@
+# Provider-agnostic CD. Default is build + registry push; remote apply is opt-in.
+# Customization, secrets, and rollback: docs/ci-cd.md
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub Environment
+        type: choice
+        options: [staging, production]
+        default: staging
+      ref:
+        description: Git ref to deploy (commit SHA, tag, or branch). Defaults to the current SHA.
+        required: false
+        type: string
+      skip_verify:
+        description: Skip the reusable CI workflow (use only when that revision already passed CI)
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, master]
+
+concurrency:
+  group: cd-${{ github.event.inputs.environment || vars.CD_AUTO_ENVIRONMENT || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.rev.outputs.sha }}
+      short: ${{ steps.rev.outputs.short }}
+      environment: ${{ steps.rev.outputs.environment }}
+      registry: ${{ steps.rev.outputs.registry }}
+      image_prefix: ${{ steps.rev.outputs.image_prefix }}
+    steps:
+      - name: Resolve revision and image names
+        id: rev
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          HEAD_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          IMAGE_PREFIX: ${{ vars.IMAGE_PREFIX }}
+          CD_AUTO_ENVIRONMENT: ${{ vars.CD_AUTO_ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+          sha="${HEAD_SHA}"
+          if [ "${EVENT_NAME}" = "workflow_run" ] && [ -n "${RUN_SHA:-}" ]; then
+            sha="${RUN_SHA}"
+          elif [ -n "${INPUT_REF:-}" ]; then
+            sha="${INPUT_REF}"
+          fi
+
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_ENVIRONMENT:-}" ]; then
+            environment="${INPUT_ENVIRONMENT}"
+          else
+            environment="${CD_AUTO_ENVIRONMENT:-staging}"
+          fi
+
+          repo="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          registry="${IMAGE_REGISTRY:-ghcr.io}"
+          prefix="${IMAGE_PREFIX:-${registry}/${repo}}"
+          short="$(echo "${sha}" | cut -c1-7)"
+
+          {
+            echo "sha=${sha}"
+            echo "short=${short}"
+            echo "environment=${environment}"
+            echo "registry=${registry}"
+            echo "image_prefix=${prefix}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Deploy revision=${sha} short=${short} environment=${environment} prefix=${prefix}"
+
+  verify:
+    name: Test
+    needs: [prepare]
+    if: github.event_name == 'workflow_dispatch' && inputs.skip_verify != true
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
+  images:
+    name: Build and push images
+    needs: [prepare, verify]
+    if: |
+      always()
+      && needs.prepare.result == 'success'
+      && (needs.verify.result == 'success' || needs.verify.result == 'skipped')
+      && (
+        github.event_name == 'workflow_dispatch'
+        || (
+          github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && vars.CD_AUTO_DEPLOY == 'true'
+        )
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ needs.prepare.outputs.registry }}
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.image_prefix }}/backend:sha-${{ needs.prepare.outputs.short }}
+            ${{ needs.prepare.outputs.image_prefix }}/backend:${{ needs.prepare.outputs.environment }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: production
+          push: true
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL }}
+          tags: |
+            ${{ needs.prepare.outputs.image_prefix }}/frontend:sha-${{ needs.prepare.outputs.short }}
+            ${{ needs.prepare.outputs.image_prefix }}/frontend:${{ needs.prepare.outputs.environment }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Record image names
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          {
+            echo "BACKEND_IMAGE=${{ needs.prepare.outputs.image_prefix }}/backend:sha-${{ needs.prepare.outputs.short }}"
+            echo "FRONTEND_IMAGE=${{ needs.prepare.outputs.image_prefix }}/frontend:sha-${{ needs.prepare.outputs.short }}"
+            echo "GIT_SHA=${{ needs.prepare.outputs.sha }}"
+            echo "ENVIRONMENT=${{ needs.prepare.outputs.environment }}"
+          } > artifacts/images.env
+          cat artifacts/images.env
+
+      - name: Upload image coordinates
+        uses: actions/upload-artifact@v7
+        with:
+          name: deploy-images-${{ github.run_id }}
+          path: artifacts/images.env
+          retention-days: 30
+
+  deploy:
+    name: Deploy
+    needs: [prepare, images]
+    if: always() && needs.images.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}
+      url: ${{ vars.DEPLOY_URL }}
+    env:
+      DEPLOY_PROVIDER: ${{ vars.DEPLOY_PROVIDER }}
+      DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND }}
+      DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+      DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+      DEPLOY_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+      BACKEND_IMAGE: ${{ needs.prepare.outputs.image_prefix }}/backend:sha-${{ needs.prepare.outputs.short }}
+      FRONTEND_IMAGE: ${{ needs.prepare.outputs.image_prefix }}/frontend:sha-${{ needs.prepare.outputs.short }}
+      GIT_SHA: ${{ needs.prepare.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Apply deployment
+        run: node infra/scripts/deploy.mjs
+
+  health:
+    name: Health check
+    needs: [prepare, deploy]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: ${{ needs.prepare.outputs.environment }}
+    env:
+      DEPLOY_PROVIDER: ${{ vars.DEPLOY_PROVIDER }}
+      HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+      READYCHECK_URL: ${{ vars.READYCHECK_URL }}
+      HEALTHCHECK_RETRIES: ${{ vars.HEALTHCHECK_RETRIES }}
+      HEALTHCHECK_INTERVAL_MS: ${{ vars.HEALTHCHECK_INTERVAL_MS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Probe health endpoints
+        run: node infra/scripts/healthcheck.mjs

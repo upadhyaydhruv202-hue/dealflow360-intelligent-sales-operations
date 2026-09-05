@@ -1,0 +1,905 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  invited
+  disabled
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+}
+
+enum NotificationCategory {
+  order_updates
+  security_alerts
+  reports
+  marketing
+  system
+}
+
+enum NotificationPriority {
+  low
+  normal
+  high
+  critical
+}
+
+enum NotificationChannel {
+  email
+  in_app
+  sms
+  push
+  webhook
+}
+
+enum NotificationDeliveryStatus {
+  queued
+  processing
+  sent
+  failed
+  retrying
+}
+
+/// Application user. Password hashes must never be exposed to the frontend or API responses.
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  displayName  String     @map("display_name")
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  userRoles               UserRole[]
+  notifications           Notification[]
+  notificationDeliveries  NotificationDelivery[]
+  notificationPreferences NotificationPreference[]
+  refreshTokens           RefreshToken[]
+  documents               Document[]
+  storedFiles             StoredFile[]
+  copilotConversations    CopilotConversation[]
+  auditEvents             AuditEvent[]
+  automationRules         AutomationRule[]
+  ragDocuments            RagDocument[]
+  anomalyFindings         AnomalyFinding[]
+  searchDocuments         SearchDocument[]
+  analyticsFacts          AnalyticsFact[]
+
+  @@map("users")
+}
+
+/// Hashed refresh tokens. Raw JWTs are never stored. Rotation revokes the previous row.
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @map("token_hash")
+  familyId   String    @map("family_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tokenHash])
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Notification {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String               @map("user_id") @db.Uuid
+  type       NotificationType
+  title      String
+  body       String
+  category   NotificationCategory @default(system)
+  priority   NotificationPriority @default(normal)
+  metadata   Json?
+  deliveryId String?              @unique @map("delivery_id") @db.Uuid
+  readAt     DateTime?            @map("read_at")
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delivery NotificationDelivery?  @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// Outbound send across any channel. In-app inbox rows stay on `notifications`.
+model NotificationDelivery {
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel           NotificationChannel
+  status            NotificationDeliveryStatus
+  priority          NotificationPriority
+  category          NotificationCategory
+  template          String
+  recipient         Json
+  data              Json
+  metadata          Json?
+  userId            String?                    @map("user_id") @db.Uuid
+  idempotencyKey    String?                    @unique @map("idempotency_key")
+  errorMessage      String?                    @map("error_message")
+  attempt           Int                        @default(0)
+  maxAttempts       Int                        @default(3) @map("max_attempts")
+  provider          String?
+  providerMessageId String?                    @map("provider_message_id")
+  sentAt            DateTime?                  @map("sent_at")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+
+  user  User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  inApp Notification?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([channel, status])
+  @@map("notification_deliveries")
+}
+
+model NotificationPreference {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  category  NotificationCategory
+  channel   NotificationChannel
+  enabled   Boolean              @default(true)
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category, channel])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  completed
+  failed
+  needs_review
+}
+
+enum DocumentType {
+  invoice
+  receipt
+  certificate
+  application
+  form
+  contract
+  report
+  generic
+}
+
+/// Original uploaded file metadata. Bytes live in object storage, not in this row.
+model Document {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String         @map("user_id") @db.Uuid
+  originalFilename    String         @map("original_filename")
+  storedFilename      String         @map("stored_filename")
+  storageKey          String         @map("storage_key")
+  mimeType            String         @map("mime_type")
+  extension           String
+  sizeBytes           Int            @map("size_bytes")
+  checksumSha256      String         @map("checksum_sha256")
+  documentType        DocumentType   @map("document_type")
+  status              DocumentStatus
+  requestedFields     Json           @map("requested_fields")
+  extractedTextLength Int?           @map("extracted_text_length")
+  errorMessage        String?        @map("error_message")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  extraction  DocumentExtraction?
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("documents")
+}
+
+/// AI-generated extraction. Kept separate from the source document row.
+model DocumentExtraction {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId     String   @unique @map("document_id") @db.Uuid
+  fields         Json
+  missingFields  Json     @map("missing_fields")
+  confidence     Float
+  warnings       Json
+  requiresReview Boolean  @map("requires_review")
+  model          String?
+  provider       String?
+  promptId       String?  @map("prompt_id")
+  promptVersion  String?  @map("prompt_version")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_extractions")
+}
+
+enum CopilotMessageRole {
+  user
+  assistant
+}
+
+/// Copilot thread. Messages never store secrets (redacted before persist).
+model CopilotConversation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages CopilotMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("copilot_conversations")
+}
+
+model CopilotMessage {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String             @map("conversation_id") @db.Uuid
+  role           CopilotMessageRole
+  content        String
+  toolCalls      Json?              @map("tool_calls")
+  confidence     Float?
+  evidence       String?
+  errorCode      String?            @map("error_code")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  conversation CopilotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("copilot_messages")
+}
+
+/// Generic audit log. Request JSON is redacted metadata. Never store passwords, JWTs, API keys, or OTPs.
+model AuditEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  resource   String?
+  resourceId String?  @map("resource_id")
+  request    Json
+  status     String
+  requestId  String?  @map("request_id")
+  ip         String?
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([resource, createdAt])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+enum AutomationRuleSource {
+  manual
+  ai
+}
+
+enum AutomationExecutionStatus {
+  queued
+  running
+  succeeded
+  failed
+  skipped
+}
+
+/// Declarative trigger-condition-action rule. AI-sourced rules stay disabled until validated.
+model AutomationRule {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  description      String?
+  enabled          Boolean               @default(false)
+  priority         Int                   @default(100)
+  trigger          String
+  conditions       Json
+  actions          Json
+  source           AutomationRuleSource  @default(manual)
+  allowDestructive Boolean               @default(false) @map("allow_destructive")
+  validatedAt      DateTime?             @map("validated_at")
+  createdById      String?               @map("created_by_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  createdBy   User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  executions  AutomationExecution[]
+
+  @@index([trigger, enabled, priority])
+  @@index([createdAt])
+  @@map("automation_rules")
+}
+
+model AutomationExecution {
+  id           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleId       String                     @map("rule_id") @db.Uuid
+  eventId      String                     @map("event_id")
+  trigger      String
+  status       AutomationExecutionStatus
+  attempt      Int                        @default(0)
+  maxAttempts  Int                        @default(3) @map("max_attempts")
+  payload      Json
+  errorMessage String?                    @map("error_message")
+  startedAt    DateTime?                  @map("started_at")
+  finishedAt   DateTime?                  @map("finished_at")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  updatedAt    DateTime                   @updatedAt @map("updated_at")
+
+  rule       AutomationRule        @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  actionRuns AutomationActionRun[]
+
+  @@unique([ruleId, eventId])
+  @@index([status, createdAt])
+  @@index([trigger, createdAt])
+  @@map("automation_executions")
+}
+
+model AutomationActionRun {
+  id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  executionId  String                    @map("execution_id") @db.Uuid
+  actionIndex  Int                       @map("action_index")
+  actionType   String                    @map("action_type")
+  status       AutomationExecutionStatus
+  attempt      Int                       @default(0)
+  result       Json?
+  errorMessage String?                   @map("error_message")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+
+  execution AutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, actionIndex])
+  @@index([executionId, createdAt])
+  @@map("automation_action_runs")
+}
+
+/// Uploaded file metadata. Bytes live in object storage (`StoredObject`, local disk, or S3), not in this row.
+model StoredFile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  originalName String   @map("original_name")
+  storedName   String   @map("stored_name")
+  storageKey   String   @unique @map("storage_key")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  provider     String
+  purpose      String
+  uploadedBy   String?  @map("uploaded_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([uploadedBy, createdAt])
+  @@index([purpose, createdAt])
+  @@map("stored_files")
+}
+
+/// Shared object bytes. Used when API and workers do not share a local disk (and as a cache source of truth for local+postgres).
+model StoredObject {
+  key         String   @id
+  body        Bytes
+  contentType String   @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("stored_objects")
+}
+
+/// Indexed RAG source document. Chunk embeddings live on `RagChunk`. Unused unless FEATURE_RAG is on.
+model RagDocument {
+  id         String   @id
+  source     String
+  metadata   Json
+  textHash   String   @map("text_hash")
+  chunkCount Int      @map("chunk_count")
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user   User?      @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  chunks RagChunk[]
+
+  @@index([createdAt])
+  @@index([createdBy])
+  @@map("rag_documents")
+}
+
+model RagChunk {
+  id             String   @id
+  documentId     String   @map("document_id")
+  chunkIndex     Int      @map("chunk_index")
+  source         String
+  content        String
+  metadata       Json
+  embedding      Json
+  embeddingModel String   @map("embedding_model")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  document RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@map("rag_chunks")
+}
+
+enum AnomalySeverity {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AnomalyExplanationStatus {
+  generated
+  skipped
+  failed
+  unavailable
+}
+
+/// Statistical anomaly finding. Evidence is measured; explanation is optional AI output. Unused unless FEATURE_ANOMALY_DETECTION is on.
+model AnomalyFinding {
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  metric              String
+  anomaly             Boolean
+  severity            AnomalySeverity
+  change              Float?
+  evidence            Json
+  explanation         String
+  recommendedAction   String                    @map("recommended_action")
+  explanationStatus   AnomalyExplanationStatus  @map("explanation_status")
+  series              Json
+  metadata            Json
+  createdBy           String?                   @map("created_by") @db.Uuid
+  createdAt           DateTime                  @default(now()) @map("created_at")
+
+  user User? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([metric, createdAt])
+  @@index([createdBy, createdAt])
+  @@index([anomaly, createdAt])
+  @@map("anomaly_findings")
+}
+
+/// Provider-agnostic search documents. Full-text uses a generated tsvector in SQL (not modeled here). Unused unless FEATURE_SEARCH is on.
+model SearchDocument {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  indexName  String   @map("index_name")
+  documentId String   @map("document_id")
+  title      String   @default("")
+  body       String   @default("")
+  keywords   String   @default("")
+  payload    Json
+  filters    Json
+  ownerId    String?  @map("owner_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@unique([indexName, documentId])
+  @@index([indexName, createdAt])
+  @@index([ownerId])
+  @@map("search_documents")
+}
+
+/// Generic analytics facts for registered KPIs. Problem modules register KPI definitions in code; they do not add business metrics here. Unused unless FEATURE_ANALYTICS is on.
+/// Query path is always kpi_key + occurred_at range. Partial owner index and GIN(dimensions jsonb_path_ops) are in the SQL migration.
+model AnalyticsFact {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kpiKey     String   @map("kpi_key")
+  source     String
+  eventId    String   @map("event_id")
+  occurredAt DateTime @map("occurred_at")
+  ownerId    String?  @map("owner_id") @db.Uuid
+  value      Float
+  dimensions Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@unique([source, eventId])
+  @@index([kpiKey, occurredAt])
+  @@index([source, occurredAt])
+  @@index([ownerId, occurredAt])
+  @@map("analytics_facts")
+}
+
+enum DfCustomerTier {
+  standard
+  silver
+  gold
+  strategic
+}
+
+enum DfBillingType {
+  one_time
+  recurring
+}
+
+enum DfBillingFrequency {
+  monthly
+  quarterly
+  yearly
+}
+
+enum DfQuoteStatus {
+  draft
+  approval_required
+  approved
+  customer_negotiation
+  confirmed
+  fulfillment
+  billing
+  completed
+  rejected
+}
+
+enum DfDiscountDecision {
+  allowed
+  warning
+  approval_required
+  rejected
+}
+
+enum DfApprovalStatus {
+  pending
+  approved
+  rejected
+  skipped
+  invalidated
+}
+
+enum DfBillingStatus {
+  scheduled
+  invoiced
+  cancelled
+}
+
+enum DfRelationKind {
+  upsell
+  cross_sell
+}
+
+model DfCustomer {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  email         String
+  tier          DfCustomerTier @default(standard)
+  odooPartnerId Int?           @map("odoo_partner_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  quotes Quote[]
+
+  @@map("df_customers")
+}
+
+model DfProduct {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku            String             @unique
+  name           String
+  category       String
+  listPrice      Float              @map("list_price")
+  cost           Float
+  billingType    DfBillingType      @map("billing_type")
+  billingFrequency DfBillingFrequency? @map("billing_frequency")
+  odooProductId  Int?               @map("odoo_product_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  stock          DfStockLevel[]
+  quoteLines     QuoteLine[]
+  sourceRelations DfProductRelation[] @relation("RelationSource")
+  targetRelations DfProductRelation[] @relation("RelationTarget")
+
+  @@index([category])
+  @@map("df_products")
+}
+
+model DfProductRelation {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId             String         @map("product_id") @db.Uuid
+  recommendedProductId  String         @map("recommended_product_id") @db.Uuid
+  kind                  DfRelationKind
+  reason                String
+  promotion             String?
+  minQuantity           Float          @default(1) @map("min_quantity")
+  createdAt             DateTime       @default(now()) @map("created_at")
+
+  product            DfProduct @relation("RelationSource", fields: [productId], references: [id], onDelete: Cascade)
+  recommendedProduct DfProduct @relation("RelationTarget", fields: [recommendedProductId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("df_product_relations")
+}
+
+model DfWarehouse {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String
+  fulfillmentCostPerUnit Float    @map("fulfillment_cost_per_unit")
+  odooWarehouseId        Int?     @map("odoo_warehouse_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  stock        DfStockLevel[]
+  allocations  QuoteFulfillmentSplit[]
+
+  @@map("df_warehouses")
+}
+
+model DfStockLevel {
+  warehouseId    String @map("warehouse_id") @db.Uuid
+  productId      String @map("product_id") @db.Uuid
+  quantityOnHand Float  @map("quantity_on_hand")
+  reserved       Float  @default(0)
+
+  warehouse DfWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product   DfProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([warehouseId, productId])
+  @@map("df_stock_levels")
+}
+
+model DfDiscountPolicy {
+  id                     String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String
+  customerTier           DfCustomerTier? @map("customer_tier")
+  productCategory        String?         @map("product_category")
+  warningPercent         Float           @map("warning_percent")
+  approvalPercent        Float           @map("approval_percent")
+  rejectPercent          Float           @map("reject_percent")
+  maxMarginImpactPercent Float           @map("max_margin_impact_percent")
+  priority               Int             @default(100)
+  createdAt              DateTime        @default(now()) @map("created_at")
+
+  @@index([priority])
+  @@map("df_discount_policies")
+}
+
+model DfApprovalChain {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String
+  minRiskScore            Float    @map("min_risk_score")
+  minBlendedDiscountPercent Float  @map("min_blended_discount_percent")
+  priority                Int      @default(100)
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  steps      DfApprovalChainStep[]
+  approvals  QuoteApproval[]
+  quotes     Quote[]
+
+  @@index([priority])
+  @@map("df_approval_chains")
+}
+
+model DfApprovalChainStep {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chainId String @map("chain_id") @db.Uuid
+  stepOrder Int  @map("step_order")
+  roleKey String @map("role_key")
+  label   String
+
+  chain DfApprovalChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
+
+  @@unique([chainId, stepOrder])
+  @@map("df_approval_chain_steps")
+}
+
+model Quote {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number                  String             @unique
+  customerId              String             @map("customer_id") @db.Uuid
+  ownerId                 String?            @map("owner_id") @db.Uuid
+  status                  DfQuoteStatus      @default(draft)
+  listTotal               Float              @default(0) @map("list_total")
+  discountTotal           Float              @default(0) @map("discount_total")
+  netTotal                Float              @default(0) @map("net_total")
+  costTotal               Float              @default(0) @map("cost_total")
+  marginPercent           Float              @default(0) @map("margin_percent")
+  blendedDiscountPercent  Float              @default(0) @map("blended_discount_percent")
+  riskScore               Float              @default(0) @map("risk_score")
+  assessmentDecision      DfDiscountDecision @default(allowed) @map("assessment_decision")
+  requiredChainId         String?            @map("required_chain_id") @db.Uuid
+  portalToken             String             @unique @map("portal_token")
+  version                 Int                @default(1)
+  odooSaleOrderId         Int?               @map("odoo_sale_order_id")
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
+
+  customer     DfCustomer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  requiredChain DfApprovalChain? @relation(fields: [requiredChainId], references: [id], onDelete: SetNull)
+  lines        QuoteLine[]
+  approvals    QuoteApproval[]
+  allocations  QuoteFulfillmentSplit[]
+  backorders   QuoteBackorder[]
+  schedules    QuoteBillingSchedule[]
+  revisions    QuoteRevision[]
+
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@map("df_quotes")
+}
+
+model QuoteLine {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId          String   @map("quote_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  quantity         Float
+  listPrice        Float    @map("list_price")
+  discountPercent  Float    @map("discount_percent")
+  unitCost         Float    @map("unit_cost")
+  recommendedFromId String? @map("recommended_from_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  quote        Quote                     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product      DfProduct                 @relation(fields: [productId], references: [id], onDelete: Restrict)
+  allocations  QuoteFulfillmentSplit[]
+  schedules    QuoteBillingSchedule[]
+
+  @@index([quoteId])
+  @@map("df_quote_lines")
+}
+
+model QuoteApproval {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId        String           @map("quote_id") @db.Uuid
+  chainId        String           @map("chain_id") @db.Uuid
+  stepOrder      Int              @map("step_order")
+  roleKey        String           @map("role_key")
+  label          String
+  status         DfApprovalStatus @default(pending)
+  actorId        String?          @map("actor_id") @db.Uuid
+  decidedAt      DateTime?        @map("decided_at")
+  decision       String?
+  reason         String?
+  previousValues Json?            @map("previous_values")
+  newValues      Json?            @map("new_values")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  quote Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  chain DfApprovalChain @relation(fields: [chainId], references: [id], onDelete: Restrict)
+
+  @@index([quoteId, stepOrder])
+  @@map("df_quote_approvals")
+}
+
+model QuoteFulfillmentSplit {
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId              String  @map("quote_id") @db.Uuid
+  quoteLineId          String  @map("quote_line_id") @db.Uuid
+  warehouseId          String  @map("warehouse_id") @db.Uuid
+  quantity             Float
+  unitFulfillmentCost  Float   @map("unit_fulfillment_cost")
+  isBackorder          Boolean @default(false) @map("is_backorder")
+  isManualOverride     Boolean @default(false) @map("is_manual_override")
+
+  quote     Quote       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  line      QuoteLine   @relation(fields: [quoteLineId], references: [id], onDelete: Cascade)
+  warehouse DfWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@index([quoteId])
+  @@map("df_quote_fulfillment_splits")
+}
+
+model QuoteBackorder {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId   String @map("quote_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  quantity  Float
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, productId])
+  @@map("df_quote_backorders")
+}
+
+model QuoteBillingSchedule {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId         String           @map("quote_id") @db.Uuid
+  quoteLineId     String           @map("quote_line_id") @db.Uuid
+  billingType     DfBillingType    @map("billing_type")
+  frequency       DfBillingFrequency?
+  amount          Float
+  status          DfBillingStatus  @default(scheduled)
+  nextBillingAt   DateTime?        @map("next_billing_at")
+  cancelledAt     DateTime?        @map("cancelled_at")
+  prorationAmount Float            @default(0) @map("proration_amount")
+  refundAmount    Float            @default(0) @map("refund_amount")
+  odooInvoiceId   Int?             @map("odoo_invoice_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  quote Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  line  QuoteLine @relation(fields: [quoteLineId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("df_quote_billing_schedules")
+}
+
+model QuoteRevision {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId        String   @map("quote_id") @db.Uuid
+  version        Int
+  snapshot       Json
+  materialChange Boolean  @map("material_change")
+  createdBy      String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, version])
+  @@map("df_quote_revisions")
+}

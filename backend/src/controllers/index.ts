@@ -1,0 +1,12 @@
+export { AiController } from './ai.controller';
+export { ApiInfoController } from './api-info.controller';
+export { AuthController } from './auth.controller';
+export { CapabilitiesController } from './capabilities.controller';
+export { ProblemIntelligenceController } from './problem-intelligence.controller';
+export { CapabilityRecommendationController } from './capability-recommendations.controller';
+export { ProjectPlanningController } from './project-planning.controller';
+export { ProjectGeneratorController } from './project-generator.controller';
+export { FeaturesController } from './features.controller';
+export { HealthController } from './health.controller';
+export { OdooController } from './odoo.controller';
+export { RbacController } from './rbac.controller';

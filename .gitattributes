@@ -1,0 +1,13 @@
+# Match .editorconfig: LF in the repo and in the working tree (including Windows).
+# This avoids Git autocrlf rewriting files to CRLF, which breaks Docker entrypoints.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

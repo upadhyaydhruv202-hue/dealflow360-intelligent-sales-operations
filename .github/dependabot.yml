@@ -1,0 +1,72 @@
+# Weekly version and security PRs. Majors are ungrouped so they are reviewed alone.
+# Policy: docs/VERSIONING_POLICY.md
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 8
+    groups:
+      lint-format:
+        patterns:
+          - eslint
+          - '@eslint/*'
+          - eslint-config-prettier
+          - prettier
+          - typescript-eslint
+        update-types:
+          - minor
+          - patch
+      test-tooling:
+        patterns:
+          - vitest
+          - '@vitest/*'
+          - '@testing-library/*'
+          - jsdom
+          - supertest
+        update-types:
+          - minor
+          - patch
+      aws-sdk:
+        patterns:
+          - '@aws-sdk/*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker-compose
+    directory: /infra
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5

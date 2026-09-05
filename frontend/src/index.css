@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --hsk-surface: 248 250 252;
+  --hsk-surface-elevated: 255 255 255;
+  --hsk-surface-muted: 241 245 249;
+  --hsk-foreground: 15 23 42;
+  --hsk-foreground-muted: 100 116 139;
+  --hsk-foreground-inverted: 248 250 252;
+  --hsk-edge: 226 232 240;
+  --hsk-accent: 15 23 42;
+  --hsk-accent-foreground: 248 250 252;
+  --hsk-danger: 225 29 72;
+  --hsk-danger-foreground: 255 255 255;
+  --hsk-success: 5 150 105;
+  --hsk-warning: 217 119 6;
+  --hsk-info: 2 132 199;
+}
+
+.dark {
+  color-scheme: dark;
+  --hsk-surface: 15 23 42;
+  --hsk-surface-elevated: 30 41 59;
+  --hsk-surface-muted: 51 65 85;
+  --hsk-foreground: 248 250 252;
+  --hsk-foreground-muted: 148 163 184;
+  --hsk-foreground-inverted: 15 23 42;
+  --hsk-edge: 51 65 85;
+  --hsk-accent: 226 232 240;
+  --hsk-accent-foreground: 15 23 42;
+  --hsk-danger: 251 113 133;
+  --hsk-danger-foreground: 15 23 42;
+  --hsk-success: 52 211 153;
+  --hsk-warning: 251 191 36;
+  --hsk-info: 56 189 248;
+}
+
+@layer base {
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply min-h-screen bg-surface text-foreground antialiased;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
