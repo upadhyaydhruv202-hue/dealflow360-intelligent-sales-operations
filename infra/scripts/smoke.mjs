@@ -43,7 +43,7 @@ async function main() {
 
   const frontend = await getText(`${FRONTEND_BASE}/`);
   assert(
-    frontend.includes('<div id="root">') || frontend.includes('Hackathon Starter Kit'),
+    frontend.includes('<div id="root">') || frontend.includes('DealFlow360'),
     'frontend did not serve the SPA',
   );
 

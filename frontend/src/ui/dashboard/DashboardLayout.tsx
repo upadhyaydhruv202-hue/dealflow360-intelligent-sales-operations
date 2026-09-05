@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
 
-import { ResponsiveGrid } from '../layout/PageContainer';
-
 export interface DashboardLayoutProps {
   kpis?: ReactNode;
   charts?: ReactNode;
@@ -12,11 +10,15 @@ export interface DashboardLayoutProps {
 
 export function DashboardLayout({ kpis, charts, activity, notifications, table }: DashboardLayoutProps) {
   return (
-    <div className="space-y-6">
-      {kpis ? <ResponsiveGrid columns={4}>{kpis}</ResponsiveGrid> : null}
-      {charts ? <div className="grid gap-4 lg:grid-cols-2">{charts}</div> : null}
+    <div className="space-y-10">
+      {kpis ? (
+        <div className="grid gap-6 border-y border-edge py-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          {kpis}
+        </div>
+      ) : null}
+      {charts ? <div className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">{charts}</div> : null}
       {activity || notifications ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
           {activity}
           {notifications}
         </div>

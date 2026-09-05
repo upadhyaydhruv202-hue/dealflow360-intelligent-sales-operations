@@ -113,3 +113,18 @@ export function useStableId(prefix: string, id?: string) {
   const generated = useId();
   return id ?? `${prefix}-${generated}`;
 }
+
+export function useIsDesktop(breakpoint = 1024) {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= breakpoint,
+  );
+
+  useEffect(() => {
+    const sync = () => setDesktop(window.innerWidth >= breakpoint);
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, [breakpoint]);
+
+  return desktop;
+}

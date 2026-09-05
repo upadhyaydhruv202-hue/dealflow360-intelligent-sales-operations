@@ -14,7 +14,7 @@ describe('GET /api/v1/capabilities', () => {
     const { app, capabilities, pluginNames } = createApp({
       config: loadConfig({
         NODE_ENV: 'test',
-        APP_NAME: 'Hackathon Starter Kit',
+        APP_NAME: 'DealFlow360',
         FEATURE_AI: 'true',
         AI_PROVIDER: 'mock',
       }),

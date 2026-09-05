@@ -20,7 +20,7 @@ describe('capability discovery', () => {
   });
 
   it('marks feature-flagged capabilities disabled when the flag is off', () => {
-    const config = loadConfig({ NODE_ENV: 'test', APP_NAME: 'Hackathon Starter Kit' });
+    const config = loadConfig({ NODE_ENV: 'test', APP_NAME: 'DealFlow360' });
     const discovered = discoverCapabilities({ config });
     const byName = Object.fromEntries(discovered.map((capability) => [capability.name, capability]));
 
@@ -40,7 +40,7 @@ describe('capability discovery', () => {
   it('marks feature-flagged capabilities enabled when the flag is on', () => {
     const config = loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
       FEATURE_RAG: 'true',
       FEATURE_AI: 'true',
       AI_PROVIDER: 'mock',

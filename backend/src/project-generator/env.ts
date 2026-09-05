@@ -48,7 +48,7 @@ export function generateEnvTemplate(input: {
       '',
       'NODE_ENV=development',
       'DEMO_MODE=true',
-      'APP_NAME=Hackathon Starter Kit',
+      'APP_NAME=DealFlow360',
       '',
       '# Required for auth when that capability is selected. Placeholders only.',
       'DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hackathon',

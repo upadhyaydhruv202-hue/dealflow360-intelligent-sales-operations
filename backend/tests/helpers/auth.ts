@@ -2,7 +2,7 @@ export { TEST_PASSWORD } from '../factories/constants';
 
 export const AUTH_TEST_ENV = {
   NODE_ENV: 'test',
-  APP_NAME: 'Hackathon Starter Kit',
+  APP_NAME: 'DealFlow360',
   JWT_ACCESS_SECRET: 'test-access-secret-not-for-production-32',
   JWT_REFRESH_SECRET: 'test-refresh-secret-not-for-production-32',
   JWT_ACCESS_EXPIRES_IN: '15m',

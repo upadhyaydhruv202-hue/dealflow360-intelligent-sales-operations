@@ -19,7 +19,7 @@ function buildApp() {
   return createApp({
     config: loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
       DEMO_MODE: 'true',
       FEATURE_AI: 'true',
       AI_PROVIDER: 'mock',

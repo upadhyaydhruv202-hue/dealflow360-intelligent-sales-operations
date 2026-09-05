@@ -94,7 +94,7 @@ Set the matching flag to `false` (or omit it; missing flags default to **off** e
 | `NODE_ENV` | Runtime mode | No | `development` | `development` | API, worker, Prisma log, demo resolver | No | `development` | `production` |
 | `PORT` | HTTP listen port | No | `5000` | `5000` | API | No | Yes | Yes |
 | `HOST` | Bind address | No | `0.0.0.0` | `0.0.0.0` | API | No | Yes | Yes |
-| `APP_NAME` | Process/log name | No | `Hackathon Starter Kit` | `Hackathon Starter Kit` | API, worker logger | No | Yes | Yes |
+| `APP_NAME` | Process/log name | No | `DealFlow360` | `DealFlow360` | API, worker logger | No | Yes | Yes |
 | `APP_URL` | Public API origin | No | `http://localhost:5000` | `http://localhost:5000` | API (links, health metadata) | No | Yes | Set to the public API URL |
 | `FRONTEND_URL` | SPA origin | No | `http://localhost:5173` | `http://localhost:5173` | API | No | Yes | Set to the public SPA URL |
 | `LOG_LEVEL` | pino level | No | `info` | `info` | API, worker | No | Yes | Yes (`info` or `warn`) |

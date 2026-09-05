@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-import { Card, CardDescription, CardHeader, CardTitle } from '../primitives/Card';
 import { EmptyState } from '../states/FeedbackStates';
 
 export interface ActivityItem {
@@ -21,29 +20,28 @@ export function ActivityFeed({
   emptyTitle?: string;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
+    <section>
+      <h2 className="mb-4 text-title text-foreground">{title}</h2>
       {items.length === 0 ? (
         <EmptyState title={emptyTitle} className="border-0 px-0 py-6" />
       ) : (
-        <ol className="space-y-3">
+        <ol className="relative space-y-0 border-l border-edge pl-5">
           {items.map((item) => (
-            <li key={item.id} className="border-b border-edge pb-3 last:border-0 last:pb-0">
+            <li key={item.id} className="relative pb-5 last:pb-0">
+              <span className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-accent" />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{item.title}</p>
                   {item.description ? <p className="mt-1 text-sm text-foreground-muted">{item.description}</p> : null}
-                  {item.meta ? <p className="mt-1 text-xs text-foreground-muted">{item.meta}</p> : null}
+                  {item.meta ? <div className="mt-2">{item.meta}</div> : null}
                 </div>
-                {item.timestamp ? <time className="shrink-0 text-xs text-foreground-muted">{item.timestamp}</time> : null}
+                {item.timestamp ? <time className="shrink-0 text-caption text-foreground-muted">{item.timestamp}</time> : null}
               </div>
             </li>
           ))}
         </ol>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -69,25 +67,25 @@ export function NotificationPanel({
   headerAction?: ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
+    <section>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-title text-foreground">{title}</h2>
         {headerAction}
-      </CardHeader>
+      </div>
       {items.length === 0 ? (
         <EmptyState title={emptyTitle} className="border-0 px-0 py-6" />
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-edge">
           {items.map((item) => (
-            <li key={item.id} className="rounded-lg border border-edge p-3" data-unread={item.unread ? 'true' : 'false'}>
+            <li key={item.id} className="py-3" data-unread={item.unread ? 'true' : 'false'}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{item.title}</p>
                   {item.body ? <p className="mt-1 text-sm text-foreground-muted">{item.body}</p> : null}
-                  {item.timestamp ? <p className="mt-1 text-xs text-foreground-muted">{item.timestamp}</p> : null}
+                  {item.timestamp ? <p className="mt-1 text-caption text-foreground-muted">{item.timestamp}</p> : null}
                 </div>
                 {item.unread && onRead ? (
-                  <button type="button" className="text-xs font-medium text-info hover:underline" onClick={() => onRead(item.id)}>
+                  <button type="button" className="text-caption font-medium text-foreground hover:underline" onClick={() => onRead(item.id)}>
                     Mark read
                   </button>
                 ) : null}
@@ -96,7 +94,7 @@ export function NotificationPanel({
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -112,15 +110,15 @@ export function TableSection({
   children: ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader>
+    <section>
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
+          <h2 className="text-title text-foreground">{title}</h2>
+          {description ? <p className="mt-1 text-sm text-foreground-muted">{description}</p> : null}
         </div>
         {actions}
-      </CardHeader>
+      </div>
       {children}
-    </Card>
+    </section>
   );
 }

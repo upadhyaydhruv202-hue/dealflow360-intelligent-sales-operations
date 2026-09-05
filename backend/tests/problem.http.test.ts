@@ -26,7 +26,7 @@ const VALID_PASSWORD = 'correct-horse';
 function buildApp() {
   const config = loadConfig({
     NODE_ENV: 'test',
-    APP_NAME: 'Hackathon Starter Kit',
+    APP_NAME: 'DealFlow360',
   });
 
   return createApp({
@@ -86,7 +86,7 @@ describe('problem module worker registration', () => {
   it('registers the DealFlow360 job processor on the background worker', async () => {
     const config = loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
     });
     const worker = createBackgroundWorker({ config, logger });
     const jobId = await worker.jobs.enqueue(DEALFLOW_JOB_NAME, {});

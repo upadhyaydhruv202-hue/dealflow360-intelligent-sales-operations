@@ -17,7 +17,7 @@ export function SessionGate({
 
   if (!isAuthenticated) {
     return (
-      <Card className="max-w-md">
+      <Card className="max-w-md border-0 p-0 shadow-none">
         <CardTitle className="mb-3">{title}</CardTitle>
         <LoginForm
           hint={hint}

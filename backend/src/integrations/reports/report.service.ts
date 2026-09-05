@@ -59,7 +59,7 @@ export class ReportService {
     this.email = options.email;
     this.registry = options.registry ?? createDefaultReportRegistry();
     this.render = options.render ?? renderPdfDocument;
-    this.appName = options.appName ?? 'Hackathon Starter Kit';
+    this.appName = options.appName ?? 'DealFlow360';
     this.onGenerated = options.onGenerated;
     this.audit = options.audit ?? null;
   }

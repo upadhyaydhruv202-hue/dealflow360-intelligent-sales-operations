@@ -85,7 +85,7 @@ export function LoginForm({
           {message}
         </p>
       ) : null}
-      <Button type="submit" loading={busy} disabled={busy}>
+      <Button type="submit" loading={busy} disabled={busy} className="w-full">
         {submitLabel}
       </Button>
     </form>

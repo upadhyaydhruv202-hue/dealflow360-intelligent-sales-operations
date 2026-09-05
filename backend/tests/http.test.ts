@@ -14,7 +14,7 @@ function buildApp(overrides?: {
 }) {
   const config = loadConfig({
     NODE_ENV: 'test',
-    APP_NAME: 'Hackathon Starter Kit',
+    APP_NAME: 'DealFlow360',
   });
 
   return createApp({
@@ -32,7 +32,7 @@ describe('HTTP foundation', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.data.status).toBe('ok');
-    expect(response.body.data.service).toBe('Hackathon Starter Kit');
+    expect(response.body.data.service).toBe('DealFlow360');
     expect(response.body.data.environment).toBe('test');
     expect(response.body.meta.version).toBe('0.1.0');
     expect(response.headers['x-request-id']).toEqual(expect.any(String));
@@ -92,7 +92,7 @@ describe('HTTP foundation', () => {
   it('GET /ready returns 503 when configured Odoo is down', async () => {
     const config = loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
       ODOO_ENABLED: 'true',
       ODOO_BASE_URL: 'https://odoo.example.com',
       ODOO_DATABASE: 'company',
@@ -117,7 +117,7 @@ describe('HTTP foundation', () => {
   it('GET /ready returns 503 when configured AI is down', async () => {
     const config = loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
       AI_ENABLED: 'true',
       AI_PROVIDER: 'gemini',
       GEMINI_API_KEY: 'test-key',
@@ -141,7 +141,7 @@ describe('HTTP foundation', () => {
   it('GET /ready reports healthy AI when the mock provider is enabled', async () => {
     const config = loadConfig({
       NODE_ENV: 'test',
-      APP_NAME: 'Hackathon Starter Kit',
+      APP_NAME: 'DealFlow360',
       AI_ENABLED: 'true',
       AI_PROVIDER: 'mock',
       DEMO_MODE: 'true',
@@ -189,7 +189,7 @@ describe('HTTP foundation', () => {
     expect(response.body).toEqual({
       success: true,
       data: {
-        name: 'Hackathon Starter Kit',
+        name: 'DealFlow360',
         version: 'v1',
         status: 'ok',
       },

@@ -96,13 +96,13 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-edge">
+    <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
-        <thead className="bg-surface-muted text-xs uppercase tracking-wide text-foreground-muted">
-          <tr>
+        <thead className="sticky top-0 z-10 bg-surface-elevated text-caption font-medium uppercase tracking-[0.12em] text-foreground-muted">
+          <tr className="border-b border-edge">
             {columns.map((column) => (
-              <th key={column.id} scope="col" className={cn('px-4 py-3 font-semibold', column.className)}>
+              <th key={column.id} scope="col" className={cn('px-3 py-3 font-medium', column.className)}>
                 {column.sortable ? (
                   <button
                     type="button"
@@ -130,11 +130,14 @@ export function DataTable<T>({
           {sortedRows.map((row) => (
             <tr
               key={rowId(row)}
-              className={cn('border-t border-edge', onRowClick && 'cursor-pointer hover:bg-surface-muted')}
+              className={cn(
+                'border-b border-edge/80 last:border-0',
+                onRowClick && 'cursor-pointer transition-colors duration-df hover:bg-surface-muted/80',
+              )}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((column) => (
-                <td key={column.id} className={cn('px-4 py-3 text-foreground', column.className)}>
+                <td key={column.id} className={cn('px-3 py-3.5 text-foreground', column.className)}>
                   {cellValue(row, column)}
                 </td>
               ))}

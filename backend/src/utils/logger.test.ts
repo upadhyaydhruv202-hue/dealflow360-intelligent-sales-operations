@@ -20,7 +20,7 @@ describe('structured logging', () => {
   it('writes JSON logs with level, message, requestId, and redacted secrets', async () => {
     const chunks: string[] = [];
     const logger = createLogger(
-      loadConfig({ NODE_ENV: 'test', APP_NAME: 'Hackathon Starter Kit', LOG_LEVEL: 'info' }),
+      loadConfig({ NODE_ENV: 'test', APP_NAME: 'DealFlow360', LOG_LEVEL: 'info' }),
       {
         write(msg: string) {
           chunks.push(msg);

@@ -31,7 +31,7 @@ export const envSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
   HOST: z.string().min(1).default('0.0.0.0'),
-  APP_NAME: z.string().min(1).default('Hackathon Starter Kit'),
+  APP_NAME: z.string().min(1).default('DealFlow360'),
   APP_URL: z.string().min(1).default('http://localhost:5000'),
   FRONTEND_URL: z.string().min(1).default('http://localhost:5173'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

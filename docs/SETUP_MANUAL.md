@@ -1,6 +1,6 @@
 # Complete setup and usage manual
 
-This is the A–Z setup and usage guide for the Hackathon Starter Kit. It is compiled from the repository (npm scripts, Compose files, routes, config schema, and existing module docs). It does not invent commands, modules, or architecture.
+This is the A–Z setup and usage guide for DealFlow360. It is compiled from the repository (npm scripts, Compose files, routes, config schema, and existing module docs). It does not invent commands, modules, or architecture.
 
 **Companion sources of truth** (use these when a catalog must stay exact):
 

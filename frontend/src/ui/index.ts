@@ -44,6 +44,7 @@ export type { FilterPanelProps } from './data/FilterPanel';
 
 export { EmptyState, ErrorState, LoadingState } from './states/FeedbackStates';
 
+export { CommandPalette, useCommandPalette } from './command/CommandPalette';
 export { AppShell } from './layout/AppShell';
 export { Sidebar, SidebarNavLink } from './layout/Sidebar';
 export { Topbar } from './layout/Topbar';
@@ -53,7 +54,7 @@ export { PageContainer, ResponsiveGrid } from './layout/PageContainer';
 
 export { KpiCard, ChartArea } from './dashboard/KpiCard';
 export type { KpiCardProps } from './dashboard/KpiCard';
-export { SimpleBarChart, SimpleLineChart } from './dashboard/SimpleCharts';
+export { SimpleBarChart, SimpleLineChart, Sparkline } from './dashboard/SimpleCharts';
 export type { ChartDatum } from './dashboard/SimpleCharts';
 export { ActivityFeed, NotificationPanel, TableSection } from './dashboard/Panels';
 export type { ActivityItem, DashboardNotice } from './dashboard/Panels';

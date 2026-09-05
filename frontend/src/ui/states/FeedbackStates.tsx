@@ -12,9 +12,10 @@ export interface EmptyStateProps {
 
 export function EmptyState({ title, description, action, className }: EmptyStateProps) {
   return (
-    <div className={cn('rounded-xl border border-dashed border-edge px-6 py-10 text-center', className)}>
+    <div className={cn('px-6 py-12 text-center', className)}>
+      <div className="mx-auto mb-4 h-12 w-12 rounded-full border border-dashed border-edge" aria-hidden />
       <p className="text-sm font-semibold text-foreground">{title}</p>
-      {description ? <p className="mt-1 text-sm text-foreground-muted">{description}</p> : null}
+      {description ? <p className="mx-auto mt-1 max-w-md text-sm text-foreground-muted">{description}</p> : null}
       {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </div>
   );
@@ -29,10 +30,7 @@ export interface ErrorStateProps {
 
 export function ErrorState({ title = 'Something went wrong', message, onRetry, className }: ErrorStateProps) {
   return (
-    <div
-      role="alert"
-      className={cn('rounded-xl border border-danger/30 bg-danger/10 px-6 py-8 text-center', className)}
-    >
+    <div role="alert" className={cn('rounded-panel border border-danger/20 bg-danger/5 px-6 py-8 text-center', className)}>
       <p className="text-sm font-semibold text-foreground">{title}</p>
       <p className="mt-1 text-sm text-foreground-muted">{message}</p>
       {onRetry ? (
@@ -53,9 +51,12 @@ export interface LoadingStateProps {
 
 export function LoadingState({ label = 'Loading…', className }: LoadingStateProps) {
   return (
-    <div className={cn('flex items-center justify-center gap-2 px-6 py-10 text-sm text-foreground-muted', className)} role="status">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
-      {label}
+    <div className={cn('space-y-3 px-1 py-6', className)} role="status">
+      <div className="df-shimmer h-10 rounded-control" />
+      <div className="df-shimmer h-24 rounded-panel" />
+      <div className="df-shimmer h-24 rounded-panel" />
+      <span className="sr-only">{label}</span>
+      <p className="text-sm text-foreground-muted">{label}</p>
     </div>
   );
 }

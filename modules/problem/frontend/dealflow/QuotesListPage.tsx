@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { hasPermission } from '@/lib/rbac';
-import { Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer, Pagination, Search, Select } from '@/ui';
+import { Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer, Pagination, Search } from '@/ui';
 
 import { CreateQuoteButton, DealflowGate, DecisionBadge, StatusBadge } from './components';
 import { formatDate, formatMoney, formatPercent, OPEN_STATUSES, ownerLabel } from './format';
@@ -11,6 +11,16 @@ import { useCatalog, useQuotes } from './hooks';
 import type { QuoteStatus, QuoteView } from './types';
 
 const PAGE_SIZE = 8;
+
+const FILTERS: Array<{ value: 'all' | 'open' | QuoteStatus; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'approval_required', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'customer_negotiation', label: 'Negotiation' },
+  { value: 'rejected', label: 'Rejected' },
+];
 
 export function QuotesListPage() {
   const { accessToken, user } = useAuth();
@@ -46,30 +56,36 @@ export function QuotesListPage() {
             <CreateQuoteButton
               catalog={catalog.data}
               token={accessToken}
+              autoOpen={params.get('new') === '1'}
               onCreated={(quote) => navigate(`/dealflow/quotes/${quote.id}`)}
             />
           ) : null
         }
       >
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
+        <div className="mb-5 flex flex-col gap-4">
           <Search value={query} onChange={setQuery} placeholder="Search number or customer" aria-label="Search quotations" />
-          <Select
-            label="Status"
-            value={statusFilter}
-            onChange={(event) => {
-              setPage(1);
-              setParams(event.target.value === 'all' ? {} : { status: event.target.value });
-            }}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'open', label: 'Open' },
-              { value: 'draft', label: 'Draft' },
-              { value: 'approval_required', label: 'Approval required' },
-              { value: 'approved', label: 'Approved' },
-              { value: 'customer_negotiation', label: 'Negotiation' },
-              { value: 'rejected', label: 'Rejected' },
-            ]}
-          />
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Quote status">
+            {FILTERS.map((filter) => {
+              const active = statusFilter === filter.value;
+              return (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-caption transition-colors duration-df ${
+                    active
+                      ? 'border-foreground bg-foreground text-foreground-inverted'
+                      : 'border-edge text-foreground-muted hover:border-foreground/30 hover:text-foreground'
+                  }`}
+                  onClick={() => {
+                    setPage(1);
+                    setParams(filter.value === 'all' ? {} : { status: filter.value });
+                  }}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         {quotes.loading ? <LoadingState label="Loading quotations…" /> : null}
         {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}

@@ -169,29 +169,29 @@ export function QuoteWorkspacePage() {
         {quote ? (
           <div className="space-y-6">
             {error ? <Alert variant="error">{error}</Alert> : null}
-            <section className="grid gap-3 md:grid-cols-4">
-              <Card>
-                <CardDescription>Customer tier</CardDescription>
+            <section className="grid gap-6 border-y border-edge py-6 md:grid-cols-4">
+              <div>
+                <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Customer tier</p>
                 <p className="mt-2 text-lg font-semibold capitalize">{quote.customer.tier}</p>
-                <p className="text-xs text-foreground-muted">{quote.customer.email}</p>
-              </Card>
-              <Card>
-                <CardDescription>Net total</CardDescription>
+                <p className="text-caption text-foreground-muted">{quote.customer.email}</p>
+              </div>
+              <div>
+                <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Net total</p>
                 <p className="mt-2 text-lg font-semibold">{formatMoney(quote.netTotal, true)}</p>
-                <p className="text-xs text-foreground-muted">List {formatMoney(quote.listTotal, true)}</p>
-              </Card>
-              <Card>
-                <CardDescription>Blended discount</CardDescription>
+                <p className="text-caption text-foreground-muted">List {formatMoney(quote.listTotal, true)}</p>
+              </div>
+              <div>
+                <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Blended discount</p>
                 <p className="mt-2 text-lg font-semibold">{formatPercent(quote.blendedDiscountPercent)}</p>
-                <p className="text-xs text-foreground-muted">Margin {formatPercent(quote.marginPercent)}</p>
-              </Card>
-              <Card>
-                <CardDescription>Risk</CardDescription>
+                <p className="text-caption text-foreground-muted">Margin {formatPercent(quote.marginPercent)}</p>
+              </div>
+              <div>
+                <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Risk</p>
                 <div className="mt-2">
                   <DecisionBadge decision={quote.assessmentDecision} />
                 </div>
-                <p className="mt-2 text-xs text-foreground-muted">Score {quote.riskScore}</p>
-              </Card>
+                <p className="mt-2 text-caption text-foreground-muted">Score {quote.riskScore}</p>
+              </div>
             </section>
 
             <Card>

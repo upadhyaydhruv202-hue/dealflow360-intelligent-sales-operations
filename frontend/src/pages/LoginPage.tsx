@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Moon, SunMedium } from 'lucide-react';
 
 import { useAuth } from '../auth/AuthProvider';
 import { remapLoginError } from '../auth/login-errors';
 import { useOptionalFeatures } from '../features';
 import { homePathForUser } from '../lib/rbac';
-import { Badge, Button, Card, CardDescription, CardHeader, CardTitle } from '../ui';
+import { Badge, Button } from '../ui';
 import { LoginForm } from '../ui/auth/LoginForm';
 import { useTheme } from '../ui/theme/ThemeProvider';
 
@@ -33,28 +34,41 @@ export function LoginPage() {
   const displayError = remapLoginError(error, demoMode);
 
   return (
-    <div className="min-h-screen bg-surface text-foreground">
-      <header className="flex items-center justify-between border-b border-edge px-6 py-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground-muted">DealFlow360</p>
-          <h1 className="text-lg font-semibold">Sales operations sign-in</h1>
+    <div className="min-h-screen bg-surface text-foreground lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(28rem,32rem)]">
+      <section className="relative hidden overflow-hidden border-r border-edge px-12 py-12 lg:flex lg:flex-col justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-foreground-muted">DealFlow360</p>
+        <div className="max-w-md">
+          <p className="text-caption text-foreground-muted">Sales operations</p>
+          <h1 className="mt-3 text-display">Command the quote-to-cash path from one workspace.</h1>
+          <p className="mt-4 text-sm leading-6 text-foreground-muted">
+            Live discounts, approval chains, warehouse splits, and customer negotiation — without a generic admin
+            template in the way.
+          </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleTheme}
-          aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {resolvedTheme === 'dark' ? 'Light' : 'Dark'}
-        </Button>
-      </header>
-      <main className="mx-auto grid max-w-4xl gap-8 px-6 py-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        {isAuthenticated ? (
-          <p className="text-sm text-foreground-muted">Redirecting…</p>
-        ) : (
-          <>
-            <div>
-              <p className="mb-4 text-sm text-foreground-muted">
+        <p className="text-caption text-foreground-muted">Premium operations console · 2026</p>
+      </section>
+      <section className="flex min-h-screen flex-col px-6 py-8 sm:px-10">
+        <header className="mb-10 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground-muted">DealFlow360</p>
+            <h1 className="mt-1 text-lg font-semibold tracking-tight">Sales operations sign-in</h1>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {resolvedTheme === 'dark' ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <span className="sr-only">{resolvedTheme === 'dark' ? 'Light' : 'Dark'}</span>
+          </Button>
+        </header>
+        <main className="mx-auto w-full max-w-md flex-1">
+          {isAuthenticated ? (
+            <p className="text-sm text-foreground-muted">Redirecting…</p>
+          ) : (
+            <div className="space-y-8">
+              <p className="text-sm text-foreground-muted">
                 {demoMode
                   ? 'Use a seeded demo account. The password is checked. This is not a passwordless shortcut.'
                   : 'Sign in with an account issued by the API.'}
@@ -67,38 +81,38 @@ export function LoginPage() {
                 hint={demoMode ? 'Password for all seeded accounts: demo-password' : undefined}
                 onSubmit={({ email: nextEmail, password }) => login(nextEmail, password)}
               />
-            </div>
-            {demoMode ? (
-              <Card>
-                <CardHeader>
-                  <div>
-                    <CardTitle>Demo roles</CardTitle>
-                    <CardDescription>Click a role to fill the email. You still enter the password and sign in.</CardDescription>
+              {demoMode ? (
+                <div>
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold">Demo roles</p>
+                    <p className="text-caption text-foreground-muted">
+                      Click a role to fill the email. You still enter the password and sign in.
+                    </p>
                   </div>
-                </CardHeader>
-                <ul className="space-y-3">
-                  {DEMO_ACCOUNTS.map((account) => (
-                    <li key={account.email}>
-                      <button
-                        type="button"
-                        className="w-full rounded-lg border border-edge px-3 py-2 text-left hover:bg-surface-muted"
-                        onClick={() => setEmail(account.email)}
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <Badge tone="accent">{account.role}</Badge>
-                          <span className="text-xs text-foreground-muted">Use email</span>
-                        </div>
-                        <p className="text-sm font-medium">{account.email}</p>
-                        <p className="text-xs text-foreground-muted">{account.note}</p>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ) : null}
-          </>
-        )}
-      </main>
+                  <ul className="divide-y divide-edge">
+                    {DEMO_ACCOUNTS.map((account) => (
+                      <li key={account.email}>
+                        <button
+                          type="button"
+                          className="w-full py-3 text-left transition-colors duration-df hover:bg-surface-muted/70"
+                          onClick={() => setEmail(account.email)}
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <Badge tone="accent">{account.role}</Badge>
+                            <span className="text-caption text-foreground-muted">Use email</span>
+                          </div>
+                          <p className="text-sm font-medium">{account.email}</p>
+                          <p className="text-caption text-foreground-muted">{account.note}</p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </main>
+      </section>
     </div>
   );
 }

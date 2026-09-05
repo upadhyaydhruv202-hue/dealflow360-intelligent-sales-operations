@@ -26,7 +26,7 @@ export function Drawer({ open, onClose, title, children, footer, side = 'right' 
 
   return createPortal(
     <div className="fixed inset-0 z-[70]">
-      <div className="absolute inset-0 bg-slate-950/50" data-testid="drawer-backdrop" onClick={onClose} />
+      <div className="absolute inset-0 bg-foreground/25 backdrop-blur-[2px]" data-testid="drawer-backdrop" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"

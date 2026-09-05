@@ -17,16 +17,13 @@ export function Sidebar({ brand, children, footer, open, onClose }: SidebarProps
     <>
       <button
         type="button"
-        className={cn(
-          'fixed inset-0 z-30 bg-slate-950/40 lg:hidden',
-          open ? 'block' : 'hidden',
-        )}
+        className={cn('fixed inset-0 z-30 bg-foreground/30 lg:hidden', open ? 'block' : 'hidden')}
         aria-label="Close navigation"
         onClick={onClose}
       />
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-edge bg-surface-elevated transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-edge bg-surface-elevated transition-transform duration-df lg:static lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -60,9 +57,11 @@ export function SidebarNavLink({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          'flex items-center rounded-lg px-3 py-2 text-sm',
+          'flex items-center rounded-control px-3 py-2 text-sm transition-colors duration-df',
           focusRing,
-          isActive ? 'bg-surface-muted font-medium text-foreground' : 'text-foreground-muted hover:bg-surface-muted hover:text-foreground',
+          isActive
+            ? 'bg-accent/10 font-medium text-foreground'
+            : 'text-foreground-muted hover:bg-surface-muted hover:text-foreground',
         )
       }
     >

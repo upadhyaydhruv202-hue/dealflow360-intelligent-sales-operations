@@ -1,5 +1,5 @@
 import { Link, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { SessionGate } from '@/auth/SessionGate';
@@ -289,15 +289,24 @@ export function CreateQuoteButton({
   catalog,
   token,
   onCreated,
+  autoOpen = false,
 }: {
   catalog?: DealflowCatalog;
   token?: string;
   onCreated: (quote: QuoteView) => void;
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [customerId, setCustomerId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (autoOpen) {
+      setCustomerId(catalog?.customers[0]?.id ?? '');
+      setOpen(true);
+    }
+  }, [autoOpen, catalog?.customers]);
 
   async function submit() {
     if (!token || !customerId) return;

@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { Badge, Breadcrumb, Card, CardTitle, DataTable, ErrorState, LoadingState, PageContainer } from '@/ui';
+import { Badge, Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer } from '@/ui';
 
 import { DealflowGate, StatusBadge } from './components';
 import { formatMoney, formatPercent, OPEN_STATUSES } from './format';
@@ -105,34 +105,34 @@ export function ReportsPage() {
         {quotes.loading ? <LoadingState label="Loading report…" /> : null}
         {quotes.error ? <ErrorState message={quotes.error} onRetry={() => void quotes.reload()} /> : null}
         {!quotes.loading && !quotes.error ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card>
-              <CardTitle>Quote volume</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">{rows.length}</p>
-            </Card>
-            <Card>
-              <CardTitle>Open deal value</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">{formatMoney(openValue)}</p>
-            </Card>
-            <Card>
-              <CardTitle>Approval workload</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">{pending}</p>
-            </Card>
-            <Card>
-              <CardTitle>Fulfillment issues</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">{backorders}</p>
-            </Card>
-            <Card>
-              <CardTitle>Upsell attached</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">{recommended}</p>
-              <p className="mt-1 text-xs text-foreground-muted">Quotes with a recommended line</p>
-            </Card>
-            <Card>
-              <CardTitle>Average blended discount</CardTitle>
-              <p className="mt-3 text-3xl font-semibold">
+          <div className="grid gap-8 border-y border-edge py-6 md:grid-cols-2 xl:grid-cols-3">
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Quote volume</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">{rows.length}</p>
+            </div>
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Open deal value</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">{formatMoney(openValue)}</p>
+            </div>
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Approval workload</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">{pending}</p>
+            </div>
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Fulfillment issues</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">{backorders}</p>
+            </div>
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Upsell attached</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">{recommended}</p>
+              <p className="mt-1 text-caption text-foreground-muted">Quotes with a recommended line</p>
+            </div>
+            <div>
+              <p className="text-caption uppercase tracking-[0.12em] text-foreground-muted">Average blended discount</p>
+              <p className="mt-2 text-[28px] font-semibold tracking-tight">
                 {formatPercent(rows.length ? rows.reduce((sum, item) => sum + item.blendedDiscountPercent, 0) / rows.length : 0)}
               </p>
-            </Card>
+            </div>
           </div>
         ) : null}
       </PageContainer>

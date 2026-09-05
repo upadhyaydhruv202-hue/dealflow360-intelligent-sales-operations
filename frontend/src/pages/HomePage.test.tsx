@@ -19,7 +19,7 @@ describe('HomePage', () => {
           success: true,
           data: {
             status: 'ok',
-            service: 'Hackathon Starter Kit',
+            service: 'DealFlow360',
             environment: 'test',
             uptimeSeconds: 1,
             timestamp: new Date().toISOString(),

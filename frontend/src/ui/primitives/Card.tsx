@@ -5,7 +5,7 @@ import { cn } from '../cn';
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('rounded-xl border border-edge bg-surface-elevated p-5 shadow-sm', className)}
+      className={cn('rounded-panel border border-edge bg-surface-elevated p-5 transition-colors duration-df', className)}
       {...props}
     />
   );
@@ -16,11 +16,11 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
 }
 
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-sm font-semibold text-foreground', className)} {...props} />;
+  return <h2 className={cn('text-sm font-semibold tracking-tight text-foreground', className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-xs text-foreground-muted', className)} {...props} />;
+  return <p className={cn('text-caption text-foreground-muted', className)} {...props} />;
 }
 
 export function CardActions({ className, children }: { className?: string; children: ReactNode }) {

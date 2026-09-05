@@ -8,11 +8,12 @@ export interface PageContainerProps extends Omit<HTMLAttributes<HTMLDivElement>,
   actions?: ReactNode;
   breadcrumb?: ReactNode;
   width?: 'default' | 'wide' | 'full';
+  eyebrow?: ReactNode;
 }
 
 const widthClass = {
   default: 'max-w-5xl',
-  wide: 'max-w-7xl',
+  wide: 'max-w-[1280px]',
   full: 'max-w-none',
 };
 
@@ -21,18 +22,22 @@ export function PageContainer({
   description,
   actions,
   breadcrumb,
+  eyebrow,
   width = 'default',
   className,
   children,
   ...props
 }: PageContainerProps) {
   return (
-    <div className={cn('mx-auto w-full px-4 py-6 sm:px-6', widthClass[width], className)} {...props}>
-      {breadcrumb ? <div className="mb-3">{breadcrumb}</div> : null}
+    <div className={cn('mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8', widthClass[width], className)} {...props}>
+      {breadcrumb ? <div className="mb-4 lg:hidden">{breadcrumb}</div> : null}
       {title || actions ? (
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            {title ? <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1> : null}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-3xl space-y-2">
+            {eyebrow ? (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">{eyebrow}</p>
+            ) : null}
+            {title ? <h1 className="text-display text-foreground">{title}</h1> : null}
             {description ? <p className="max-w-2xl text-sm leading-6 text-foreground-muted">{description}</p> : null}
           </div>
           {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}

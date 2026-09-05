@@ -5,7 +5,7 @@ import { FEATURE_NAMES, useFeatures } from '../features';
 import { ApiClientError } from '../services/api';
 import { getHealth, getReadiness } from '../services/health';
 import type { HealthData, ReadinessData } from '../types/api';
-import { Badge, Breadcrumb, Card, CardHeader, CardTitle, ErrorState, LoadingState, PageContainer } from '../ui';
+import { Badge, Breadcrumb, ErrorState, LoadingState, PageContainer } from '../ui';
 
 interface ProbeState<T> {
   loading: boolean;
@@ -62,40 +62,38 @@ export function HomePage() {
         </>
       }
     >
-      <p className="mb-6 text-sm font-medium uppercase tracking-wide text-foreground-muted">Reusable platform</p>
-      <section className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Feature flags</CardTitle>
-            <a className="text-xs text-foreground-muted underline" href={API_PATHS.features}>
+      <p className="mb-6 text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground-muted">Reusable platform</p>
+      <section className="mb-10 border-y border-edge py-6">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-title">Feature flags</h2>
+            <a className="text-caption text-foreground-muted underline" href={API_PATHS.features}>
               {API_PATHS.features}
             </a>
-          </CardHeader>
-          {!ready ? <LoadingState label="Loading flags…" className="py-4" /> : null}
-          {ready ? (
-            <div className="space-y-2">
-              <p className="text-sm">
-                {isDemo() ? (
-                  <Badge tone="warning">Demo mode</Badge>
-                ) : (
-                  <Badge tone="neutral">Production mode</Badge>
-                )}
-              </p>
-              <p className="text-xs text-foreground-muted">
-                Server evaluation is authoritative. This list is UX only.
-              </p>
-              <ul className="flex flex-wrap gap-2">
-                {FEATURE_NAMES.filter((name) => isEnabled(name)).map((name) => (
-                  <li key={name}>
-                    <Badge tone="success">{name}</Badge>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </Card>
+          </div>
+        </div>
+        {!ready ? <LoadingState label="Loading flags…" className="py-4" /> : null}
+        {ready ? (
+          <div className="space-y-3">
+            <p className="text-sm">
+              {isDemo() ? (
+                <Badge tone="warning">Demo mode</Badge>
+              ) : (
+                <Badge tone="neutral">Production mode</Badge>
+              )}
+            </p>
+            <p className="text-caption text-foreground-muted">Server evaluation is authoritative. This list is UX only.</p>
+            <ul className="flex flex-wrap gap-2">
+              {FEATURE_NAMES.filter((name) => isEnabled(name)).map((name) => (
+                <li key={name}>
+                  <Badge tone="success">{name}</Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-8 md:grid-cols-2">
         <StatusCard title="Health" href={OPERATIONAL_PATHS.health} state={health} readyLabel="Application is up" />
         <StatusCard
           title="Readiness"
@@ -120,22 +118,22 @@ function StatusCard<T extends { status: string }>({
   readyLabel: string;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <a className="text-xs text-foreground-muted underline" href={href}>
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-title">{title}</h2>
+        <a className="text-caption text-foreground-muted underline" href={href}>
           {href}
         </a>
-      </CardHeader>
+      </div>
       {state.loading ? <LoadingState label="Checking…" className="py-4" /> : null}
       {state.data ? (
         <div className="space-y-1">
           <p className="text-sm font-medium text-success">{state.data.status}</p>
-          <p className="text-xs text-foreground-muted">{readyLabel}</p>
+          <p className="text-caption text-foreground-muted">{readyLabel}</p>
         </div>
       ) : null}
       {state.error ? <ErrorState message={state.error} className="border-0 bg-transparent px-0 py-2" /> : null}
-    </Card>
+    </div>
   );
 }
 

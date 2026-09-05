@@ -110,8 +110,8 @@ async function drawDocument(spec: PdfDocumentSpec): Promise<Buffer> {
 function applyMetadata(pdf: PDFDocument, spec: PdfDocumentSpec): void {
   const createdAt = spec.metadata?.createdAt ? new Date(spec.metadata.createdAt) : new Date();
   pdf.setTitle(spec.metadata?.title ?? spec.title);
-  pdf.setCreator('Hackathon Starter Kit');
-  pdf.setProducer('Hackathon Starter Kit PDF renderer');
+  pdf.setCreator('DealFlow360');
+  pdf.setProducer('DealFlow360 PDF renderer');
   if (!Number.isNaN(createdAt.getTime())) {
     pdf.setCreationDate(createdAt);
     pdf.setModificationDate(createdAt);

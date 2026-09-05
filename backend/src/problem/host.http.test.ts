@@ -42,7 +42,7 @@ function buildApp(currentUser?: AuthenticatedUser) {
   applyProblemModule(
     createProblemHost({
       stage: 'api',
-      config: loadConfig({ NODE_ENV: 'test', APP_NAME: 'Hackathon Starter Kit' }),
+      config: loadConfig({ NODE_ENV: 'test', APP_NAME: 'DealFlow360' }),
       logger,
       jobs,
       events: createEventBus(logger),

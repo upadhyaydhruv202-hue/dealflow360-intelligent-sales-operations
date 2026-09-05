@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '../cn';
-import { Card, CardDescription, CardHeader, CardTitle } from '../primitives/Card';
 import { Skeleton } from '../primitives/Skeleton';
+import { Sparkline } from './SimpleCharts';
 
 export interface KpiCardProps {
   label: string;
@@ -11,20 +11,19 @@ export interface KpiCardProps {
   delta?: { label: string; trend?: 'up' | 'down' | 'flat' };
   loading?: boolean;
   className?: string;
+  sparkline?: number[];
 }
 
-export function KpiCard({ label, value, hint, delta, loading, className }: KpiCardProps) {
+export function KpiCard({ label, value, hint, delta, loading, className, sparkline }: KpiCardProps) {
   return (
-    <Card className={className}>
-      <CardHeader className="mb-2">
-        <CardDescription className="uppercase tracking-wide">{label}</CardDescription>
-      </CardHeader>
+    <div className={cn('min-w-0 py-1', className)}>
+      <p className="text-caption font-medium uppercase tracking-[0.12em] text-foreground-muted">{label}</p>
       {loading ? (
-        <Skeleton className="h-8 w-24" />
+        <Skeleton className="mt-2 h-8 w-24" />
       ) : (
-        <p className="text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="mt-2 text-[28px] font-semibold tracking-tight text-foreground">{value}</p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-caption">
         {delta ? (
           <span
             className={cn(
@@ -38,7 +37,8 @@ export function KpiCard({ label, value, hint, delta, loading, className }: KpiCa
         ) : null}
         {hint ? <span className="text-foreground-muted">{hint}</span> : null}
       </div>
-    </Card>
+      {sparkline?.length ? <div className="mt-3"><Sparkline values={sparkline} /></div> : null}
+    </div>
   );
 }
 
@@ -58,15 +58,15 @@ export function ChartArea({
   loading?: boolean;
 }) {
   return (
-    <Card className="min-h-64">
-      <CardHeader>
+    <section className="min-h-64">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
+          <h2 className="text-title text-foreground">{title}</h2>
+          {description ? <p className="mt-1 text-sm text-foreground-muted">{description}</p> : null}
         </div>
         {actions}
-      </CardHeader>
+      </div>
       {loading ? <Skeleton className="h-40" /> : children ?? empty}
-    </Card>
+    </section>
   );
 }

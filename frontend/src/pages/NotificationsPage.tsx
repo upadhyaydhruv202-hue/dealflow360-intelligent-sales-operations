@@ -107,7 +107,7 @@ export function NotificationsPage() {
       }
     >
       <SessionGate title="Sign in to view notifications">
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-8 flex flex-wrap gap-2">
         <Button disabled={loading} onClick={() => void withToken(refresh)}>
           Load inbox
         </Button>
@@ -137,8 +137,8 @@ export function NotificationsPage() {
         })}
       />
 
-      <section className="mt-8 space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Preferences</h2>
+      <section className="mt-10 space-y-3 border-t border-edge pt-8">
+        <h2 className="text-title text-foreground">Preferences</h2>
         <NotificationPreferences
           preferences={preferences}
           mandatoryCategories={mandatoryCategories}
