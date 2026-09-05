@@ -27,7 +27,7 @@ services:
 
   # REQUIRED — Redis 7. BullMQ, cache, rate limits, OTP, idempotency.
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: hackathon-redis
     command: ['redis-server', '--appendonly', 'yes']
     ports:
