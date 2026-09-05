@@ -5,7 +5,7 @@ name: hackathon-starter-kit
 services:
   # REQUIRED — PostgreSQL 16. Shared by API, worker, and host-based npm run dev.
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: hackathon-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
