@@ -1,82 +1,284 @@
-# DealFlow360
+<p align="center">
+  <img src="https://img.shields.io/badge/DealFlow360-Intelligent%20Sales%20Operations-0F172A?style=for-the-badge" alt="DealFlow360" />
+</p>
 
-### An Intelligent, Self-Governing Sales Operations Platform
+<h1 align="center">DealFlow360</h1>
 
-> DealFlow360 treats a quotation as a governed commercial decision — not a static PDF. Discount policy, blended risk, approval chains, warehouse feasibility, hybrid billing, and customer negotiation live in one backend-authoritative loop. PostgreSQL is the system of record. Confirmation in the default demo is local.
+<p align="center">
+  <strong>An intelligent, self-governing sales operations platform</strong>
+</p>
 
-[![CI](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/actions/workflows/ci.yml/badge.svg)](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/actions/workflows/ci.yml)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](#tech-stack)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](#tech-stack)
-[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](#tech-stack)
-[![Express](https://img.shields.io/badge/Express-REST%20%2Fapi%2Fv1-000000?logo=express&logoColor=white)](#tech-stack)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](#tech-stack)
-[![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)](#tech-stack)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](#tech-stack)
-[![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](#license)
+<p align="center">
+  Quotations as governed commercial decisions — not static PDFs.<br />
+  Discount policy, blended risk, approval chains, warehouse feasibility, hybrid billing, and customer negotiation live in one backend-authoritative loop.
+</p>
 
-**Staff workspace:** [`/dealflow`](http://localhost:5173/dealflow) · **Customer portal:** `/portal/:token` · **API:** `/api/v1/dealflow`
+<p align="center">
+  <a href="https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/actions/workflows/ci.yml"><img src="https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/version-0.1.0-3178C6" alt="Version 0.1.0" /></a>
+  <a href="#-license"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg" alt="License AGPL-3.0-or-later" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white" alt="React 18" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white" alt="Node.js 24" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/Express-%2Fapi%2Fv1-000000?logo=express&logoColor=white" alt="Express REST" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 16" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white" alt="Prisma 6" /></a>
+  <a href="#-technology-stack"><img src="https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white" alt="Redis 7" /></a>
+  <a href="https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/issues"><img src="https://img.shields.io/github/issues/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations" alt="Issues" /></a>
+</p>
 
-Product logic lives in `modules/problem/`. Auth, RBAC, Prisma, queues, and adapters stay in the reusable platform. Do not move DealFlow rules into kit folders.
-
-| Jump | |
-| --- | --- |
-| [60 seconds](#-dealflow360-in-60-seconds) · [Problem](#-the-problem) · [Approach](#-the-dealflow360-approach) · [Why](#-why-dealflow360) · [Capabilities](#capability-matrix) · [Golden demo](#-golden-demo) | [Architecture](#-architecture) · [Rules](#-business-rules) · [Security](#-security--access-control) · [API](#-api-overview) · [Setup](#-quick-start) · [Limits](#implemented-vs-intentionally-limited) |
+<p align="center">
+  <a href="#-quick-start"><strong>Quick Start</strong></a> ·
+  <a href="#-golden-demo"><strong>Golden Demo</strong></a> ·
+  <a href="#-features"><strong>Features</strong></a> ·
+  <a href="#-system-architecture"><strong>Architecture</strong></a> ·
+  <a href="#-api-reference"><strong>API</strong></a> ·
+  <a href="#-installation-guide"><strong>Install</strong></a> ·
+  <a href="#-documentation"><strong>Docs</strong></a>
+</p>
 
 ---
 
-## ⚡ DealFlow360 in 60 Seconds
+**DealFlow360** is a full-stack sales operations product built on a reusable hackathon platform. It treats a mixed hardware-and-subscription quotation as a living commercial object: policy-checked discounts, explainable risk, ordered approvals, multi-warehouse fulfillment, hybrid billing, and a customer portal that never sees internal controls.
 
-A sales representative prices a mixed hardware + subscription quote. The customer submits a persisted request (quantity, line comments, counter-discount). Status becomes Under Negotiation. The representative reviews it on **Customer negotiations**, cannot silently apply an 8% write (Sales Rep ceiling 5%), and escalates to a manager. The manager revises discounts (replacing the prior line value) and returns or finalizes. The customer confirms a specific revision. The existing approval engine still runs. Manager approval emails the customer a provisional invoice. Finance then locks the deal and emails the final bill. After lock, the same quote can attach a recommended line, split warehouses (including backorder), and generate one-time plus recurring billing. A material commercial change after freeze must clone a new revision and reopen approval.
+| Surface | Where |
+| --- | --- |
+| Staff workspace | http://localhost:5173/dealflow |
+| Customer account | `/account` |
+| Customer portal | `/portal/:token` |
+| REST API | `/api/v1/dealflow` |
+| Product code | `modules/problem/` |
+| Platform (auth, RBAC, Prisma, queues, adapters) | `backend/`, `frontend/`, `database/`, `workers/` |
 
-```mermaid
-flowchart LR
-  A[Sales Representative] --> B[Estimated quote]
-  B --> C[Customer submit request]
-  C --> D[Sales Rep review]
-  D --> E[Manager review]
-  E --> F[Customer confirm]
-  F --> G[Approval engine]
-  G --> H[Provisional customer email]
-  H --> I[Finance lock]
-  I --> J[Final bill email]
-  J --> K[Fulfillment + billing]
+PostgreSQL is the system of record. Confirmation in the default demo is local. Odoo is an optional adapter and is **off** in `.env.example`. AI is available as a kit toolkit and is **not** used for pricing.
+
+---
+
+## ⚡ Quick Start
+
+A developer who already has Git, Node.js 24, npm 11, and Docker Compose v2.24+ can reach a working demo with:
+
+```text
+Clone → npm install → copy .env.example → deps:up → migrate → seed → npm run dev
 ```
 
-| Actor | Seeded account | What they do | What they cannot do |
-| --- | --- | --- | --- |
-| Sales Representative | `demo.staff@example.com` | Create quotes and products, send to manager, fulfill after lock (5%) | Approve a chain step, lock a deal, or change discount policies (API 403) |
-| Manager | `demo.manager@example.com` | Review, finalize, first approval step (10%) | Act as Finance or Final |
-| Finance Manager | `demo.finance@example.com` | Finance approval and commercial lock (15%) | Admin settings or catalog write |
-| Admin | `demo.admin@example.com` | Finance + Final; every catalog permission after RBAC merge; may act on any step | A silent 40% discount ceiling — writes use the highest staff/manager/finance authority held |
-| Customer | `demo.user@example.com` or `/register` | `/account` + portal links for their quotes | Open `/dealflow` or staff APIs |
-| Portal holder | Unguessable `portalToken` | See commercial totals and change line discounts | See risk score, reasons, approvals, fulfillment, billing ops, revisions, or staff IDs |
+```bash
+git clone https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations.git
+cd dealflow360-intelligent-sales-operations
+npm install
+cp .env.example .env          # PowerShell: Copy-Item .env.example .env
+npm run deps:up
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
 
----
+Then open http://localhost:5173/login and sign in as `demo.staff@example.com` with password `demo-password`.
 
-## 🎯 The Problem
-
-Traditional sales tools treat quotations as documents: a price, a PDF, maybe an email. The hard work happens outside the system.
-
-That leaves operational gaps this product actually implements against:
-
-| Failure | What goes wrong |
+| Service | URL |
 | --- | --- |
-| Discount leakage | A line discount is typed without a visible ceiling, variance, or reason |
-| Inconsistent approval | Nobody can say who must approve, or why this quote vs another |
-| Margin erosion | Isolated line discounts hide the blended, revenue-weighted impact |
-| Fake feasibility | A quote is “sold” against a single imaginary warehouse |
-| Split reality | Hardware must ship from West and East; leftovers become backorder |
-| Mixed commercial models | Hardware is one-time; software/services are recurring — they are not one invoice |
-| Unsafe negotiation | The customer sees internal risk, audit, or approval controls |
-| Stale governance | A material portal change keeps an old “approved” stamp |
+| Frontend (Vite) | http://localhost:5173 |
+| API | http://localhost:5000 |
+| Liveness | `GET /health` |
+| Readiness | `GET /ready` |
+| Postgres (host) | `127.0.0.1:5433` |
+| Redis (host) | `127.0.0.1:6379` |
 
-DealFlow360’s problem statement is narrower than “CRM”: **one quotation lifecycle that stays governed after the customer pushes back.**
+Use **npm only**. `.npmrc` sets `engine-strict=true`. Do not use Yarn, pnpm, or Bun. Full install notes: [Installation Guide](#-installation-guide).
 
 ---
 
-## 💡 The DealFlow360 Approach
+## 📚 Table of Contents
+
+**Product**
+
+- [Overview](#-overview)
+- [Visual Showcase](#-visual-showcase)
+- [Demo](#-demo)
+- [Problem Statement](#-problem-statement)
+- [Our Solution](#-our-solution)
+- [Objectives](#-objectives)
+- [Target Users](#-target-users)
+- [Features](#-features)
+- [Feature Matrix](#-feature-matrix)
+- [Golden Demo](#-golden-demo)
+
+**Engineering**
+
+- [System Architecture](#-system-architecture)
+- [Data Flow](#-data-flow)
+- [Application Workflows](#-application-workflows)
+- [Authentication & Authorization](#-authentication--authorization)
+- [Security](#-security)
+- [Database Architecture](#-database-architecture)
+- [Project Structure](#-project-structure)
+- [Frontend Architecture](#-frontend-architecture)
+- [Backend Architecture](#-backend-architecture)
+- [API Reference](#-api-reference)
+
+**Operations**
+
+- [Testing](#-testing)
+- [Requirements](#-requirements)
+- [Installation Guide](#-installation-guide)
+- [Environment Configuration](#-environment-configuration)
+- [Development Commands](#-development-commands)
+- [Docker](#-docker)
+- [Deployment](#-deployment)
+- [CI/CD](#-cicd)
+
+**Product quality**
+
+- [UI/UX Philosophy](#-uiux-philosophy)
+- [Accessibility](#-accessibility)
+- [Responsive Design](#-responsive-design)
+- [Performance](#-performance)
+- [Scalability](#-scalability)
+- [Notifications](#-notifications)
+- [Real-Time Features](#-real-time-features)
+- [AI / ML](#-ai--ml)
+- [Integrations](#-integrations)
+
+**Handbook**
+
+- [Technical Decisions](#-technical-decisions)
+- [Design Patterns](#-design-patterns)
+- [Error Handling](#-error-handling)
+- [Logging & Monitoring](#-logging--monitoring)
+- [Health Checks](#-health-checks)
+- [Developer Workflow](#-developer-workflow)
+- [Git Workflow](#-git-workflow)
+- [Contributing](#-contributing)
+- [Roadmap](#-roadmap)
+- [Project Status](#-project-status)
+- [Documentation](#-documentation)
+- [User Guide](#-user-guide)
+- [Admin Guide](#-admin-guide)
+- [Role & Permission Matrix](#-role--permission-matrix)
+- [Troubleshooting](#-troubleshooting)
+- [FAQ](#-frequently-asked-questions)
+- [Glossary](#-glossary)
+- [Example Scenarios](#-example-scenarios)
+- [Technical Deep Dive](#-technical-deep-dive)
+- [Limitations](#-limitations)
+- [Why This Project Matters](#-why-this-project-matters)
+- [License](#-license)
+
+---
+
+## 🌍 Overview
+
+DealFlow360 is a sales operations workspace for organizations that sell mixed catalogs: one-time hardware plus recurring software or services. The product exists because traditional quotation tools stop at a price sheet. The hard work — “is this discount allowed?”, “who must approve?”, “can the warehouse actually ship this?”, “what is one-time versus monthly?”, “how do we let the customer push back without leaking internals?” — usually happens in spreadsheets, chat, and ERP screens that do not share a single truth.
+
+This repository solves that loop **in software**, with PostgreSQL as the system of record:
+
+1. A sales representative builds a quote against a live catalog.
+2. The customer submits a persisted negotiation request through an isolated portal.
+3. Role ceilings block silent over-discounting.
+4. A manager revises, finalizes, and the existing approval engine still runs.
+5. Finance locks the commercial deal.
+6. Staff then plan multi-warehouse fulfillment and generate hybrid billing.
+
+The same repository is also a **reusable full-stack starter kit**. Authentication, RBAC, Prisma, Redis, BullMQ, email/SMS/storage adapters, optional Odoo and AI, CI, and Docker stay in platform folders. Hackathon-specific DealFlow rules live only under `modules/problem/`. That split is intentional: the product is specific, the platform is generic.
+
+**Who it is for.** Sales representatives, managers, finance managers, administrators, and customers (account + token portal).
+
+**Who it is not for (this build).** Teams that need live payment capture, a live Odoo `sale.order` as the source of truth, or machine-learning price models. Those are documented as gaps, not shipped features.
+
+**What makes it different.** Governance survives negotiation. A material commercial change invalidates outstanding approvals on the server. The portal DTO omits risk, reasons, approvals, fulfillment internals, billing operations, revisions, and staff identifiers. Discount writes are hard-capped by role. Available stock is on-hand minus reserved.
+
+---
+
+## 📸 Visual Showcase
+
+The repository does not currently contain PNG, JPG, GIF, SVG, or MP4 demo assets in source control. Do not treat marketing mockups elsewhere as part of this tree.
+
+Until screenshots are committed, the canonical visual tour is the **golden demo** on a local stack:
+
+| Screen | Route | What you should see |
+| --- | --- | --- |
+| Sign-in | `/login` | Sales operations login; demo account chips when `DEMO_MODE=true` |
+| Staff dashboard | `/dealflow` | Live open value, approvals, and risk derived from quotes |
+| Quotation workspace | `/dealflow/quotes/:quoteId` | Lines, assessment, negotiations, approvals, fulfillment, billing |
+| Negotiations | `/dealflow/negotiations` | Customer requests waiting on staff or manager |
+| Approvals | `/dealflow/approvals/:quoteId` | Chain, decide, reasons |
+| Fulfillment | `/dealflow/fulfillment/:quoteId` | West DC / East DC split and backorder |
+| Portal | `/portal/:token` | Commercial totals only |
+| Customer account | `/account` | Buyer’s own quotations (`demo.user@example.com`) |
+
+When adding screenshots later, place them under a dedicated `docs/assets/` (or similar) path and reference those files here. Do not invent image URLs.
+
+---
+
+## 🎥 Demo
+
+<a id="demo"></a>
+
+There is no recorded video or GIF in this repository. The judged walkthrough is interactive:
+
+1. Start the hybrid stack ([Quick Start](#-quick-start)).
+2. Follow [Golden Demo](#-golden-demo).
+3. Use seeded password `demo-password` for every demo account.
+
+Optional future placement for a walkthrough recording:
+
+```text
+docs/assets/demo.mp4
+docs/assets/portal.png
+docs/assets/workspace.png
+```
+
+Those files are **not** present today.
+
+---
+
+## 🚨 Problem Statement
+
+Traditional sales tools treat quotations as documents: a price, a PDF, maybe an email. The operational loop happens outside the system.
+
+### Current Challenges
+
+| Challenge | Existing situation | Impact |
+| --- | --- | --- |
+| Discount leakage | A line discount is typed without a visible ceiling, variance, or reason | Margin disappears before anyone notices |
+| Inconsistent approval | Nobody can say who must approve, or why this quote versus another | Deals stall or get rubber-stamped |
+| Isolated line math | Each SKU is judged alone | Blended, revenue-weighted risk is invisible |
+| Fake feasibility | “Sold” against a single imaginary warehouse | Operations discover the split after the handshake |
+| Mixed commercial models | Hardware is one-time; software is recurring | One blended invoice misstates what is due today |
+| Unsafe negotiation | The customer sees internal risk, audit, or approval controls | Governance leaks; trust drops |
+| Stale governance | A material portal change keeps an old “approved” stamp | Policy is theater |
+| Role confusion | Staff, manager, and finance share the same buttons | Unauthorized lock, approve, or 40% write |
+
+The problem this product actually implements against is narrower than “CRM”:
+
+> **One quotation lifecycle that stays governed after the customer pushes back.**
+
+Official statement: [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md). Module flags for this demo: [HACKATHON_MODULES.md](HACKATHON_MODULES.md).
+
+### Pain points the code addresses
+
+- **Operational.** Split warehouses, reserved stock, backorder remainder, hybrid schedules.
+- **User.** Sales reps need a ceiling they cannot bypass; customers need a portal that is not the staff app.
+- **Technical.** Backend-authoritative assessment; frontend permission checks are UX only.
+- **Reliability.** Optimistic concurrency (`expectedVersion`) on mutating quote operations.
+- **Security.** Portal tokens are unguessable; unknown tokens 404; customer JWT cannot open `/dealflow`.
+
+---
+
+## 💡 Our Solution
 
 Six engines share one `Quote` aggregate in PostgreSQL.
+
+| Problem | Our approach | Result |
+| --- | --- | --- |
+| Discount leakage | Role ceilings + policy match + persist-or-403 | An 8% write from a 5% Sales Rep never lands |
+| Unclear approval | Risk score + blended discount select a chain | Ordered steps with `dealflow.approvals.*` keys |
+| Isolated line math | `blendedDiscountPercent = discountTotal / listTotal` | Quote-level decision, not only line-level |
+| Fake stock | `available = max(0, onHand − reserved)` | Split + backorder from live `df_stock_levels` |
+| Mixed billing | Product `billingType` one-time vs recurring | Separate schedules; no payment capture |
+| Unsafe portal | `toPortalView()` strips internals | Customer sees totals, not risk reasons |
+| Stale approval | Material-change rule on the server | Prior steps invalidated; new chain opens |
+| Email theater | Manager approve → provisional; Finance lock → final bill | Recorded in `df_quote_email_deliveries`; mock is never `sent` |
 
 ```mermaid
 flowchart TB
@@ -87,89 +289,2233 @@ flowchart TB
     F[Fulfillment splits + backorders]
     B[Billing schedules]
     R[Revisions]
+    N[Negotiation requests]
   end
   P[Discount policies] --> A
   H[Approval chains] --> C
-  S[Stock on-hand − reserved] --> F
+  S[Stock on-hand minus reserved] --> F
   K[Product relations] --> U[Recommendations]
   U --> L
   Portal[Token portal] -->|stripped view| L
   Portal -->|material change| C
 ```
 
-| Layer | Responsibility |
+Odoo is **not** the system of record. `.env.example` sets `FEATURE_ODOO=false` / `ODOO_ENABLED=false`. Confirmations do not invent remote sale-order IDs.
+
+---
+
+## 🎯 Objectives
+
+| Kind | Objective |
 | --- | --- |
-| Commercial governance | Policy match by customer tier and product category |
-| Risk intelligence | Line decisions + blended discount + risk score + required chain |
-| Approval automation | Ordered steps; role keys; invalidation on material change |
-| Fulfillment planning | Multi-warehouse allocation; available = on-hand − reserved |
-| Hybrid billing | Separate one-time and recurring schedules |
-| Customer negotiation | Public token routes; portal payload omits internals |
-
-Odoo is an **optional adapter**, not the system of record. `.env.example` sets `FEATURE_ODOO=false` / `ODOO_ENABLED=false`. Confirmations do not invent remote sale-order IDs.
-
----
-
-## 🔥 Why DealFlow360?
-
-### 1. Explainable discount governance
-
-Every assessed line records: requested discount → matched policy → warning / approval / reject ceiling → variance → reason string. The UI surfaces “why” and “who” from the backend assessment, not a frontend guess.
-
-### 2. Revenue-weighted blended risk
-
-The engine does not treat each line in isolation for the quote decision. Blended discount is `discountTotal / listTotal`. Risk score combines blended discount, average margin erosion, and counts of warning / approval-required / rejected lines. Multiple warning-level lines can escalate the quote (`cumulativeWarningLimit = 2`).
-
-### 3. Governance that survives negotiation
-
-A material change is a blended-discount increase of **2 percentage points** or a **10%** move in net total. The server invalidates outstanding approvals and opens a new chain. The customer portal never decides that policy.
-
-### 4. Fulfillment-aware sales
-
-Planning reads live stock. Available units are **on-hand minus reserved**. The seeded Core Gateway book is West DC 4 + East DC 3. A qty-8 hardware line produces a split plus backorder 1.
-
-### 5. Hybrid billing
-
-`generateBilling` writes one-time schedules for hardware and recurring schedules for software/services. The API does **not** collect or record payments.
-
-### 6. Customer portal isolation
-
-`GET/PATCH /api/v1/dealflow/portal/:token` returns commercial totals, blended discount %, customer name, and lines. It **omits** risk score, policy reasons, approvals, fulfillment, billing operations, revisions, and staff identifiers. Unknown tokens 404. Customer JWT login (`demo.user@example.com`) cannot open `/dealflow`. `GET /api/v1/dealflow/me/quotes` lists that buyer’s quotations as the same portal DTO plus the portal token. Public `/register` creates a `user` + `DfCustomer` (never an internal role). The portal token is not the customer JWT.
+| Primary | One governed quotation from draft through finance lock, fulfillment, and hybrid billing |
+| Secondary | Isolated customer negotiation that cannot inspect staff internals |
+| Technical | Backend-authoritative policy, risk, RBAC, and optimistic concurrency |
+| User | Role-correct workspaces: staff `/dealflow`, customer `/account` + `/portal/:token` |
+| Business | Stop discount leakage and approval theater without requiring live ERP or payments |
+| Reliability | Seeded golden path a judge can complete without paid APIs |
+| Security | Secrets stay on the server; demo mode must not behave as production |
+| Scalability | Modular monolith + optional Redis/BullMQ workers; not microservices |
 
 ---
 
-## Capability Matrix
+## 👥 Target Users
 
-| Capability | Status | What it does |
+| User | Who they are | What they need | What they can do | What they cannot do |
+| --- | --- | --- | --- | --- |
+| Sales Representative | Field / inside sales | Fast quote + honest ceiling | Create quotes and products, send to manager, fulfill after lock (5%) | Approve a chain step, lock a deal, or write above role ceiling (API 403) |
+| Manager | Sales manager | Revise without breaking governance | Review, replace line discounts (10%), finalize, first approval step | Act as Finance or Final unless they also hold those keys |
+| Finance Manager | Commercial control | Lock only after a valid chain | Finance approval and commercial lock (15%) | Admin settings or catalog governance write |
+| Admin | Platform + catalog owner | Configure policy without impersonating a 40% ceiling | Finance + Final after RBAC merge; catalog write; may act on any approval step | A silent 40% discount write — writes use the highest staff/manager/finance authority held |
+| Customer | Buyer | See commercials, push back, confirm a revision | `/account` + portal links for their quotes; `/register` creates `user` + `DfCustomer` | Open `/dealflow` or staff APIs |
+| Portal holder | Anyone with the unguessable token | Review this quote only | See commercial totals; submit negotiation; confirm/agree | See risk score, reasons, approvals, fulfillment, billing ops, revisions, or staff IDs |
+
+Seeded demo accounts (only when `DEMO_MODE=true`):
+
+| Email | Role |
+| --- | --- |
+| `demo.staff@example.com` | Sales Representative (`staff`) |
+| `demo.manager@example.com` | Manager |
+| `demo.finance@example.com` | Finance Manager (`finance`) |
+| `demo.admin@example.com` | Admin |
+| `demo.user@example.com` | Customer (`user`) |
+
+Password for every seeded demo user: `demo-password`.
+
+An `operations` role exists in RBAC merge (`dealflow.catalog.read`, quotes read, fulfillment write). There is **no** Operations demo account. Seed deletes `demo.operations@example.com` if it was left from an older run.
+
+---
+
+## ✨ Features
+
+Each subsection below is implemented in `modules/problem` unless noted as a platform capability.
+
+### Discount governance
+
+**Purpose.** Stop unauthorized discounts before they persist.
+
+**How it works.** Every assessed line records requested discount → matched policy → warning / approval / reject ceiling → variance → reason string. Policies match by customer tier and/or product category; more specific policies win, then lower `priority`. Role authorities cap writes: staff 5%, manager 10%, finance 15%. Over-cap writes return **403** and are not stored.
+
+**User benefit.** “Why” and “who” come from the backend assessment, not a frontend guess.
+
+**Technical implementation.** `discount-engine.ts` + `loyalty.ts` + `df_discount_policies` + `df_role_authorities`.
+
+**Security.** Frontend buttons are UX. `requirePermission` and service-level ceiling checks are authoritative.
+
+**Example.** A Sales Rep tries 8% on Core Gateway. API 403. A Manager replaces the line at 10%. The stored value is 10%, not 5% + 10%.
+
+### Revenue-weighted blended risk
+
+**Purpose.** Judge the quote as a commercial whole.
+
+**How it works.** Blended discount is `discountTotal / listTotal` (equivalently `(listTotal − netTotal) / listTotal × 100`). Risk score combines blended discount, average margin erosion, and counts of warning / approval-required / rejected lines. Two or more warning-level lines force `approval_required` (`cumulativeWarningLimit = 2`).
+
+**User benefit.** Multiple “small” warnings still escalate.
+
+**Technical implementation.** Quote assessment fields on `df_quotes`; no separate snapshot table.
+
+### Approval automation
+
+**Purpose.** Route the right people in order.
+
+**How it works.** Among active chains where `riskScore >= minRiskScore` **or** `blendedDiscountPercent >= minBlendedDiscountPercent`, the highest `minRisk + minBlended` wins (then lowest priority). Each pending step also checks `dealflow.approvals.{manager|finance|final}`. Staff has `dealflow.quotes.write` but **not** `dealflow.quotes.approve`.
+
+**Seeded chains.**
+
+| Chain | Qualifies when | Steps |
 | --- | --- | --- |
-| Discount governance | ✅ | Policy ceilings, reasons, line + quote decision |
-| Risk assessment | ✅ | Blended discount, margin, risk score, required chain |
-| Approval routing | ✅ | Manager → Finance → Final by risk / blended thresholds |
-| Staff submit | ✅ | Staff cannot approve (API 403) |
-| Recommendations | ✅ | Catalog relations (Core Gateway → Edge Sensor Pack) |
-| Fulfillment split | ✅ | Multi-warehouse plan + optional overrides |
-| Backorders | ✅ | Remainder after available stock |
-| Hybrid billing | ✅ | One-time vs recurring schedules |
-| Customer portal | ✅ | Token read + negotiation notes (qty / discount / target / products) |
-| Manager finalize | ✅ | Freeze commercials; submit only from `finalized` |
-| Reapproval | ✅ | Material change invalidates prior steps |
-| Finance lock | ✅ | Consumes allocated stock after approval; staff cannot lock |
-| Customer emails | ✅ | Manager approval → provisional invoice; Finance lock → final bill. Mock/demo is `not_configured`, never `sent` |
-| Audit trail | ✅ | Kit `AuditEvent` + quote revisions |
-| Deal Health / Reports | ✅ | Derived from live quotes — no snapshot table |
-| Auth + JWT + RBAC | ✅ | Required when `DATABASE_URL` is set |
-| Customer signup | ✅ | `/register` creates `user` + `DfCustomer`; default role is never admin |
-| Odoo adapter | ⚙️ | Allowlisted JSON-2 client; `FEATURE_ODOO=false` in `.env.example` |
-| AI toolkit | ⚙️ | `FEATURE_AI=true`; mock when `DEMO_MODE` and no Gemini key. **Not used for pricing** |
-| Kit copilot / intents / planning | ⚙️ | On in `.env.example`; not the golden path |
-| PDF kit | ⚙️ | `FEATURE_PDF` defaults on |
-| Background jobs | ⚙️ | Queue always; Redis via Compose; worker optional for the golden path |
-| Payment collection | — | No checkout, no captured payments |
-| RAG / search / analytics / SSE / SMS / S3 | — | Flags false in the default demo |
+| Sales Manager | blended ≥ 5% or risk ≥ 0 | Manager |
+| Sales Manager → Finance | blended ≥ 12% or risk ≥ 40 | Manager, Finance |
+| Sales Manager → Finance → Final | blended ≥ 20% or risk ≥ 70 | Manager, Finance, Final |
+
+**Example.** A manager-revised 10% hardware line typically selects **Sales Manager → Finance** (blended 10 is below 12, but risk and line decisions still escalate).
+
+### Customer negotiation
+
+**Purpose.** Let the buyer push back without becoming a staff user.
+
+**How it works.** Portal `POST .../negotiations` stores quantity, line comments, and counter-discount **as a request**. Requested discount is not silently applied. Status becomes `customer_negotiation`. Staff reviews on **Customer negotiations**, may respond, and can **Send to Manager**. Confirmation is blocked while a request is open, in review, or with the manager. Confirmation does not skip approval.
+
+**Technical implementation.** `df_negotiation_requests`, `service.createPortalNegotiation`, `NegotiationsPage.tsx`.
+
+**Security.** Public token routes use `publicRateLimit`. Payload is `toPortalView()`.
+
+### Manager finalize and submit
+
+**Purpose.** Freeze commercials before the approval engine.
+
+**How it works.** Manager **Finalize** stamps freeze. Staff **Submit** is allowed only from `finalized`. The existing approval engine then runs.
+
+**Technical implementation.** `lifecycle.ts` transitions; `finalizeQuotation` / `submit`.
+
+### Material-change reapproval
+
+**Purpose.** Governance that survives negotiation.
+
+**How it works.** A material change is a blended-discount increase of **2 percentage points** or a **10%** move in net total (`materialDiscountDeltaPp`, `materialTotalDeltaRatio`). The server invalidates outstanding approvals and opens a new chain.
+
+**Security.** The customer portal never decides that policy.
+
+### Fulfillment planning
+
+**Purpose.** Sell against real warehouses.
+
+**How it works.** Planning reads live stock. Available units are **on-hand minus reserved**. The seeded Core Gateway book is West DC 4 + East DC 3. A qty-8 hardware line produces a split plus backorder 1. Overrides must still respect available stock (conflict otherwise).
+
+**Technical implementation.** `fulfillment-engine.ts`, `df_quote_fulfillment_splits`, `df_quote_backorders`.
+
+### Hybrid billing
+
+**Purpose.** Do not mash one-time and recurring into one fake invoice.
+
+**How it works.** `generateBilling` writes one-time schedules for hardware and recurring schedules for software/services (`monthly` / `quarterly` / `yearly`). The API does **not** collect or record payments. Schedules can be cancelled with `billing.write`.
+
+**Technical implementation.** `billing-engine.ts`, `df_quote_billing_schedules`.
+
+### Catalog recommendations
+
+**Purpose.** Suggest attach products without an LLM.
+
+**How it works.** Catalog relations, not a model. Core Gateway → Edge Sensor Pack (cross-sell). Control Suite → Analytics Add-on (upsell). Apply after finance lock as part of the golden path.
+
+**Technical implementation.** `recommendation-engine.ts`, `df_product_relations`.
+
+### Quantity breaks
+
+**Purpose.** Reprice by volume.
+
+**How it works.** Seeded volume prices (for example Core Gateway 1–9 list / 10–49 volume / 50+ contract) reprice the line when quantity changes. The golden path uses ×8, so HW-CORE-1 stays at list $4,000.
+
+**Technical implementation.** `pricing-engine.ts`, `df_quantity_breaks`. Admin can replace breaks via catalog write.
+
+### Loyalty stacking
+
+**Purpose.** Reward repeat buyers without bypassing the commercial cap.
+
+**How it works.** Won purchase count maps to loyalty `new` / gold / platinum (+0 / +5 / +10). Northwind starts as loyalty `new` (persisted `standard`). Bonus may stack onto the role cap when `allowLoyaltyStacking` is true, then `maxCommercialDiscountPercent` (default 25) still applies. High-value quotes (net ≥ $25,000) also require the selected chain.
+
+**Technical implementation.** `loyalty.ts`, customer `tier` on `df_customers`.
+
+### Tax
+
+**Purpose.** Optional quote-level tax on taxable lines.
+
+**How it works.** `computeTaxTotal` applies `governance.taxRatePercent` to taxable line nets. Default governance tax rate is **0**. Product `taxable` can exclude a SKU.
+
+**Technical implementation.** `tax-engine.ts`. Portal shows `taxTotal` and `grandTotal`.
+
+### Customer emails and PDF
+
+**Purpose.** Tell the buyer what happened, without leaking staff internals.
+
+**How it works.** Manager approval of the negotiated quotation emails a **provisional invoice** (awaiting Finance lock). Finance lock emails the **final bill**. Both use the live PostgreSQL quotation, attach a customer-safe PDF (`pdf-lib`), and write `df_quote_email_deliveries` plus `notification_deliveries`. If no real email provider is configured, the event stays pending / `not_configured` — it is never marked `sent`.
+
+**Technical implementation.** `customer-email.ts`, `quote-pdf.ts`, templates `quote-prelim-invoice` and `quote-final-invoice`. Idempotency key: `dealflow:quote:{id}:{event}:{stamp}`.
+
+**Staff PDF.** `GET /api/v1/dealflow/quotes/:id/pdf` (read). **Portal PDF.** `GET /api/v1/dealflow/portal/:token/pdf`.
+
+### Finance lock
+
+**Purpose.** Commercial close that staff cannot perform.
+
+**How it works.** `dealflow.quotes.lock` (Finance Manager) moves an **approved** quote to `confirmed` and stamps `financeLockedAt`. Staff cannot confirm. After lock, commercial edits conflict (409) until a new revision reopens approval. Allocated (non-backorder) splits decrement both on-hand and reserved. Backorder rows are not consumed.
+
+### Customer portal isolation
+
+**Purpose.** Share commercials, not the control plane.
+
+**How it works.** `GET/PATCH /api/v1/dealflow/portal/:token` returns commercial totals, blended discount %, customer name, and lines. It **omits** risk score, policy reasons, approvals, fulfillment, billing operations, revisions, and staff identifiers. Unknown tokens 404. `GET /api/v1/dealflow/me/quotes` lists that buyer’s quotations as the same portal DTO plus the portal token. Public `/register` creates a `user` + `DfCustomer` (never an internal role). The portal token is not the customer JWT.
+
+### Deal Health and Reports
+
+**Purpose.** Operational insight without a second warehouse.
+
+**How it works.** Deal Health and Reports **compute from the live quote list**. There is no stored deal-health snapshot table. Factors include rejection, approval delay, customer decline, backorder, staleness.
+
+**Technical implementation.** `health-engine.ts`, `InsightsPages.tsx`. Kit `FEATURE_ANALYTICS` is **false** in `.env.example` and is not this page.
+
+### DealFlow anomalies
+
+**Purpose.** Surface exceptions on live quotes.
+
+**How it works.** Detectors for unusual blended discount, large deals, price overrides, repeated approval cycles, stale quotes. Staff can resolve or ignore. This is **not** the kit `FEATURE_ANOMALY_DETECTION` engine (that flag is false in the default demo).
+
+**Technical implementation.** `anomaly-engine.ts`, `df_anomalies`, `/dealflow/anomalies`.
+
+### Catalog and governance editors
+
+**Purpose.** Operate the book without a SQL console.
+
+**How it works.** Admin (catalog write) can edit policies, chains, quantity breaks, role authorities, warehouses, relations, and governance. Sales Representative plus Admin can write products and stock (`dealflow.catalog.products.write`). Staff can upsert customers on write permission.
+
+### Optimistic concurrency
+
+**Purpose.** Two staff members should not silently overwrite a quote.
+
+**How it works.** Mutating quote routes accept `expectedVersion`. Stale versions conflict. Quote `version` increments on commercial change.
+
+### Platform authentication and RBAC
+
+**Purpose.** Identity and authorization for every staff route.
+
+**How it works.** Email/password, JWT access + refresh, httpOnly cookies when `AUTH_COOKIE_ENABLED=true`. Permissions reload from PostgreSQL on each request. See [Authentication](#-authentication--authorization).
+
+### Real-time staff refresh
+
+**Purpose.** Quotes, approvals, billing, and anomalies update without a full reload.
+
+**How it works.** When `FEATURE_REALTIME=true`, DealFlow publishes sanitized events on the dashboard SSE channel (`kind: dealflow`). Redis fan-out is used when `REDIS_URL` is set so the worker can reach API connections.
+
+### Kit surfaces (not the golden path)
+
+When their flags are on, the SPA also exposes Copilot, intents, problem intelligence, capability recommendations, project planning, project generator, notifications inbox, UI kit, and a platform dashboard. They are **not** required to complete DealFlow360. RAG, search, kit analytics, kit anomaly detection, SMS, and S3 are **off** in `.env.example`.
 
 ---
 
-## 🏆 Golden Demo
+## 📊 Feature Matrix
+
+| Feature | Status | User | Frontend | Backend | Database |
+| --- | --- | --- | --- | --- | --- |
+| Discount governance | ✅ Implemented | Staff / Manager / Finance | Quote workspace | `discount-engine.ts` | `df_discount_policies` |
+| Role discount ceilings | ✅ Implemented | Staff 5 / Mgr 10 / Fin 15 | UX only | `loyalty.ts` | `df_role_authorities` |
+| Blended risk assessment | ✅ Implemented | Staff | Workspace / approvals | `discount-engine.ts` | `df_quotes` fields |
+| Approval chains | ✅ Implemented | Manager / Finance / Admin | Approvals pages | `approval-engine.ts` | `df_approval_chains` |
+| Staff submit (no approve) | ✅ Implemented | Staff | Workspace | 403 without approve | RBAC |
+| Customer negotiation | ✅ Implemented | Customer + Staff | Portal / Negotiations | `service.ts` | `df_negotiation_requests` |
+| Manager finalize | ✅ Implemented | Manager | Workspace | `finalizeQuotation` | freeze stamps |
+| Material-change reapproval | ✅ Implemented | All | Status / chain | server rule | `df_quote_revisions` |
+| Recommendations | ✅ Implemented | Staff | Workspace | catalog relations | `df_product_relations` |
+| Fulfillment split | ✅ Implemented | Staff | Fulfillment pages | `fulfillment-engine.ts` | splits + stock |
+| Backorders | ✅ Implemented | Staff | Fulfillment | remainder after available | `df_quote_backorders` |
+| Hybrid billing | ✅ Implemented | Staff | Subscriptions / Invoices | `billing-engine.ts` | schedules |
+| Finance lock | ✅ Implemented | Finance | Workspace | `lockDeal` | `financeLockedAt` |
+| Customer emails | ✅ Implemented | Customer | Inbox if configured | `customer-email.ts` | `df_quote_email_deliveries` |
+| Customer PDF | ✅ Implemented | Staff + portal | Download | `quote-pdf.ts` | generated |
+| Portal isolation | ✅ Implemented | Portal holder | `/portal/:token` | `portal-view.ts` | `portalToken` |
+| Customer signup | ✅ Implemented | Public | `/register` | auth + `provisionCustomer` | `users` + `df_customers` |
+| Deal Health / Reports | ✅ Implemented | Staff | `/dealflow/health` `/reports` | `health-engine.ts` | live quotes only |
+| DealFlow anomalies | ✅ Implemented | Staff | Anomaly center | `anomaly-engine.ts` | `df_anomalies` |
+| Quantity breaks | ✅ Implemented | Admin write | Settings / product | `pricing-engine.ts` | `df_quantity_breaks` |
+| Loyalty stacking | ✅ Implemented | System | Portal loyalty DTO | `loyalty.ts` | customer tier |
+| Tax engine | ✅ Implemented | Config | Totals | `tax-engine.ts` | governance + line nets |
+| Auth + JWT + RBAC | ✅ Implemented | All signed-in | Login / cookies | `backend/src/auth` | `users`, roles |
+| Audit trail | ✅ Implemented | Managers/admins | Kit audit API | kit `AuditEvent` | `audit_events` |
+| SSE realtime | ✅ Implemented (flag on) | Staff | Workspace refresh | `host.realtime.publish` | Redis optional |
+| Background jobs | 🟡 Partial | Operators | — | Queue always; worker optional | Redis / file / memory |
+| PDF kit | 🟡 Kit on | — | — | `FEATURE_PDF` default on | files |
+| AI toolkit | 🟡 Kit on, mock without key | Optional pages | Copilot etc. | `AIService` | not pricing |
+| Odoo adapter | 🟡 Code present, **off** | — | — | allowlisted JSON-2 | `odoo_*` nullable IDs |
+| Payment collection | 🔴 Planned | — | — | — | — |
+| Live Odoo sale.order writes | 🔴 Planned | — | — | adapter exists, flags off | — |
+| Kit RAG / search / analytics | ⚪ Off in demo | — | Feature-gated | flags false | unused by golden path |
+| SMS / S3 | ⚪ Off in demo | — | — | flags false | local storage |
+
+Legend: ✅ implemented for the product path · 🟡 present but optional / not golden path · 🔴 documented future · ⚪ disabled on purpose.
+
+---
+
+## 🏗️ System Architecture
+
+DealFlow360 is a **modular monolith**, not a set of microservices.
+
+```text
+React (Vite :5173)
+    → REST /api/v1
+        → Controller (HTTP + Zod)
+            → Service (policy, risk, approvals, fulfillment, billing)
+                → Repository / Prisma store
+                    → PostgreSQL (df_* + kit tables)
+
+Slow kit work (optional for the golden path):
+API / service → queue (memory | file | BullMQ) → worker → service → event / notification
+```
+
+```mermaid
+flowchart TB
+  UI[React + Vite :5173]
+  API[Express /api/v1 :5000]
+  PG[(PostgreSQL :5433 host / :5432 in Compose)]
+  RD[(Redis :6379)]
+  WK[Worker process]
+  UI -->|proxy /api /health /ready /realtime| API
+  API --> PG
+  API -.->|when REDIS_URL set| RD
+  WK -.-> RD
+  WK --> PG
+  API -.->|FEATURE_ODOO=false by default| OD[Odoo 19 JSON-2 adapter]
+  API -.->|mock if no Gemini key| AI[AIService]
+```
+
+| Concern | Who owns it |
+| --- | --- |
+| Quotes, stock, approvals, billing, revisions, negotiations, emails | PostgreSQL via Prisma (`df_*`) |
+| Users, roles, permissions, audit, notifications, refresh tokens | PostgreSQL kit models |
+| Session | HttpOnly `hsk_access` / `hsk_refresh` cookies plus in-memory Bearer token |
+| Problem module load | Runtime `register(host)` from `@hackathon/problem` — API does not statically import DealFlow TypeScript |
+| Odoo | Adapter only; off unless flags and credentials are set |
+| AI | Untrusted; schema-validated; not on the pricing path |
+| Realtime | SSE hub; optional Redis pub/sub `hackathon:realtime` |
+
+```mermaid
+flowchart LR
+  subgraph client [Browser]
+    SPA[Staff SPA]
+    Portal[Portal SPA]
+  end
+  subgraph platform [Express app]
+    MW[Helmet CORS CSRF rate-limit authenticate RBAC]
+    Ctrl[Controllers]
+    Svc[Services]
+    Prob[DealflowService]
+  end
+  SPA --> MW
+  Portal --> MW
+  MW --> Ctrl
+  Ctrl --> Svc
+  Ctrl --> Prob
+  Prob --> Prisma[(Prisma)]
+```
+
+Compose services (root `docker-compose.yml` includes `infra/docker-compose.yml`):
+
+| Service | Image / build | Host port | Role |
+| --- | --- | --- | --- |
+| `postgres` | `postgres:16-alpine` | `127.0.0.1:5433` | System of record |
+| `redis` | `redis:7-alpine` | `127.0.0.1:6379` | Rate limits, OTP, idempotency, BullMQ, SSE fan-out |
+| `backend` | `backend/Dockerfile` | `5000` | API (`JOBS_PROCESS=false`) |
+| `worker` | same image, `CMD worker` | — | Job consumer |
+| `frontend` | `frontend/Dockerfile` production | `5173→8080` | Static SPA |
+| `nginx` | unprivileged 1.27, **profile `nginx`** | `8080` | Optional unified proxy |
+
+---
+
+## 🔄 Data Flow
+
+Staff quote create (simplified):
+
+```text
+User (staff JWT / cookie)
+  ↓
+React page → createApiClient (VITE_API_URL empty → same-origin proxy)
+  ↓
+POST /api/v1/dealflow/quotes
+  ↓
+Helmet / CORS / CSRF (cookie mutations) / rate limit
+  ↓
+authenticate() → load user + roles + permissions from PostgreSQL
+  ↓
+requirePermission('dealflow.quotes.write')
+  ↓
+Zod createQuoteBodySchema
+  ↓
+DealflowService.createQuote
+  ↓
+Prisma store → df_quotes + portalToken
+  ↓
+events.emit + realtime.publish (dashboard / dealflow)
+  ↓
+Standard envelope { success, data, meta }
+  ↓
+Workspace renders lines, assessment, portal link
+```
+
+Customer portal negotiation:
+
+```text
+Portal holder (token in URL, not staff JWT)
+  ↓
+POST /api/v1/dealflow/portal/:token/negotiations
+  ↓
+publicRateLimit (no authenticate)
+  ↓
+Zod portalNegotiationBodySchema
+  ↓
+createPortalNegotiation → persist DfNegotiationRequest
+  ↓
+toPortalView(quote) — internals stripped
+  ↓
+Staff Negotiations page (authenticated read)
+```
+
+Finance lock:
+
+```text
+Finance Manager
+  ↓
+POST /api/v1/dealflow/quotes/:id/lock  { expectedVersion }
+  ↓
+dealflow.quotes.lock
+  ↓
+lockDeal → confirmed + financeLockedAt + consume allocated stock
+  ↓
+customer email final_invoice (mock stays not_configured)
+  ↓
+SSE dashboard.updated { kind: dealflow }
+```
+
+---
+
+## 🧠 Application Workflows
+
+### Registration
+
+Public `POST /api/v1/auth/register` creates a kit `user` with `AUTH_DEFAULT_ROLE` (default `user`). DealFlow listens for `user.created` and `provisionCustomer` so a `DfCustomer` row exists. Register never assigns admin/staff/manager/finance.
+
+### Login
+
+`POST /api/v1/auth/login` verifies bcrypt hash, issues access + refresh JWTs, sets httpOnly cookies when enabled. SPA stores the access token in memory (not `localStorage`). Login landing: staff-like roles → `/dealflow`; customer → `/account` (`homePathForUser`).
+
+### Password reset
+
+When `FEATURE_OTP=true`: request OTP by email (same response if unknown), confirm with code + new password, revoke token families.
+
+### Golden commercial path
+
+See [Golden Demo](#-golden-demo). Status machine (`lifecycle.ts`):
+
+```text
+draft
+  → customer_negotiation → manager_review → finalized
+  → approval_required → approved → confirmed
+  → fulfillment → billing → completed
+  or rejected (can return to draft)
+```
+
+Delete allowed from `draft` / `rejected`. Void allowed from negotiation, manager review, approval, approved, finalized.
+
+### Catalog write
+
+Admin replaces quantity breaks, role authorities, governance; upserts policies, chains, warehouses, relations. Product/stock writers include Sales Representative.
+
+### Search / filter / sort
+
+Staff lists (quotations, catalog) use client tables (`DataTable`) over API list payloads. Kit `FEATURE_SEARCH` (PostgreSQL full-text module) is **false** in the default demo and is not the DealFlow list UI.
+
+### Reporting
+
+`/dealflow/reports` and Deal Health read live quotes. Kit PDF/report jobs remain available behind `FEATURE_PDF` and are not the golden-path KPI warehouse (`FEATURE_ANALYTICS=false`).
+
+---
+
+## 🔐 Authentication & Authorization
+
+Platform module: [docs/auth.md](docs/auth.md) · [docs/rbac.md](docs/rbac.md).
+
+### Login and tokens
+
+| Mechanism | Behavior |
+| --- | --- |
+| Password | bcryptjs, cost `AUTH_BCRYPT_COST` (default 12; production ≥ 10) |
+| Access JWT | HS256, `JWT_ACCESS_SECRET`, default 15m, claims `sub`, `type`, `role`, `jti`, `iss`, `aud` |
+| Refresh JWT | Separate secret, hashed SHA-256 in `refresh_tokens`, rotation; reuse revokes the family |
+| Cookies | `hsk_access` / `hsk_refresh`, httpOnly, `SameSite=Lax` default, `Secure` in production |
+| Bearer | `Authorization: Bearer` still accepted for non-browser clients |
+| Authorization source | Database roles/permissions after `authenticate()`, **not** the JWT `role` claim |
+
+Do not put email or names in tokens. Password hashes are never returned. Unknown email and wrong password share the same 401 message.
+
+### Public auth API
+
+Prefix `/api/v1/auth`:
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| POST | `/register` | No | Create account + tokens |
+| POST | `/login` | No | Credentials → tokens |
+| POST | `/refresh` | No | Rotate refresh |
+| POST | `/logout` | No | Revoke family; denylist access `jti` if presented |
+| GET | `/me` | Bearer or cookie | Current user |
+| POST | `/otp/request` | No | OTP issue |
+| POST | `/otp/verify` | No | OTP verify / login purpose |
+| POST | `/password-reset/request` | No | Reset OTP |
+| POST | `/password-reset/confirm` | No | Set password |
+
+### DealFlow permission keys
+
+Defined in `modules/problem/src/permissions.ts` and merged into the catalog (admin receives **every** catalog permission after merge):
+
+| Key | Meaning |
+| --- | --- |
+| `dealflow.catalog.read` | Read customers, products, warehouses, policies |
+| `dealflow.catalog.write` | Policies, chains, quantity breaks, role ranges, governance |
+| `dealflow.catalog.products.write` | Products and stock without policy write |
+| `dealflow.quotes.read` | Quotes, assessments, plans |
+| `dealflow.quotes.write` | Create/edit, send to manager, submit finalized, negotiate |
+| `dealflow.quotes.lock` | Finance lock |
+| `dealflow.quotes.approve` | Record approve/reject on a chain |
+| `dealflow.approvals.manager` | Act as Sales Manager step |
+| `dealflow.approvals.finance` | Act as Finance step |
+| `dealflow.approvals.final` | Final step |
+| `dealflow.fulfillment.write` | Plan splits, overrides, backorders |
+| `dealflow.billing.write` | Generate and cancel schedules |
+
+### Portal vs JWT
+
+Portal routes do **not** use the customer JWT. Possession of `portalToken` is the capability. Staff JWT cannot be substituted for a token, and a token cannot call approve/fulfill/bill/lock.
+
+### Logout
+
+Revokes the refresh family, clears cookies, and denylists the access `jti` until natural expiry.
+
+---
+
+## 🛡️ Security
+
+This kit includes reusable hardening. It is **not** a claim that the application is fully secure. See [docs/security.md](docs/security.md).
+
+### Implemented controls
+
+| Control | Implementation |
+| --- | --- |
+| Password hashing | bcryptjs |
+| Input validation | Zod on body, params, query; AI output schema-validated |
+| Authorization | `requirePermission` / `authorizeRole` on mutating DealFlow routes |
+| CORS | `CORS_ORIGINS` allowlist only; `*` rejected; credentials for listed origins |
+| CSRF | Cookie-only POST/PUT/PATCH/DELETE require `Origin`/`Referer` in allowlist, `APP_URL`, or `FRONTEND_URL` |
+| Helmet | CSP `default-src 'none'` on API, frame deny, nosniff, no referrer, HSTS in production |
+| Rate limiting | Redis-backed when Redis is configured; production fails closed without in-memory fallback |
+| Login brute force | 5 / email and 20 / IP per 15m; `DEMO_MODE` relaxes only for seeded `demo.*@example.com` |
+| SQL injection | Prisma parameterized queries; no string-built SQL in DealFlow services |
+| Secrets | No `VITE_` for JWT, Odoo, Gemini, SMTP, or cloud keys |
+| Error bodies | Operational `AppError` sanitized; unhandled 500 has no stack |
+| SSRF | User-controlled webhook URLs: http(s), no credentials, public hosts, DNS pin when undici is available |
+| AI | Cannot register `executeSql` / `shell`; high-risk tools need `confirmed: true` |
+| Production boot | Refuses missing secrets; `DEMO_MODE` refused unless `ALLOW_DEMO_IN_PRODUCTION` |
+| Secret scan | `npm run security:secrets` |
+| Dependency audit | `npm run security:audit` (`npm audit --omit=dev --audit-level=high`) |
+
+### Portal-specific
+
+Unknown tokens 404. DTO strip is server-side. Public rate limit on portal routes.
+
+### Security improvements (not claimed as done)
+
+- SPA CSP is the nginx/frontend image’s job, not Helmet on the API.
+- XSS on the SPA origin can still drive cookie-authenticated requests and read the in-memory access token.
+- Signed PDF/report URLs without `uid` remain possession-based until expiry (kit storage).
+- No built-in WAF, bot management, or pentest report in this repository.
+
+---
+
+## 🗄️ Database Architecture
+
+**Technology.** PostgreSQL 16 (`postgres:16-alpine`). **ORM.** Prisma 6 only. Schema: `database/prisma/schema.prisma`. Host URL in `.env.example`: `postgresql://postgres:postgres@localhost:5433/hackathon`.
+
+### DealFlow entities
+
+| Entity | Table | Role |
+| --- | --- | --- |
+| Customer | `df_customers` | Account; `tier` caches server loyalty |
+| Product | `df_products` | SKU, list, cost, billing type, tax flags |
+| Product relation | `df_product_relations` | Upsell / cross-sell |
+| Warehouse | `df_warehouses` | Fulfillment cost per unit |
+| Stock level | `df_stock_levels` | On-hand + reserved + incoming (composite PK warehouse+product) |
+| Discount policy | `df_discount_policies` | Warning / approval / reject / margin impact |
+| Approval chain + steps | `df_approval_chains`, `df_approval_chain_steps` | Who must sign, in order |
+| Quantity break | `df_quantity_breaks` | Volume price |
+| Role authority | `df_role_authorities` | Discount ceilings per role key |
+| Governance config | `df_governance_config` | Material change, tax, caps, stale days |
+| Quote | `df_quotes` | Totals, risk, status, portal token, freeze/lock |
+| Quote line | `df_quote_lines` | Qty, discount, optional recommendation source |
+| Approval | `df_quote_approvals` | Step state, actor, reason |
+| Fulfillment split | `df_quote_fulfillment_splits` | Warehouse allocation |
+| Backorder | `df_quote_backorders` | Unfilled quantity |
+| Billing schedule | `df_quote_billing_schedules` | One-time or recurring |
+| Quote revision | `df_quote_revisions` | Snapshot + material-change flag |
+| Negotiation request | `df_negotiation_requests` | Customer note + structured intents |
+| Anomaly | `df_anomalies` | DealFlow exceptions |
+| Email delivery | `df_quote_email_deliveries` | Provisional / final send attempts |
+| Audit event | `audit_events` | Kit audit |
+
+Quote statuses: `draft` → `customer_negotiation` → `manager_review` → `finalized` → `approval_required` → `approved` → `confirmed` / `fulfillment` / `billing` / `completed`, or `rejected`.
+
+```mermaid
+erDiagram
+  DfCustomer ||--o{ Quote : places
+  Quote ||--o{ QuoteLine : contains
+  DfProduct ||--o{ QuoteLine : priced_on
+  Quote ||--o{ QuoteApproval : routed
+  DfApprovalChain ||--o{ QuoteApproval : defines
+  DfApprovalChain ||--o{ DfApprovalChainStep : has
+  Quote ||--o{ QuoteFulfillmentSplit : allocates
+  DfWarehouse ||--o{ QuoteFulfillmentSplit : from
+  DfWarehouse ||--o{ DfStockLevel : holds
+  DfProduct ||--o{ DfStockLevel : stocked
+  Quote ||--o{ QuoteBackorder : remainder
+  Quote ||--o{ QuoteBillingSchedule : bills
+  Quote ||--o{ QuoteRevision : snapshots
+  Quote ||--o{ DfNegotiationRequest : negotiates
+  Quote ||--o{ DfQuoteEmailDelivery : emails
+  DfProduct ||--o{ DfProductRelation : recommends
+  DfProduct ||--o{ DfQuantityBreak : volume
+```
+
+Indexes observed on quotes: `[status, createdAt]`, `[customerId]`; unique `number`, `portalToken`. Products unique `sku`. Chain steps unique `[chainId, stepOrder]`.
+
+### Kit tables (platform)
+
+Users, refresh tokens, roles, permissions, notifications, documents, stored files, copilot conversations, automation rules, RAG/search/analytics/anomaly kit tables (unused by the golden path when those flags are off).
+
+### Seed behavior
+
+| `DEMO_MODE` | What seed writes |
+| --- | --- |
+| `true` | RBAC + DealFlow catalog + demo users + sample customers/inventory/quotes + presentation token `df-demo-portal-token-northwind-0001` for **DF-00001** |
+| `false` | RBAC + DealFlow configuration (products, policies, chains, governance); **skips** demo users, sample customers, fake inventory, and sample quotes |
+
+If you lock another qty-8 Core Gateway quote, run `npm run db:seed` before repeating the split. Seed resets on-hand **and** reserved, and recreates presentation quotations so dashboard totals stay consistent.
+
+Production seed does not create the presentation portal token.
+
+---
+
+## 📁 Project Structure
+
+```text
+DealFlow360/
+├── frontend/                 # React 18 + Vite 6 + Tailwind 3 (port 5173)
+├── backend/                  # Express API (port 5000)
+├── workers/                  # Background worker entry (runs backend worker.ts)
+├── packages/api-contract/    # Envelopes, /api/v1 paths, FEATURE_NAMES
+├── database/prisma/          # schema.prisma, migrations, seed.ts, seed-dealflow.ts
+├── modules/problem/          # DealFlow360 backend + frontend pages
+├── infra/                    # Compose data stores, nginx, smoke scripts, Docker healthchecks
+├── docs/                     # Operator and module documentation
+├── .github/workflows/        # ci.yml, cd.yml
+├── docker-compose.yml        # App services; includes infra/docker-compose.yml
+├── HACKATHON_MODULES.md      # Flag selection for this demo
+├── PROBLEM_STATEMENT.md
+├── ARCHITECTURE.md
+├── ARCHITECTURE_DECISION.md
+├── AGENTS.md                 # Engineering rules for contributors/agents
+├── LICENSE                   # GNU AGPL v3
+├── package.json              # Workspaces + root scripts
+└── README.md
+```
+
+Generated output (`dist/`, `coverage/`, `node_modules/`, `docker-data/`) is not source.
+
+### Important directories
+
+| Path | Why it matters |
+| --- | --- |
+| `modules/problem/src/dealflow/` | All DealFlow engines, routes, Prisma store |
+| `modules/problem/frontend/dealflow/` | Staff and portal React pages |
+| `backend/src/auth`, `rbac`, `security` | Identity and hardening |
+| `backend/src/problem/` | Host loader (`register(host)`) |
+| `frontend/src/ui` | Reusable visual system |
+| `frontend/src/problem.ts` | Thin shim to problem routes |
+| `database/prisma/migrations/` | SQL history including DealFlow commercial workflow |
+
+---
+
+## 🧱 Frontend Architecture
+
+| Topic | Actual choice |
+| --- | --- |
+| Framework | React 18.3 |
+| Language | TypeScript 5 |
+| Bundler | Vite 6 |
+| Routing | React Router 6 (`BrowserRouter`) |
+| Styling | Tailwind CSS 3 |
+| Icons | lucide-react |
+| State | React Context: auth, theme, toasts, feature flags, API client. No Redux. No TanStack Query as a default. |
+| API client | `frontend/src/services/api.ts` — `createApiClient`, paths from `@hackathon/api-contract` |
+| Tests | Vitest + Testing Library + jsdom |
+
+```text
+Page
+ → layout (AppShell, PageContainer, NavigationRail)
+ → visual components (Button, DataTable, Modal, …)
+ → page/service callbacks
+ → services/api.ts
+ → /api/v1
+```
+
+### Routing (product)
+
+| Route | Page |
+| --- | --- |
+| `/login` | Sales operations sign-in |
+| `/register` | Public signup |
+| `/forgot-password` | OTP reset (when OTP on) |
+| `/dealflow` | Live dashboard |
+| `/dealflow/quotes` | Quotation list |
+| `/dealflow/quotes/:quoteId` | Workspace |
+| `/dealflow/negotiations` | Customer negotiations |
+| `/dealflow/approvals` · `/:quoteId` | Queue and detail |
+| `/dealflow/fulfillment` · `/:quoteId` | Stock and plan |
+| `/dealflow/subscriptions` · `/invoices` | Recurring vs one-time |
+| `/dealflow/health` · `/reports` · `/catalog` · `/settings` | Insights and config |
+| `/dealflow/anomalies` · `/assistant` | Exceptions and contextual insights |
+| `/account` | Customer landing |
+| `/portal/:token` | Isolated quote (outside `AppLayout`) |
+
+Command palette: `Ctrl/Cmd+K` in the staff shell.
+
+### UX states
+
+`FeedbackStates.tsx` provides empty, error, and retry patterns. Tables paginate in the UI. Theme is `hsk.theme` in `localStorage` (`light` | `dark` | `system`).
+
+### Validation
+
+Forms validate on the client for speed; **backend Zod is authoritative**.
+
+Vite proxy (`frontend/vite.config.ts`): `/api`, `/health`, `/ready`, and long-timeout `/api/v1/realtime` → `API_PROXY_TARGET` (default `http://localhost:5000`). Leave `VITE_API_URL` empty in local hybrid mode.
+
+---
+
+## ⚙️ Backend Architecture
+
+| Topic | Actual choice |
+| --- | --- |
+| Runtime | Node.js 24 |
+| Server | Express 4 |
+| Language | TypeScript 5 |
+| Validation | Zod 3 |
+| Logging | Pino |
+| Jobs | In-memory, file, or BullMQ when `REDIS_URL` is set |
+| Worker | Same backend image / `backend/src/worker.ts` |
+
+### Request lifecycle
+
+```text
+HTTP → request ID → Helmet/CORS/body parser
+     → rate limit → CSRF (cookie mutations)
+     → route → authenticate → requirePermission
+     → controller → Zod → service
+     → Prisma | integration adapter
+     → envelope
+```
+
+Controllers stay thin. DealFlow HTTP lives in `modules/problem/src/dealflow/routes.ts` and calls `DealflowService`. Persistence is `prisma-store.ts` when `host.prisma` exists, otherwise an in-memory store for tests.
+
+### Problem module host
+
+`problemModule.register(host)` mounts:
+
+- `GET /api/v1/problem` — public manifest (`id: dealflow`)
+- `/api/v1/dealflow` — full router
+
+It also registers jobs, optional Odoo adapters, `user.created` → customer provision, and realtime publish.
+
+---
+
+## 🔌 API Reference
+
+Standard envelope from `@hackathon/api-contract`:
+
+**Success**
+
+```json
+{
+  "success": true,
+  "data": {},
+  "meta": {}
+}
+```
+
+**Error**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message",
+    "details": {}
+  },
+  "requestId": "..."
+}
+```
+
+Public error codes include `VALIDATION_ERROR`, `AUTHENTICATION_ERROR`, `AUTHORIZATION_ERROR`, `NOT_FOUND`, `FEATURE_DISABLED`, `CONFLICT`, `RATE_LIMIT`, `EXTERNAL_SERVICE_ERROR`, `DATABASE_ERROR`, `TIMEOUT`, `NOT_READY`, `INTERNAL_ERROR`.
+
+Prefix: `/api/v1`. Do not expose internal stack traces.
+
+### Operational (outside `/api/v1`)
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/health` | No | Process liveness |
+| GET | `/ready` | No | Postgres, Redis, Odoo, AI when configured |
+
+### Public probes
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/api/v1/problem` | Public rate limit | DealFlow manifest |
+| GET | `/api/v1/dealflow` | Public rate limit | Same id/title |
+| GET | `/api/v1/features` | Public | Feature-flag snapshot (UX only) |
+
+### DealFlow catalog
+
+| Method | Endpoint | Permission | Purpose |
+| --- | --- | --- | --- |
+| GET | `/dealflow/catalog` | `catalog.read` | Full catalog snapshot |
+| PUT | `/dealflow/catalog/quantity-breaks` | `catalog.write` | Replace volume prices |
+| PUT | `/dealflow/catalog/role-authorities` | `catalog.write` | Replace role ceilings |
+| PATCH | `/dealflow/catalog/governance` | `catalog.write` | Material-change and caps |
+| POST/PATCH/DELETE | `/dealflow/catalog/products` | `catalog.products.write` | SKUs |
+| PUT/DELETE | `/dealflow/catalog/stock` | `catalog.products.write` | On-hand / reserved |
+| POST/PATCH/DELETE | `/dealflow/catalog/customers` | `quotes.write` | Accounts |
+| POST/PATCH/DELETE | `/dealflow/catalog/warehouses` | `catalog.write` | DCs |
+| POST/PATCH/DELETE | `/dealflow/catalog/relations` | `catalog.write` | Upsell/cross-sell |
+| POST/PATCH/DELETE | `/dealflow/catalog/policies` | `catalog.write` | Discount policies |
+| POST/PATCH/DELETE | `/dealflow/catalog/chains` | `catalog.write` | Approval chains |
+
+### Quotes and lifecycle
+
+| Method | Endpoint | Permission | Purpose |
+| --- | --- | --- | --- |
+| GET | `/dealflow/me/quotes` | Authenticated customer | Portal DTOs + tokens |
+| GET | `/dealflow/quotes` | `quotes.read` | Staff list |
+| POST | `/dealflow/quotes` | `quotes.write` | Create |
+| GET | `/dealflow/quotes/:id` | `quotes.read` | Aggregate |
+| DELETE | `/dealflow/quotes/:id` | `quotes.write` | Delete draft/rejected |
+| POST | `/dealflow/quotes/:id/void` | `quotes.write` | Void in-flight |
+| POST/PATCH/DELETE | `/dealflow/quotes/:id/lines…` | `quotes.write` | Line CRUD |
+| POST | `/dealflow/quotes/:id/assess` | `quotes.write` | Run engines |
+| POST | `/dealflow/quotes/:id/submit` | `quotes.write` | Only from `finalized` |
+| POST | `/dealflow/quotes/:id/approvals/:approvalId/decide` | `quotes.approve` | Step decision |
+| GET/POST | `/dealflow/quotes/:id/negotiations` | read / authenticated | List / create |
+| POST | `…/negotiations/:nid/respond` | `quotes.write` | Staff response |
+| POST | `…/send-to-manager` · `/revise` · `/return` · `/agree` · `/finalize` | write / auth | Negotiation loop |
+| POST | `/dealflow/quotes/:id/lock` · `/confirm` | `quotes.lock` | Finance lock (`/confirm` is an alias) |
+| GET/POST | `/dealflow/quotes/:id/recommendations` | read / write | Catalog suggest / apply |
+| POST | `/dealflow/quotes/:id/fulfillment/plan` | `fulfillment.write` | Split + backorder |
+| POST | `/dealflow/quotes/:id/billing/generate` | `billing.write` | Hybrid schedules |
+| POST | `/dealflow/quotes/:id/billing/:scheduleId/cancel` | `billing.write` | Cancel schedule |
+| POST | `/dealflow/quotes/:id/vendor-contact` | `quotes.write` | Vendor contact action |
+| POST | `/dealflow/quotes/:id/complete` | `quotes.write` | Complete deal |
+| GET | `/dealflow/quotes/:id/pdf` | `quotes.read` | Customer-safe PDF |
+
+### Portal (token, not staff JWT)
+
+| Method | Endpoint | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/dealflow/portal/:token` | Token | Stripped view |
+| PATCH | `/dealflow/portal/:token` | Token | Line/qty commercial change |
+| POST | `/dealflow/portal/:token/negotiations` | Token | Submit request |
+| POST | `/dealflow/portal/:token/agree` | Token | Confirm revision |
+| POST | `/dealflow/portal/:token/decision` | Token | Accept/decline |
+| GET | `/dealflow/portal/:token/pdf` | Token | PDF |
+
+### Anomalies
+
+| Method | Endpoint | Permission | Purpose |
+| --- | --- | --- | --- |
+| GET | `/dealflow/anomalies` | `quotes.read` | List |
+| POST | `/dealflow/anomalies/:id/disposition` | `quotes.read` | Resolve / ignore |
+
+<details>
+<summary>Example: create a quote (placeholder token only)</summary>
+
+```http
+POST /api/v1/dealflow/quotes HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "customerId": "<uuid-from-catalog>"
+}
+```
+
+Expected shape (fields vary by version):
+
+```json
+{
+  "success": true,
+  "data": {
+    "quote": {
+      "id": "<uuid>",
+      "number": "DF-000xx",
+      "status": "draft",
+      "portalToken": "<unguessable>",
+      "version": 1
+    }
+  },
+  "meta": {}
+}
+```
+
+Never commit or paste real production tokens.
+
+</details>
+
+<details>
+<summary>Example: portal read</summary>
+
+```http
+GET /api/v1/dealflow/portal/df-demo-portal-token-northwind-0001 HTTP/1.1
+Host: localhost:5000
+```
+
+The demo token exists only after a **demo** seed. It opens DF-00001 for isolation inspection. It is not a substitute for a quotation you create in the golden-path walkthrough.
+
+The JSON must not include `riskScore`, approval actors, warehouse reservations, or staff ids. If it does, that is a bug.
+
+</details>
+
+Kit APIs (auth, notifications, jobs, copilot, intents, …) are documented under `docs/` and `packages/api-contract`. They are not required for the golden path.
+
+---
+
+## 🧪 Testing
+
+| Layer | Where | Tools |
+| --- | --- | --- |
+| Unit | `backend/src/**/*.test.ts`, `modules/problem/src/**/*.test.ts`, `frontend/**/*.test.tsx`, `packages/api-contract`, `workers` | Vitest |
+| Integration | `backend/tests/**/*.test.ts` | Vitest, Supertest, Prisma, ioredis |
+| E2E | `backend/tests/e2e/**/*.test.ts` | Vitest + Supertest against `createApp` |
+
+There is **no** Playwright or Cypress dependency. UI tests use jsdom.
+
+```bash
+npm test
+npm run test:unit
+npm run test:integration
+npm run test:watch
+npm run test:coverage
+npm run test:e2e
+```
+
+Prepare a dedicated database:
+
+```bash
+cp .env.test.example .env.test
+npm run db:test:prepare
+```
+
+Without `DATABASE_URL` or `REDIS_URL`, those integration suites skip (`describe.skip`). `npm run test:e2e` fails loudly if Postgres is missing.
+
+Mocks: AI, Odoo, email, SMS, OTP, storage, push, webhook. Never call paid Gemini, live Odoo, SMTP, SMS, or S3 in tests. CI must not set those secrets.
+
+Coverage: V8 (`text`, HTML, lcov under each workspace `coverage/`). Treat coverage as a local/CI artifact, not a published badge in this README.
+
+Authoritative conventions: [docs/testing.md](docs/testing.md).
+
+---
+
+## 📦 Requirements
+
+| Software | Version in this repo | Notes |
+| --- | --- | --- |
+| Git | Current | Clone HTTPS/SSH |
+| Node.js | `^24` (`.nvmrc` is `24`) | Odd majors untested |
+| npm | `^11` (`packageManager` `npm@11.6.2`) | Only package manager |
+| Docker Engine + Compose | **v2.24+** (`include`, `env_file.required`) | Postgres + Redis path |
+| Browser | Current desktop | SPA at :5173 |
+
+Compose provides PostgreSQL 16 and Redis 7. Do not install native Postgres/Redis unless you leave this path. Python, Yarn, pnpm, Bun, Kubernetes, and a local Odoo server are **not** required.
+
+Verify:
+
+```bash
+git --version
+node -v
+npm -v
+docker version
+docker compose version
+```
+
+Package versions (lockfile audit date **2026-08-30**): [docs/VERSION_MATRIX.md](docs/VERSION_MATRIX.md).
+
+---
+
+## 🚀 Installation Guide
+
+### Step 1 — Clone
+
+```bash
+git clone https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations.git
+cd dealflow360-intelligent-sales-operations
+```
+
+If you have a fork, replace the URL with yours.
+
+### Step 2 — Install dependencies
+
+```bash
+npm install
+```
+
+`prepare` builds `@hackathon/api-contract`. Backend `postinstall` runs `prisma generate`.
+
+### Step 3 — Configure environment
+
+```bash
+cp .env.example .env
+```
+
+PowerShell: `Copy-Item .env.example .env`
+
+Never commit `.env`. Never prefix server secrets with `VITE_`. Authoritative catalog: [docs/environment.md](docs/environment.md).
+
+For a judged demo with mock providers, you may start from `.env.demo.example` instead.
+
+### Step 4 — Start data stores
+
+```bash
+npm run deps:up
+```
+
+Host `DATABASE_URL` uses port **5433**. Redis is `localhost:6379`. Bind is loopback so the unauthenticated local images are not published on the LAN.
+
+### Step 5 — Migrate
+
+```bash
+npm run db:migrate
+```
+
+Schema path: `database/prisma`. `npm install` already generated the client.
+
+### Step 6 — Seed
+
+```bash
+npm run db:seed
+```
+
+Requires `DEMO_MODE=true` for demo users (default in `.env.example`).
+
+### Step 7 — Run
+
+**Recommended (hybrid):** Docker for Postgres/Redis, Node on the host.
+
+```bash
+npm run dev
+```
+
+- UI: http://localhost:5173/login
+- API: http://localhost:5000 · `/health` · `/ready`
+- Leave `VITE_API_URL` empty so Vite proxies `/api`
+
+Do not run `docker compose up --build` and `npm run dev` on the same ports at once.
+
+Workers are optional for the golden path: `npm run dev:workers`.
+
+### Alternative — full Compose
+
+```bash
+docker compose up --build
+```
+
+Compose migrates on API start and seeds when `SEED_ON_START=true`. Inside containers, `DATABASE_URL` uses hostname `postgres` (port 5432), not localhost:5433.
+
+Optional nginx:
+
+```bash
+docker compose --profile nginx up --build
+```
+
+Then http://localhost:8080. Set `TRUST_PROXY=1` only behind that proxy.
+
+---
+
+## ⚙️ Environment Configuration
+
+Copy from `.env.example`. **Never put real secrets in the README.** Examples below are placeholders from the example file.
+
+| Variable | Required | Purpose | Example (non-secret) |
+| --- | --- | --- | --- |
+| `NODE_ENV` | Yes | `development` / `test` / `production` | `development` |
+| `PORT` | No | API port | `5000` |
+| `DATABASE_URL` | Prod yes | Prisma | `postgresql://postgres:postgres@localhost:5433/hackathon` |
+| `REDIS_URL` | Prod yes | Cache, limits, queues | `redis://localhost:6379` |
+| `JWT_ACCESS_SECRET` | Yes with DB | Access HMAC (≥32 chars in prod) | generate with `crypto.randomBytes` |
+| `JWT_REFRESH_SECRET` | Yes with DB | Refresh HMAC | generate separately |
+| `STORAGE_SIGNING_SECRET` | Prod yes | Signed downloads; **not** the JWT secret | placeholder in example |
+| `VITE_API_URL` | No | Bake API origin into SPA | empty for Vite proxy |
+| `DEMO_MODE` | Local default true | Seeded users and mock fallbacks | `true` locally; **`false` in production** |
+| `FEATURE_ODOO` | No | Odoo adapter | `false` |
+| `FEATURE_AI` | No | AI toolkit | `true` (mock if no Gemini key) |
+| `FEATURE_REALTIME` | No | SSE | `true` in this product’s example |
+| `FEATURE_SMS` / `EMAIL_ENABLED` | No | Real messaging | off in example |
+| `STORAGE_PROVIDER` | No | `local` / `postgres` / `s3` | `local` |
+| `CORS_ORIGINS` | Yes for browsers | Allowlist | localhost:5173 and :5174, :8080 |
+| `AUTH_COOKIE_ENABLED` | No | HttpOnly session | `true` |
+| `SEED_ON_START` | Compose | Seed when API boots | `true` local |
+
+Generate secrets:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Production also requires `OTP_HASH_SECRET` when `FEATURE_OTP=true`. Production refuses `DEMO_MODE` unless `ALLOW_DEMO_IN_PRODUCTION=true` — never set that on a real tenant.
+
+If you later enable Odoo 19: `FEATURE_ODOO=true`, `ODOO_ENABLED=true`, origin (no `/json/2` suffix), database, and server-side API key. Probe: `GET /api/v1/odoo/health` with `odoo.read`. There is no “run any Odoo method” HTTP API.
+
+Full catalog: [docs/environment.md](docs/environment.md).
+
+---
+
+## 🧰 Development Commands
+
+From the repository root (`package.json`):
+
+| Command | Purpose |
+| --- | --- |
+| `npm install` | Workspaces install |
+| `npm run dev` | Backend + frontend |
+| `npm run dev:all` | Backend + frontend + workers |
+| `npm run dev:backend` | API only |
+| `npm run dev:frontend` | Vite only |
+| `npm run dev:workers` | Worker watch |
+| `npm run build` | Contract + problem + all workspaces |
+| `npm run start` | `node` backend dist |
+| `npm run lint` / `lint:fix` | ESLint 9 |
+| `npm run format` / `format:check` | Prettier |
+| `npm run typecheck` | `tsc --noEmit` workspaces |
+| `npm test` and `test:*` | See [Testing](#-testing) |
+| `npm run security:secrets` | Tracked-file secret scan |
+| `npm run security:audit` | `npm audit --omit=dev` |
+| `npm run deps:up` / `deps:down` | Postgres + Redis |
+| `npm run docker:up` / `down` / `logs` / `ps` | Full Compose |
+| `npm run docker:smoke` | `infra/scripts/smoke.mjs` |
+| `npm run db:generate` | Prisma client |
+| `npm run db:migrate` | `migrate deploy` |
+| `npm run db:migrate:dev` | Dev migrations |
+| `npm run db:seed` | Seed |
+| `npm run db:reset` | `migrate reset --force` (destructive) |
+| `npm run db:test:prepare` | Test database |
+
+Frontend extras: `npm run preview -w @hackathon/frontend`. Backend extras: `npm run start:worker -w backend`.
+
+---
+
+## 🐳 Docker
+
+Present and documented. Root Compose **includes** `infra/docker-compose.yml` (do not run the infra file alone).
+
+| Item | Value |
+| --- | --- |
+| API Dockerfile | `backend/Dockerfile` (`node:24-alpine`, development/production targets) |
+| Frontend Dockerfile | `frontend/Dockerfile` (build SPA, nginx unprivileged serve) |
+| Worker | Same backend image, command `worker` |
+| Volumes | `docker-data/postgres`, `docker-data/redis` |
+| Health | API `GET /ready`; Redis `PING`; Postgres `pg_isready` |
+
+```bash
+npm run docker:up
+npm run docker:ps
+npm run docker:logs
+npm run docker:down
+```
+
+Inside Compose, JWT placeholders are injected so empty `.env` keys cannot blank `.env.example` values. Change them before any shared or production use.
+
+---
+
+## ☁️ Deployment
+
+There is **no** hard-coded production hostname in this repository. CD is provider-agnostic.
+
+### What exists
+
+- GitHub Actions **CI** (lint, typecheck, unit/integration/e2e, secret scan, audit, builds, Docker smoke) on `ubuntu-24.04` with Postgres 16 and Redis 7 service containers.
+- GitHub Actions **CD** (`.github/workflows/cd.yml`): optional verify, build/push images to GHCR (`ghcr.io` default), staging/production GitHub Environments, OIDC `id-token: write`. Remote apply is **opt-in**. See [docs/ci-cd.md](docs/ci-cd.md).
+
+### Production expectations (from config, not a live URL)
+
+| Topic | Expectation |
+| --- | --- |
+| Frontend | Static SPA; `VITE_API_URL` baked at image build if not using same-origin proxy |
+| Backend | `npm run build` then `npm run start -w backend` (or Compose production target) |
+| Worker | Required if you rely on async email/PDF/jobs across processes |
+| Database | PostgreSQL 16; run migrate explicitly; `SEED_ON_START=false` |
+| Redis | **Required** in production (rate limit, KV, revocation; no in-memory fallback) |
+| HTTPS | Terminate at proxy; Helmet HSTS when `NODE_ENV=production` |
+| Secrets | Host/environment secrets only; never in the image or SPA |
+| Demo | `DEMO_MODE=false` |
+
+Do not describe a public demo URL unless you operate one. This README does not invent one.
+
+---
+
+## 📱 Responsive Design
+
+The staff shell uses a navigation rail, topbar, and page container with Tailwind breakpoints. Tables, drawers, and the command palette are built for **desktop-first sales operations**. Mobile is not a separate native app. Portal and auth screens are simpler stacked layouts (`AuthScreen`) and are usable on smaller viewports, but this product is not documented as a fully designed mobile ERP.
+
+Touch: buttons and rail targets follow the UI kit; there is no dedicated mobile navigation overhaul claimed here.
+
+---
+
+## 🎨 UI/UX Philosophy
+
+| Principle | How it shows up |
+| --- | --- |
+| Visual hierarchy | Dashboard KPIs → operational queues → quote workspace |
+| Consistency | Shared primitives in `frontend/src/ui` (Button, Input, DataTable, Badge, Modal) |
+| Feedback | Toasts for API outcomes; SSE refresh when realtime is on |
+| Loading | Skeletons / pending auth redirect copy |
+| Empty | `EmptyState` with optional action |
+| Error | `ErrorState` + retry callback |
+| Isolation | Portal is a separate route tree — not a hide-the-sidebar trick |
+| Command | `Ctrl/Cmd+K` for staff navigation |
+| Theme | Light / dark / system without putting form state in Context |
+
+Business rules do not live in CSS. If the UI shows a discount as allowed, the API still decides.
+
+---
+
+## ♿ Accessibility
+
+Implemented building blocks:
+
+- Semantic layout structure in the shell and auth screens
+- Labels on kit form controls
+- Focusable primitives (buttons, inputs, modal)
+- Command palette keyboard entry
+
+This repository does **not** claim WCAG certification, automated axe CI, or a completed screen-reader audit. Color tokens should be reviewed before a regulated deployment. Treat accessibility as an ongoing improvement, not a badge.
+
+---
+
+## 📈 Performance
+
+**Implemented**
+
+- Vite code splitting by route (SPA)
+- Prisma indexes on quote status/customer and catalog lookups
+- UI table pagination (client)
+- SSE instead of tight polling when `FEATURE_REALTIME=true`
+- Job offload for slow kit work (email, PDF) — optional worker
+- Request body limit (`1mb` default)
+- Redis for rate limits and shared queues
+
+**Recommended improvements** (not shipped as product claims)
+
+- Server-side pagination/filter for very large quote books
+- CDN in front of the SPA
+- Query-level `EXPLAIN` in production
+- Image pipeline (few raster assets exist today)
+
+---
+
+## 📊 Scalability
+
+The architecture can scale as a **horizontally replicated API** behind a proxy, with PostgreSQL as the primary bottleneck and Redis for shared ephemeral state.
+
+| Area | Current | Future consideration |
+| --- | --- | --- |
+| API | Stateless Express (JWT + DB authz) | Multiple replicas + `TRUST_PROXY` only behind a stripping proxy |
+| Database | Single Postgres 16 | Read replicas / pooling beyond `DATABASE_POOL_MAX` |
+| Jobs | BullMQ when Redis is set | Separate worker pool; not Kafka |
+| Realtime | In-process hub + Redis pub/sub | Connection caps already exist (`REALTIME_MAX_CONNECTIONS`) |
+| Files | Local disk default | `STORAGE_PROVIDER=s3` when `FEATURE_S3` is on |
+| CDN / LB | Optional nginx profile | Operator-provided |
+
+Do not add Kubernetes, Kafka, or GraphQL unless a written requirement appears. See [ARCHITECTURE_DECISION.md](ARCHITECTURE_DECISION.md).
+
+---
+
+## 🧠 Technical Decisions
+
+### Why React + Vite + Tailwind?
+
+Fast SPA, HMR, reusable UI kit, no SSR requirement for a judged demo. Alternative: Next.js. Trade-off: no RSC.
+
+### Why Express REST `/api/v1`?
+
+Matches layered controllers and is easy to read under time pressure. Alternative: Nest, Fastify, GraphQL. Trade-off: less built-in structure — controllers must stay thin.
+
+### Why PostgreSQL + Prisma?
+
+Relational integrity for quotes, stock, approvals, and RBAC. One ORM only. CHECK constraints live in SQL migrations.
+
+### Why Redis + BullMQ?
+
+Rate limits, OTP, idempotency, shared workers. File/memory queues exist for a laptop without Redis; **production requires Redis**.
+
+### Why SSE instead of WebSockets?
+
+One-way server → browser status. Reuses Express auth. No extra Node service.
+
+### Why problem module isolation?
+
+So DealFlow rules are not copied into kit folders, and the kit remains reusable for other hackathons.
+
+### Why not Odoo as system of record?
+
+The statement is local governance first. The adapter is allowlisted JSON-2 for a later optional confirmation path.
+
+---
+
+## ⚖️ Technology Comparison
+
+| Requirement | Chosen | Alternative | Reason |
+| --- | --- | --- | --- |
+| SPA | React 18 + Vite 6 | Next.js | No SSR needed for demo |
+| API | Express 4 | Nest / Fastify | Explicit layering |
+| Types | TypeScript 5 | JS-only API | Schemas and Prisma |
+| DB | PostgreSQL 16 | Mongo | Integrity, FKs |
+| ORM | Prisma 6 | Drizzle / Knex | Already the kit ORM |
+| CSS | Tailwind 3 | Tailwind 4 / CSS-in-JS | Tailwind 4 is a breaking engine change, not adopted |
+| Queue | BullMQ | Kafka | Enough for this product |
+| AI | Gemini REST + mock | Browser SDK | Keys stay server-side |
+| Realtime | SSE | Socket.IO | Unidirectional status |
+
+---
+
+## 🧩 Design Patterns
+
+Observed in the repository (not an academic checklist):
+
+| Pattern | Where |
+| --- | --- |
+| Layered architecture | Controller → service → repository |
+| Modular monolith | One deployable API + optional worker |
+| Repository / store | `prisma-store.ts` / `createMemoryStore` |
+| Adapter | Email, SMS, storage, AI, Odoo |
+| Middleware pipeline | Auth, RBAC, rate limit, CSRF |
+| RBAC | `resource.action` keys, union of roles |
+| Feature flags | `FEATURE_*` registry |
+| Envelope API | Shared contract package |
+| Host/plugin | `problemModule.register(host)` |
+| Optimistic concurrency | `expectedVersion` |
+| DTO stripping | `toPortalView` |
+| Factory | Test factories under `backend/tests/factories` |
+
+---
+
+## 🧪 Error Handling
+
+| Class of error | HTTP / code | User-facing |
+| --- | --- | --- |
+| Zod validation | 400 `VALIDATION_ERROR` | Field details, not internals |
+| Unauthenticated | 401 `AUTHENTICATION_ERROR` | Login required |
+| Forbidden (role/ceiling) | 403 `AUTHORIZATION_ERROR` | No persist |
+| Missing quote/token | 404 `NOT_FOUND` | Unknown portal token looks the same as missing |
+| Stale version / bad transition | 409 `CONFLICT` | Refresh and retry |
+| Rate limit | 429 `RATE_LIMIT` | Wait / demo relax for seeded emails |
+| Dependency down | 503 `NOT_READY` on `/ready` | Sanitized check names |
+| Unhandled | 500 `INTERNAL_ERROR` | Generic message |
+
+Frontend remaps some login errors (`login-errors.ts`) so demo users see actionable copy without leaking whether an email exists in production-style messages.
+
+DealFlow domain errors: `forbidden`, `conflict`, `invalid` in `modules/problem/src/dealflow/errors.ts`.
+
+---
+
+## 📝 Logging & Monitoring
+
+**Implemented:** Pino structured JSON (timestamp, level, `requestId`, `jobId`, duration). Secrets redacted. HTTP logs skip `/health` and `/ready`. AI logs provider/model/latency without prompt text.
+
+**Hooks (no-op by default):** `MetricsSink`, `ErrorTracker.captureException`. Plug Sentry/Datadog/Prometheus yourself. There is **no** built-in Prometheus endpoint or Sentry SDK.
+
+See [docs/observability.md](docs/observability.md).
+
+### Recommended monitoring
+
+Label as future operations work: uptime on `/health` and `/ready`, queue depth, email delivery status (`not_configured` vs `sent`), Postgres connections, Redis memory.
+
+---
+
+## 🩺 Health Checks
+
+```http
+GET /health
+```
+
+Returns process status, service name, environment, uptime, timestamp. Meta version `0.1.0`.
+
+```http
+GET /ready
+```
+
+Checks PostgreSQL, Redis, Odoo, and AI **when those integrations are configured**. Unconfigured dependencies are skipped and treated as ready. If a configured dependency is down: **503** `NOT_READY` with sanitized check details.
+
+Compose API healthcheck hits `http://127.0.0.1:5000/ready`.
+
+---
+
+## 🔍 Search / Filtering / Sorting
+
+- **DealFlow lists:** loaded via `GET /dealflow/quotes` (and catalog) then filtered/sorted/paginated in `DataTable`.
+- **Kit search module:** `FEATURE_SEARCH=false` in `.env.example`. PostgreSQL full-text adapter exists in the kit but is not the golden path.
+- Query parameters for kit search are documented in [docs/search.md](docs/search.md) when that flag is on.
+
+---
+
+## 📤 Data Import / Export
+
+| Format | Status |
+| --- | --- |
+| PDF quotation | ✅ `quote-pdf.ts` / portal PDF |
+| JSON API | ✅ REST envelopes |
+| CSV / Excel import | Not implemented as a DealFlow feature |
+| Payment files | Not implemented |
+
+Kit report PDFs (`FEATURE_PDF`) are a separate renderer (`pdf-lib` on the platform).
+
+---
+
+## 🔔 Notifications
+
+| Type | Trigger | Delivery | Notes |
+| --- | --- | --- | --- |
+| In-app | Kit notification service | Inbox `/notifications` | `FEATURE_NOTIFICATIONS=true` in example |
+| Provisional customer email | Manager approval | Email adapter + `df_quote_email_deliveries` | Mock → `not_configured`, never `sent` |
+| Final bill email | Finance lock | Same | Idempotent keys |
+| SMS | Kit | Off (`FEATURE_SMS=false`) | |
+| SSE | Quote/approval/billing/anomaly | Dashboard channel | Sanitized payload |
+
+Read/unread is a kit inbox concern. Portal holders are not staff inbox users.
+
+Templates include `quote-prelim-invoice` and `quote-final-invoice` in `notification.templates.ts`.
+
+---
+
+## 🤖 AI / ML
+
+AI exists as a **kit toolkit**, not as DealFlow pricing.
+
+| Item | Reality |
+| --- | --- |
+| Flag | `FEATURE_AI=true` in `.env.example` |
+| Provider | Gemini REST (`gemini-2.5-flash` default in config) or mock |
+| Demo | Empty `GEMINI_API_KEY` + `DEMO_MODE` → mock |
+| Pricing / approvals | **Do not** call the LLM |
+| Recommendations | Catalog relations, not embeddings |
+| Guardrails | Schema → authorize → allowlisted tools → optional confirmation |
+| Copilot / intents / problem intelligence | Optional pages; not golden path |
+
+Do not describe DealFlow as “AI-priced.” RAG is off. Kit anomaly z-score engine is off (`FEATURE_ANOMALY_DETECTION=false`); DealFlow’s own anomaly center is rule-based on live quotes.
+
+Privacy: do not log confidential prompts. Keys never go to React.
+
+---
+
+## 📡 Real-Time Features
+
+| Mechanism | Used? |
+| --- | --- |
+| SSE `GET /api/v1/realtime/events` | Yes when `FEATURE_REALTIME=true` |
+| WebSockets / Socket.IO | No |
+| Polling | Fallback when the flag is off |
+| Push (mobile) | Kit channel exists; not the golden path |
+
+DealFlow publishes `{ kind: 'dealflow', source: 'dealflow', event, quoteId }` on the dashboard channel. Delivery requires dashboard subscription permission (jobs/notifications/automation/documents **or** that alias). Customers on `/portal` are not this SSE audience.
+
+Caps: `REALTIME_HEARTBEAT` (default 15s), `REALTIME_MAX_CONNECTIONS` (200), `REALTIME_MAX_CONNECTIONS_PER_USER` (5).
+
+---
+
+## 🧑‍💻 Developer Workflow
+
+1. Clone the repository.
+2. Install with npm 11 / Node 24.
+3. Copy `.env.example` → `.env`.
+4. `npm run deps:up` → migrate → seed.
+5. `npm run dev`.
+6. Create a branch (see Git recommendations).
+7. Implement in the correct layer (`modules/problem` for DealFlow rules).
+8. `npm run lint` · `npm run typecheck` · `npm test`.
+9. Review diffs; do not commit `.env` or `docker-data/`.
+10. Open a pull request. CI must be green.
+
+---
+
+## 🌿 Git Workflow
+
+The repository does not enforce a custom `commitlint` config. **Recommendations** (not hooks in this tree):
+
+| Topic | Recommendation |
+| --- | --- |
+| Branches | `feat/…`, `fix/…`, `docs/…` from `main` / `master` |
+| Commits | Imperative, why over what (see recent history: “Add connected DealFlow360 demo data…”) |
+| PRs | Small, with test plan; CI on every PR |
+| Merge | Prefer merge or squash as the team agrees; do not force-push `main` |
+| Secrets | Never commit `.env`, keys, or `credentials.json` |
+
+CI concurrency cancels in-progress PR runs.
+
+---
+
+## 🤝 Contributing
+
+There is no separate `CONTRIBUTING.md` in this repository. Use this section.
+
+1. Keep generic kit code generic. Put statement-specific rules in `modules/problem/`.
+2. Follow [AGENTS.md](AGENTS.md): correctness, security, no secrets in git, Zod on the server, tests for failure modes.
+3. Match existing TypeScript, ESLint, and Prettier.
+4. Add or update tests beside the change (`*.test.ts` / HTTP tests).
+5. Update `docs/` when you change flags, env vars, or public APIs.
+6. Do not add Kubernetes, Kafka, GraphQL, or a second ORM without a written requirement.
+
+### Issue reporting
+
+Include environment (OS, Node, npm, Docker), steps to reproduce, expected vs actual, screenshots if UI, logs **without secrets**, and git SHA / version `0.1.0`.
+
+### Feature requests
+
+Describe the user, the workflow, whether it belongs in the kit or DealFlow, and flags it would need. Prefer issues on GitHub: [dealflow360-intelligent-sales-operations/issues](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/issues).
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Completed
+
+- Governed quotations, risk, approvals, fulfillment split, hybrid billing
+- Customer portal isolation and negotiation requests
+- Finance lock, customer emails/PDF, loyalty, quantity breaks, catalog editors
+- Auth, RBAC, Prisma, Docker, CI, demo seed
+
+### 🚧 In Progress
+
+- Product hardening on the live quote book (catalog CRUD, connected demo history, table pagination — see recent commits)
+
+### 🔜 Next
+
+- Optional Odoo 19 confirmation through the existing allowlisted adapter (still not the system of record)
+- Richer portal collaboration (the problem statement lists portal comment/delivery-date APIs as out of scope in this build)
+
+### 🔮 Future
+
+- Payment capture after billing schedules
+- Machine-learning price models (explicitly not this build)
+- Stored analytics warehouse (`FEATURE_ANALYTICS`) if a product owner wants kit KPIs
+- CHANGELOG.md and CONTRIBUTING.md as standalone files
+
+---
+
+## 📌 Project Status
+
+| Area | Status |
+| --- | --- |
+| Frontend | ✅ Staff workspace + portal |
+| Backend | ✅ `/api/v1/dealflow` |
+| Database | ✅ Prisma `df_*` + kit |
+| Authentication | ✅ JWT + cookies |
+| Authorization | ✅ DealFlow keys + merge |
+| Testing | ✅ Unit + HTTP + e2e (Postgres) |
+| Docker | ✅ Compose |
+| CI | ✅ GitHub Actions |
+| CD | 🟡 Image push / opt-in apply |
+| Odoo live writes | 🔴 Off |
+| Payments | 🔴 Not implemented |
+| Screenshots in repo | ⚪ None |
+| Production hardening | 🟡 Baseline; not a certification |
+
+npm package version: **0.1.0** (`private`: true). Development status: active hackathon / product slice on the reusable kit.
+
+---
+
+## 📚 Documentation
+
+| Topic | File |
+| --- | --- |
+| Problem statement | [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md) |
+| Enabled / disabled flags | [HACKATHON_MODULES.md](HACKATHON_MODULES.md) |
+| A–Z kit manual | [docs/SETUP_MANUAL.md](docs/SETUP_MANUAL.md) |
+| Doc index | [docs/README.md](docs/README.md) |
+| Environment catalog | [docs/environment.md](docs/environment.md) |
+| Features | [docs/features.md](docs/features.md) |
+| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) · [ARCHITECTURE_DECISION.md](ARCHITECTURE_DECISION.md) |
+| Problem module boundary | [docs/problem-module.md](docs/problem-module.md) · [modules/problem/README.md](modules/problem/README.md) |
+| Database / Redis / Docker | [docs/database.md](docs/database.md) · [docs/redis.md](docs/redis.md) · [docs/docker.md](docs/docker.md) |
+| Security / testing / CI | [docs/security.md](docs/security.md) · [docs/testing.md](docs/testing.md) · [docs/ci-cd.md](docs/ci-cd.md) |
+| Auth / RBAC | [docs/auth.md](docs/auth.md) · [docs/rbac.md](docs/rbac.md) |
+| Fresh machine | [docs/FRESH_SETUP_CHECKLIST.md](docs/FRESH_SETUP_CHECKLIST.md) · [docs/prerequisites.md](docs/prerequisites.md) |
+| Realtime / notifications / jobs | [docs/realtime.md](docs/realtime.md) · [docs/notifications.md](docs/notifications.md) · [docs/jobs.md](docs/jobs.md) |
+
+There is no OpenAPI generator. HTTP truth is Zod + `@hackathon/api-contract` + this README’s tables.
+
+---
+
+## 🧑‍🏫 User Guide
+
+### Getting started (demo)
+
+1. Install and seed ([Installation](#-installation-guide)).
+2. Open `/login`.
+3. Pick a demo chip or type a seeded email.
+
+### Sales representative
+
+1. Land on `/dealflow`.
+2. **Quotations** → new quote → customer **Northwind Retail**.
+3. Add **Core Gateway × 8 @ 5%** and **Control Suite × 1 @ 5%**.
+4. Copy **this quote’s** portal link (not the presentation token unless you are only inspecting isolation).
+5. After customer submit: **Customer negotiations** → respond or send to manager.
+6. After manager finalize: **Submit**.
+7. After finance lock: add recommended **Edge Sensor Pack**, plan fulfillment, generate billing.
+
+### Manager
+
+Revise discounts (replace, do not stack), return to customer if needed, **Finalize**, approve step 1 when the chain requires it.
+
+### Finance
+
+Complete remaining approval steps, then **Lock**. Staff lock is 403.
+
+### Customer
+
+Sign in as `demo.user@example.com` → `/account`, or open `/portal/:token` without becoming staff. Submit request, then later **Confirm quotation** on the revised version. Confirmation does not skip approval.
+
+### Logout
+
+Account menu → logout (revokes refresh family).
+
+---
+
+## 🧑‍💼 Admin Guide
+
+Admin (`demo.admin@example.com`) receives the full merged permission catalog.
+
+| Area | Capability |
+| --- | --- |
+| Login | Same `/login` |
+| Dashboard | Full `/dealflow` |
+| Catalog | Products, policies, chains, warehouses, relations |
+| Configuration | `/dealflow/settings` quantity breaks, role ranges, governance |
+| Approvals | `canActOnRole` allows admin on manager/finance/final steps |
+| Discount writes | Highest matching staff/manager/finance authority — not a hidden 40% |
+| Kit admin | `admin.settings` and other catalog keys from the platform role |
+| User management | Platform RBAC APIs (`docs/rbac.md`) — not a dedicated DealFlow IAM UI |
+| Monitoring | `/health`, `/ready`, optional kit pages; no APM bundled |
+
+There is no separate “god mode” that bypasses `requirePermission` in middleware.
+
+---
+
+## 🔐 Role & Permission Matrix
+
+| Feature | Admin | Manager | Staff | Finance | Customer | Portal token |
+| --- | --- | --- | --- | --- | --- | --- |
+| Open `/dealflow` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Open `/account` | — | — | — | — | ✅ | — |
+| Catalog read | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Catalog governance write | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Product/stock write | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Create/edit quotes | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Approve chain | ✅ | ✅ (manager step) | ❌ | ✅ (finance step) | ❌ | ❌ |
+| Finance lock | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Fulfillment write | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Billing write | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Portal commercials | — | — | — | — | via token/account | ✅ stripped |
+| Staff APIs | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+Frontend `canAccessInternalDealflow` is UX only.
+
+---
+
+## 🔌 Integrations
+
+| Integration | Purpose | Auth | Data | Config | Failure |
+| --- | --- | --- | --- | --- | --- |
+| PostgreSQL | System of record | URL | All durable state | `DATABASE_URL` | `/ready` 503 |
+| Redis | Limits, OTP, jobs, SSE | URL | Ephemeral | `REDIS_URL` | Prod refuse in-memory |
+| Email (SMTP/Resend/Brevo/mock) | Customer + kit mail | Provider keys | Quote documents | `EMAIL_*` | Recorded not_configured / failed |
+| Gemini / mock AI | Kit copilot etc. | `GEMINI_API_KEY` | Prompts (untrusted out) | `FEATURE_AI` | Mock in demo |
+| Odoo 19 JSON-2 | Optional ERP | API key server-side | Allowlisted models | **off** by default | Health fails expected |
+| Local / Postgres / S3 storage | Files | Signing secret / AWS | PDFs, uploads | `STORAGE_PROVIDER` | Adapter errors |
+| SMS | Kit OTP/SMS | Off | — | `FEATURE_SMS=false` | Unused |
+
+BullMQ is not an external SaaS; it uses your Redis.
+
+---
+
+## 📦 Dependency Overview
+
+| Dependency | Purpose | Layer |
+| --- | --- | --- |
+| react / react-dom / react-router-dom | SPA | Frontend |
+| vite / tailwindcss | Build / CSS | Frontend |
+| lucide-react | Icons | Frontend |
+| express | HTTP | Backend |
+| prisma / @prisma/client | ORM | Backend |
+| zod | Validation | Backend + contract |
+| jsonwebtoken / bcryptjs | Auth | Backend |
+| helmet / cors | HTTP hardening | Backend |
+| ioredis / bullmq | Redis / jobs | Backend |
+| pino | Logs | Backend / workers |
+| pdf-lib | PDF | Backend + problem |
+| nodemailer | SMTP | Backend |
+| @aws-sdk/client-s3 | Optional S3 | Backend |
+| vitest / supertest / testing-library | Tests | All |
+
+Transitive packages are in `package-lock.json`. Do not add a second ORM or test runner.
+
+---
+
+## 🏗️ Build Pipeline
+
+```text
+Source
+  → npm ci (CI) / npm install (laptop)
+  → prisma generate
+  → lint
+  → typecheck
+  → unit tests (coverage in CI)
+  → integration tests
+  → e2e tests
+  → secret scan + audit
+  → build api-contract, frontend, problem, backend, workers
+  → Docker smoke (CI)
+  → optional CD image push
+```
+
+---
+
+## 🔁 CI/CD
+
+| Workflow | File | Triggers |
+| --- | --- | --- |
+| CI | `.github/workflows/ci.yml` | Push `main`/`master`, all PRs, `workflow_call` |
+| CD | `.github/workflows/cd.yml` | `workflow_dispatch`, CI completed on default branches |
+
+CI jobs use Node from `.nvmrc`, `npm ci`, migrate against `hackathon_test`, JUnit + coverage artifacts (14 days). It does not call paid SaaS.
+
+CD builds/pushes `hackathon-backend` / frontend images to `IMAGE_REGISTRY` (default GHCR). Remote Kubernetes/cloud apply is not assumed.
+
+---
+
+## 🧯 Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `npm install` refuses Node/npm | `.npmrc` `engine-strict=true`. Use Node 24 and npm 11 |
+| Database connection failed | `npm run deps:up`; `DATABASE_URL` port **5433**; container `hackathon-postgres` healthy |
+| `/ready` 503 | Redis ping; `REDIS_URL=redis://localhost:6379`; Postgres up; Odoo/AI only if you configured them |
+| Prisma migrate failed | Postgres up first; schema is `database/prisma` |
+| Port 5000 or 5173 in use | Stop the other `npm run dev` or Compose stack |
+| Frontend cannot reach API | Keep `VITE_API_URL` empty; API on :5000; proxy in `vite.config.ts` |
+| Login “too many attempts” | Seeded demo email + `DEMO_MODE=true`, or wait 15 minutes |
+| `demo.user` blocked from `/dealflow` | Expected |
+| CORS errors | Origin must be in `CORS_ORIGINS` (5173/5174/8080 in example) |
+| Cookie mutations fail | Send `Origin`/`Referer`; or use Bearer |
+| Empty warehouse split | Confirm consumed Core Gateway stock; `npm run db:seed` |
+| Odoo health fails | Expected when `FEATURE_ODOO=false` |
+| Gemini errors | Leave the key empty with `DEMO_MODE=true`, or `AI_PROVIDER=mock` |
+| Tests need a database | `Copy-Item .env.test.example .env.test` then `npm run db:test:prepare` |
+| Email shows sent in demo | Should not; mock is `not_configured` — file a bug if marked `sent` |
+| Compose vs hybrid clash | Do not bind both to 5000/5173 |
+| Windows env copy | Use `Copy-Item`, not `cp`, if `cp` is missing |
+| Permission 403 on approve | Sign in as manager/finance/admin, not staff |
+| 409 on lock/edit | Refresh `expectedVersion`; commercials frozen after lock |
+
+---
+
+## ❓ Frequently Asked Questions
+
+**What is this project?**  
+DealFlow360: governed sales quotations on a reusable Node/React kit.
+
+**Who is it for?**  
+Sales, managers, finance, admins, and customers in a mixed hardware/subscription motion.
+
+**What technologies does it use?**  
+React 18, Vite 6, Tailwind 3, Node 24, Express 4, TypeScript 5, PostgreSQL 16, Prisma 6, Redis 7, Vitest.
+
+**How do I install it?**  
+[Installation Guide](#-installation-guide).
+
+**How do I run it?**  
+`npm run deps:up` then `npm run dev`, or `docker compose up --build`.
+
+**Where is the database?**  
+Docker Postgres on host port **5433**, database name `hackathon`.
+
+**How does authentication work?**  
+Email/password, JWT access + refresh, httpOnly cookies, RBAC from PostgreSQL.
+
+**Is it production ready?**  
+It has production boot checks, Redis requirements, and CI. It is **not** a security certification. Payments and live Odoo writes are absent. `DEMO_MODE` must be false in production.
+
+**Can I contribute?**  
+Yes — [Contributing](#-contributing).
+
+**How do I report bugs?**  
+GitHub issues with environment and repro.
+
+**Where is the API documentation?**  
+This README + `docs/api-conventions.md` + `packages/api-contract`. No OpenAPI file.
+
+**Does AI set prices?**  
+No.
+
+**Is Odoo required?**  
+No.
+
+**Why is frontend URL 5174 in `.env.example`?**  
+CORS includes both 5173 (Vite) and 5174. The documented Vite port is **5173**.
+
+**What is the presentation portal token for?**  
+After demo seed, `df-demo-portal-token-northwind-0001` opens DF-00001 so you can inspect isolation. Walk the golden path on a quote **you** create.
+
+**Is there an operations demo user?**  
+No.
+
+**CHANGELOG?**  
+No `CHANGELOG.md` in the tree. Use git history.
+
+---
+
+## 📖 Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Quote aggregate | Quote + lines + approvals + splits + schedules + revisions |
+| Blended discount | Discount total over list total |
+| Material change | ≥ 2pp blended increase or ≥ 10% net move |
+| Portal token | Unguessable capability URL for one quote |
+| Finance lock | Commercial close; consumes allocated stock |
+| Hybrid billing | One-time and recurring schedules, not card capture |
+| Problem module | `modules/problem` — DealFlow code |
+| Kit / platform | Reusable auth, RBAC, jobs, adapters |
+| Golden path | The judged demo workflow |
+| Envelope | `{ success, data, meta }` / `{ success: false, error, requestId }` |
+| expectedVersion | Optimistic concurrency token |
+| Loyalty new/gold/platinum | Derived from won purchase count; persisted tier `standard` for new |
+| Backorder | Quantity not covered by available stock |
+| SSE | Server-Sent Events |
+
+---
+
+## 🧪 Example Scenarios
+
+### 1. Staff blocked at 8%
+
+1. Staff creates Northwind quote, adds hardware at 5%.
+2. Staff patches line to 8%.
+3. Service checks role ceiling 5%.
+4. No row update; 403.
+5. UI shows authorization error.
+
+### 2. Customer request then manager replace
+
+1. Customer submits 8% counter via portal (stored as request, not applied).
+2. Status `customer_negotiation`.
+3. Staff cannot apply 8%; sends to manager.
+4. Manager writes 10%; stored value is 10%.
+5. Customer confirms that revision; approval engine still required.
+
+### 3. Qty-8 Core Gateway split
+
+1. After lock, staff plans fulfillment with no overrides.
+2. Engine allocates West 4, East 3, backorder 1.
+3. Stock reserved on allocated qty; backorder not consumed at lock.
+
+### 4. Mock email honesty
+
+1. Manager approves; provisional email recorded.
+2. No SMTP configured.
+3. Delivery status is not `sent`.
+4. Judge can still show the PDF download.
+
+### 5. Customer cannot open staff app
+
+1. `demo.user@example.com` logs in.
+2. `homePathForUser` → `/account`.
+3. Staff APIs 403 without `dealflow.quotes.read`.
+
+---
+
+## 🔬 Technical Deep Dive
+
+### Policy match
+
+Specificity = (tier match ? 2 : 0) + (category match ? 2 : 0), then lower `priority`. Implicit default if nothing matches: warning 3%, approval 5%, reject 25%.
+
+### Line decision
+
+```text
+discount >= rejectPercent        → rejected
+discount >= approvalPercent      → approval_required
+discount >= warningPercent       → warning
+else                             → allowed
+margin erosion >= maxMarginImpact → escalate to approval_required (unless already rejected)
+```
+
+### Risk score (clamped 0–100)
+
+```text
+blendedDiscountPercent × 2.5
++ average(marginErosionPercent) × 0.4
++ warningCount × 8
++ approvalLineCount × 15
++ rejectedCount × 40
+```
+
+### Available stock
+
+```text
+available = max(0, quantityOnHand - reserved)
+```
+
+### Compile boundary
+
+`@hackathon/problem` has its own `rootDir`. The API `require`s `modules/problem/src/index.ts` under `tsx` and `dist/index.js` in production. Frontend bundles `modules/problem/frontend` via `frontend/src/problem.ts` without a second SPA.
+
+### Admin discount ceiling
+
+`matchDiscountAuthority` only considers `staff` / `manager` / `finance`. Admin without those keys falls back to finance authority (15%), not 40%.
+
+---
+
+## 🧮 Data Lifecycle
+
+```text
+Create quote (draft, portalToken)
+  → Validate Zod + RBAC
+  → Store df_quotes / lines
+  → Assess (policy, risk, tax)
+  → Customer negotiate (request rows)
+  → Manager revise / finalize
+  → Submit → approval steps
+  → Finance lock → consume stock, email, PDF
+  → Fulfillment plan / billing generate
+  → Complete
+  → Void or delete (status-gated)
+  → Revisions retain snapshots; audit_events for kit audit
+```
+
+Retention/deletion of personal data is not given a legal schedule in this repo. Operators must define one.
+
+---
+
+## 🧹 Code Quality
+
+| Tool | Use |
+| --- | --- |
+| TypeScript strict-ish project configs | `typecheck` |
+| ESLint 9 + typescript-eslint | `npm run lint` |
+| Prettier 3 | `npm run format` |
+| Zod | Runtime validation |
+| Vitest | Automated tests |
+| engine-strict | Node/npm majors |
+
+Naming: DealFlow files use `kebab-case.ts`; Prisma models `Df*` mapped to `df_*`. Permission keys `resource.action`.
+
+---
+
+## 🔒 Privacy
+
+| Data | Why | Where | Access |
+| --- | --- | --- | --- |
+| Email, display name, password hash | Login | `users` | Auth service; hash never returned |
+| Customer name, email, tier | Quotes | `df_customers` | Staff catalog; portal shows name only |
+| Quote commercials | Selling | `df_quotes` | Staff vs stripped portal |
+| Refresh token hashes | Session | `refresh_tokens` | Auth only |
+| Email delivery rows | Audit of send attempts | `df_quote_email_deliveries` | Staff/system |
+
+This section is **not** a privacy policy or GDPR/CCPA legal claim. Add a real policy before processing production personal data.
+
+---
+
+## ⚠️ Limitations
+
+- No payment capture or payment provider.
+- Odoo is off; nullable `odoo_*` ids are unused in the default demo.
+- No screenshot/video assets in git.
+- No Playwright browser e2e.
+- Deal Health is derived, not a warehouse.
+- Default tax rate is 0 unless governance is changed.
+- Operations role has no demo user.
+- Kit Copilot/intents/planning may appear when flags are on; they are not the product story.
+- pdf-lib is in maintenance; adequate for this renderer.
+- ESLint 9 is marked EOL upstream (dev-only).
+- Desktop-first UI.
+- Single-region Compose, not multi-AZ HA.
+
+---
+
+## 🚧 Known Issues
+
+No separate `ISSUES.md` is maintained in the repository. Treat GitHub Issues as the tracker.
+
+Documented product constraints (not bugs): staff cannot approve; customers cannot open `/dealflow`; mock email is never `sent`; presentation token is not the golden-path quote.
+
+If CI is red, start with the Actions log for this repo rather than assuming the laptop is wrong.
+
+---
+
+## 🔮 Future Improvements
+
+| Category | Ideas (not implemented) |
+| --- | --- |
+| Performance | Server-side list query pushdown |
+| Security | SPA CSP audit, regular dependency majors |
+| UX | Committed screenshots, mobile nav polish |
+| Scalability | Explicit worker sizing guide per tenant |
+| Automation | More DealFlow-specific automation rules (kit engine exists) |
+| Analytics | Optional `FEATURE_ANALYTICS` if product wants kit KPIs |
+| Integrations | Allowlisted Odoo confirmation; payment provider after schedules |
+
+---
+
+## 🏆 Why This Project Matters
+
+Sales organizations lose margin in the gap between CRM, ERP, warehouse, and email. DealFlow360 makes that gap visible and enforceable: ceilings, reasons, chains, stock, and billing shapes share one quote. Judges, recruiters, and operators can run the loop on a laptop without buying Gemini, Odoo, or a payment gateway.
+
+For faculty and hackathon reviewers: the interesting idea is not “another dashboard.” It is **governance that still holds after the customer negotiates**, with an honest portal boundary.
+
+For platform engineers: the same repo shows how to keep a reusable kit from absorbing domain rules.
+
+---
+
+## 💥 What Makes It Different?
+
+| Typical tool | DealFlow360 |
+| --- | --- |
+| Quote as PDF | Quote as governed aggregate |
+| Discount in a cell | Policy + role ceiling + 403 |
+| Approval by chat | Ordered steps + invalidation |
+| One warehouse field | Split + backorder from reserved stock |
+| One invoice shape | One-time vs recurring schedules |
+| Customer sees the CRM | Stripped portal DTO |
+| “AI prices the deal” | AI is optional kit, never the price path |
+| ERP is truth on day one | PostgreSQL is truth; Odoo optional later |
+
+Unsupported slogans such as “world’s first” are intentionally avoided.
+
+---
+
+## 📊 Before vs After
+
+| Before | With this project |
+| --- | --- |
+| Manual discount policing | Server ceilings |
+| Fragmented approval | Chain selected by risk/blended |
+| Inventory surprise | Available = on-hand − reserved |
+| Mixed invoice | Hybrid schedules |
+| Customer on internal screens | Token portal |
+| Stale “approved” stamp | Material-change reapproval |
+
+No fabricated time-saved percentages.
+
+---
+
+## 📈 Impact
+
+Measurable production metrics are **not** published in this repository. Qualitative impact: a judge can complete the golden path on seeded data without live Odoo or payments. Do not invent conversion or dollar figures.
+
+---
+
+## 🎓 Hackathon / Academic Context
+
+This repository is a **hackathon starter kit** filled for DealFlow360. Official problem fill-in: [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md). Module selection: [HACKATHON_MODULES.md](HACKATHON_MODULES.md). Engineering rules: [AGENTS.md](AGENTS.md).
+
+Do not fabricate awards or rankings. Success criteria in the problem statement: discount → limit → variance → why → who is visible; warehouse available = on-hand − reserved; billing separates one-time and recurring; negotiation recreates approvals on the server.
+
+---
+
+## 🧑‍🚀 Project Journey
+
+```text
+Reusable kit (auth, RBAC, Prisma, Docker, CI)
+  → Problem module slot
+  → DealFlow engines (discount, approval, fulfillment, billing)
+  → Portal isolation + negotiation
+  → Finance lock + customer email/PDF
+  → Connected demo book + catalog editors
+  → Optional Odoo / payments (future)
+```
+
+Dates of individual features live in git history, not in a marketing timeline.
+
+---
+
+## 🏛️ Architecture Principles
+
+Supported by the implementation:
+
+- Separation of HTTP vs domain vs persistence
+- Modularity (`modules/problem` vs kit)
+- Backend-authoritative security
+- Swappable adapters
+- Demo must not behave as production
+- One ORM, one API prefix, one envelope
+
+---
+
+## 🔍 Codebase Navigation
+
+| I want to change… | Start here |
+| --- | --- |
+| Discount, risk, material change | `modules/problem/src/dealflow/discount-engine.ts` |
+| Approval steps | `modules/problem/src/dealflow/approval-engine.ts` |
+| Orchestration | `modules/problem/src/dealflow/service.ts` |
+| Stock split / consume | `modules/problem/src/dealflow/fulfillment-engine.ts` |
+| Billing | `modules/problem/src/dealflow/billing-engine.ts` |
+| HTTP surface | `modules/problem/src/dealflow/routes.ts` |
+| Portal DTO | `modules/problem/src/dealflow/portal-view.ts` |
+| Seeded catalog | `modules/problem/src/dealflow/defaults.ts` |
+| Presentation demo book | `modules/problem/src/dealflow/presentation-book.ts` |
+| Staff UI | `modules/problem/frontend/dealflow/` |
+| Nav | `frontend/src/layouts/nav.ts` |
+| Prisma models | `database/prisma/schema.prisma` |
+| Auth / RBAC / adapters | `backend/src/` |
+| Envelopes / paths | `packages/api-contract/` |
+| Compose | `docker-compose.yml`, `infra/docker-compose.yml` |
+
+---
+
+## 🧰 Maintenance Guide
+
+- **Dependencies:** `npm ci` in CI; do not delete the lockfile; see [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
+- **Database:** add Prisma models + migrations under `database/prisma`; never a second ORM.
+- **API:** Zod schemas in `schemas.ts`; keep envelopes stable.
+- **Features:** prefer flags; DealFlow domain stays in the problem module.
+- **Docs:** update `docs/environment.md` when adding env vars.
+- **Tests:** unit + HTTP failure modes; mock providers.
+
+### Recommended release checklist
+
+```text
+[ ] Tests pass
+[ ] Lint passes
+[ ] Typecheck passes
+[ ] Build succeeds
+[ ] Environment verified (no demo in production)
+[ ] Database migrated
+[ ] Documentation updated
+[ ] Changelog updated (create CHANGELOG.md if you need one)
+[ ] Security review completed (secrets scan + audit)
+[ ] FEATURE_ODOO still matches intent
+```
+
+This checklist is **recommended**; it is not a single automated gate beyond CI.
+
+---
+
+## 🔄 Versioning
+
+npm workspaces share version **0.1.0**. The kit is not published to the public npm registry (`private: true`). Docker/CD tags use git SHA (`sha-<rev>`) per [docs/ci-cd.md](docs/ci-cd.md). SemVer for product releases is not documented beyond that; add a policy if you publish tagged releases.
+
+---
+
+## 📝 Changelog
+
+There is **no** `CHANGELOG.md` in this repository. Use `git log` on `main` / `master`. Creating a changelog is recommended for tagged releases.
+
+---
+
+## 📜 License
+
+**AGPL-3.0-or-later.** See [LICENSE](LICENSE) (GNU Affero General Public License v3). Network use of a modified version requires offering source to that network’s users.
+
+If you ship this as a hosted service, read AGPL obligations with your own counsel. This README is not legal advice.
+
+---
+
+## ⚖️ Third-Party Licenses
+
+Direct dependencies remain under their own licenses (MIT, Apache-2.0, etc. as declared by each package). This repository does not include a generated `NOTICE` or license inventory report. Run your own `license-checker` (or similar) before a compliance review. Do not treat this paragraph as legal compliance.
+
+---
+
+## 🙏 Acknowledgements
+
+- React, Vite, Tailwind CSS, React Router
+- Node.js, Express, TypeScript, Zod
+- PostgreSQL, Prisma
+- Redis, BullMQ, ioredis
+- Helmet, Pino, pdf-lib, bcryptjs, jsonwebtoken
+- Vitest, Testing Library, Supertest
+- GitHub Actions, Docker, nginx unprivileged image
+- Optional: Gemini API, Odoo 19 JSON-2, AWS S3, Nodemailer / Resend / Brevo providers
+
+Inspiration: governed CPQ / sales-ops practice; this implementation is original to the repository.
+
+---
+
+## 👨‍💻 Team
+
+Contributor identities are those recorded in git history for [this GitHub repository](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations). This README does not invent additional names.
+
+- Project Team — Development & Engineering
+
+---
+
+## 📬 Contact
+
+- Issues and discussions: [GitHub Issues](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations/issues)
+- Source: [github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations](https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations)
+
+Do not put private emails or credentials here.
+
+---
+
+## ⭐ Support the Project
+
+If DealFlow360 or the kit helped you:
+
+- Star the repository
+- Report bugs with reproduction steps
+- Suggest features that fit the architecture
+- Contribute tests and documentation
+- Share the repo with teammates who need governed quotations — without implying unpaid production support
+
+---
+
+## ⚡ Golden Demo
 
 <a id="demo-workflow"></a>
 
@@ -211,503 +2557,29 @@ sequenceDiagram
 10. As **finance**, **Lock**. Staff cannot lock (403).
 11. Add the recommended **Edge Sensor Pack**, accept the suggested split (West 4, East 3, backorder 1), and generate billing. One-time and recurring stay separate.
 
-When `DEMO_MODE=true`, seed loads a few months of connected sales-ops history (customers, catalog, quotations, fulfillment, billing) and the portal token `df-demo-portal-token-northwind-0001` opens **DF-00001** (draft Northwind catalog quote). Use that token to inspect portal isolation; it is not a substitute for a quotation you create in the golden-path walkthrough. Production seed (`DEMO_MODE=false`) does not create those operational records or that token.
-
-If you lock another qty-8 Core Gateway quote, run `npm run db:seed` before repeating the split. Seed resets on-hand **and** reserved, and recreates the presentation quotations so dashboard totals stay consistent.
+When `DEMO_MODE=true`, seed loads a few months of connected sales-ops history (customers, catalog, quotations, fulfillment, billing) and the portal token `df-demo-portal-token-northwind-0001` opens **DF-00001** (draft Northwind catalog quote). Use that token to inspect portal isolation; it is not a substitute for a quotation you create in the golden-path walkthrough.
 
 ---
 
-## 🏗️ Architecture
-
-```text
-React (Vite)
-    → REST /api/v1
-        → Controller (HTTP + Zod)
-            → Service (policy, risk, approvals, fulfillment, billing)
-                → Repository / Prisma store
-                    → PostgreSQL (df_* + kit tables)
-```
-
-```text
-Slow kit work (optional for the golden path):
-API / service → queue (memory | file | BullMQ) → worker → service → event / notification
-```
-
-```mermaid
-flowchart TB
-  UI[React + Vite :5173]
-  API[Express /api/v1 :5000]
-  PG[(PostgreSQL :5433)]
-  RD[(Redis :6379)]
-  WK[Worker process]
-  UI -->|proxy /api /health /ready| API
-  API --> PG
-  API -.->|when REDIS_URL set| RD
-  WK -.-> RD
-  WK --> PG
-  API -.->|FEATURE_ODOO=false by default| OD[Odoo 19 JSON-2 adapter]
-  API -.->|mock if no Gemini key| AI[AIService]
-```
-
-| Concern | Who owns it |
-| --- | --- |
-| Quotes, stock, approvals, billing, revisions | PostgreSQL via Prisma (`df_*`) |
-| Users, roles, permissions, audit, notifications | PostgreSQL kit models |
-| Session | HttpOnly `hsk_access` / `hsk_refresh` cookies plus in-memory Bearer token ([docs/security.md](docs/security.md)) |
-| Odoo | Adapter only; off unless flags and credentials are set |
-| AI | Untrusted; schema-validated; not on the pricing path |
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-| --- | --- | --- |
-| Frontend | React 18, Vite, TypeScript, Tailwind, React Router | Staff workspace, login, isolated portal |
-| Backend | Node.js 24, Express, TypeScript | `/api/v1` controllers, Zod validation |
-| Domain | `modules/problem` | DealFlow engines and UI |
-| Database | PostgreSQL 16 | System of record |
-| ORM | Prisma 6 | Schema, migrations, seed |
-| Cache / jobs | Redis 7, BullMQ | Rate limits, OTP, idempotency, shared workers |
-| Worker | Same backend image (`CMD worker`) | Email, PDF, kit jobs — optional for the demo |
-| Contract | `@hackathon/api-contract` | Envelopes, `/api/v1` paths, feature names |
-| Integrations | Odoo adapter, AIService, email/SMS/storage adapters | Swappable; secrets stay on the server |
-| Containers | Docker Compose | Postgres, Redis, optional full stack |
-| CI | GitHub Actions | Lint, typecheck, unit/integration/e2e, images, smoke |
-| Tests | Vitest, Testing Library | Unit + HTTP; mocks for Odoo, AI, email, SMS, storage |
-
-Not in this repo’s default path: Kubernetes, Kafka, GraphQL, a second ORM, Playwright as a required install, or a live Odoo server.
-
----
-
-## Domain Model
-
-Persisted DealFlow entities (`database/prisma/schema.prisma`):
-
-| Entity | Table | Role |
-| --- | --- | --- |
-| Customer | `df_customers` | Account; `tier` caches server loyalty (`new` / gold / platinum) |
-| Product | `df_products` | SKU, list, cost, billing type |
-| Product relation | `df_product_relations` | Upsell / cross-sell recommendations |
-| Warehouse | `df_warehouses` | Fulfillment cost per unit |
-| Stock level | `df_stock_levels` | On-hand + reserved |
-| Discount policy | `df_discount_policies` | Warning / approval / reject / margin impact |
-| Approval chain + steps | `df_approval_chains`, `df_approval_chain_steps` | Who must sign, in order |
-| Quote | `df_quotes` | Totals, risk, status, portal token, freeze/lock stamps |
-| Quote line | `df_quote_lines` | Qty, discount, optional recommendation source |
-| Approval | `df_quote_approvals` | Step state, actor, reason |
-| Fulfillment split | `df_quote_fulfillment_splits` | Warehouse allocation |
-| Backorder | `df_quote_backorders` | Unfilled quantity |
-| Billing schedule | `df_quote_billing_schedules` | One-time or recurring |
-| Quote revision | `df_quote_revisions` | Snapshot + material-change flag |
-| Negotiation request | `df_negotiation_requests` | Customer note + structured qty/discount/target/line intents |
-| Audit event | `audit_events` | Kit audit (managers/admins) |
-
-Quote statuses: `draft` → `customer_negotiation` → `manager_review` → `finalized` → `approval_required` → `approved` → `confirmed` / `fulfillment` / `billing` / `completed`, or `rejected`.
-
-There is **no** stored “deal health snapshot” table. Deal Health and Reports compute from the live quote list.
-
----
-
-## 🧠 Business Rules
-
-All of the following run on the server (`modules/problem/src/dealflow`).
-
-**Policy match.** More specific policies win (customer tier and/or product category), then lower `priority`. Northwind starts as loyalty `new` (persisted `standard`). A Sales Rep 5% hardware line is inside the role ceiling and still assessed against **Default ceiling** (warning 3%, approval 5%, reject 25%).
-
-**Quantity breaks.** Seeded volume prices (for example Core Gateway 1–9 list / 10–49 volume / 50+ contract) reprice the line when quantity changes. The golden path uses ×8, so HW-CORE-1 stays at list $4,000.
-
-**Role authority.** Discount writes are hard-capped. Sales Representative 5%, Manager 10%, Finance Manager 15%. Over-cap writes return 403 and are not persisted. Admin may act on manager/finance **approval** steps but does not receive a silent 40% ceiling; writes use the highest matching staff/manager/finance authority. Loyalty (`new` +0 / gold +5 / platinum +10 from confirmed+completed purchase count) may stack onto the role cap, then `maxCommercialDiscountPercent` (default 25) still applies. High-value quotes (net ≥ $25,000) also require the selected chain.
-
-**Line decision.**
-
-```text
-discount >= rejectPercent        → rejected
-discount >= approvalPercent      → approval_required
-discount >= warningPercent       → warning
-else                             → allowed
-margin erosion >= maxMarginImpact → escalate to approval_required (unless already rejected)
-```
-
-**Blended discount.**
-
-```text
-blendedDiscountPercent = (listTotal - netTotal) / listTotal × 100
-```
-
-**Risk score** (clamped 0–100):
-
-```text
-blendedDiscountPercent × 2.5
-+ average(marginErosionPercent) × 0.4
-+ warningCount × 8
-+ approvalLineCount × 15
-+ rejectedCount × 40
-```
-
-**Cumulative escalation.** Two or more warning-level lines force `approval_required` on the quote.
-
-**Chain selection.** Among chains where `riskScore >= minRiskScore` **or** `blendedDiscountPercent >= minBlendedDiscountPercent`, the highest `minRisk + minBlended` wins (then lowest priority). Seeded chains:
-
-| Chain | Qualifies when | Steps |
-| --- | --- | --- |
-| Sales Manager | blended ≥ 5% or risk ≥ 0 | Manager |
-| Sales Manager → Finance | blended ≥ 12% or risk ≥ 40 | Manager, Finance |
-| Sales Manager → Finance → Final | blended ≥ 20% or risk ≥ 70 | Manager, Finance, Final |
-
-A manager-revised 10% hardware line typically selects **Sales Manager → Finance** (blended 10 is below 12, but risk and line decisions still escalate). Two approval-required lines can still select the **three-step** chain when risk ≥ 70.
-
-**Approvals.** Staff has `dealflow.quotes.write` but not `dealflow.quotes.approve`. Each pending step also checks `dealflow.approvals.{manager|finance|final}`. Seeded **admin** receives every catalog permission after RBAC merge, and `canActOnRole` allows the admin role on any step.
-
-**Material change.**
-
-```text
-Δ blendedDiscount ≥ 2 pp   OR   |Δ netTotal| / previousNetTotal ≥ 0.10
-```
-
-**Available stock.**
-
-```text
-available = max(0, quantityOnHand - reserved)
-```
-
-**Finance lock.** `dealflow.quotes.lock` (Finance Manager) moves an **approved** quote to `confirmed` and stamps `financeLockedAt`. Staff cannot confirm. After lock, commercial edits conflict (409) until a new revision reopens approval. Allocated (non-backorder) splits decrement both on-hand and reserved. Backorder rows are not consumed.
-
-**Customer emails.** Manager approval of the negotiated quotation emails a provisional invoice (awaiting Finance lock). Finance lock emails the final bill. Both use the live PostgreSQL quotation, attach a customer-safe PDF, and write `df_quote_email_deliveries` plus `notification_deliveries`. If no real email provider is configured, the event stays pending / not configured — it is never marked sent.
-
-**Recommendations.** Catalog relations, not an LLM. Core Gateway suggests Edge Sensor Pack (cross-sell). Control Suite suggests Analytics Add-on (upsell).
-
----
-
-## 🔐 Security & Access Control
-
-| Control | Implementation |
-| --- | --- |
-| Authentication | Email/password; JWT access + refresh; httpOnly cookies when `AUTH_COOKIE_ENABLED=true` |
-| Demo login | Seeded users, password `demo-password`; rate limits relaxed only in `DEMO_MODE` |
-| Authorization | Permission keys on every mutating DealFlow route |
-| Portal | Unguessable `portalToken`; public rate limit; stripped DTO |
-| Secrets | No `VITE_` for JWT, Odoo, Gemini, SMTP, or cloud keys |
-| Audit | Structured events; no passwords, OTPs, or tokens in logs |
-| Production | Refuses to start without required secrets; `DEMO_MODE` must not behave as production |
-
-Portal holders **cannot**: list staff quotes, call approve/fulfill/bill/lock, or see risk reasons, approval actors, warehouse reservations, billing operations, or audit. They **can** see list / discount / tax / net / recurring totals and send negotiation notes.
-
-Do not describe this fork as “fully secure.” See [docs/security.md](docs/security.md).
-
-```bash
-npm run security:secrets
-npm run security:audit
-```
-
----
-
-## 🔌 API Overview
-
-Standard envelope: `{ success, data, meta }` or `{ success: false, error, requestId }`. Prefix: `/api/v1`.
-
-Public probe: `GET /api/v1/problem` and `GET /api/v1/dealflow`.
-
-| Area | Method | Path | Auth |
-| --- | --- | --- | --- |
-| Catalog | `GET` | `/api/v1/dealflow/catalog` | `dealflow.catalog.read` |
-| Governance config | `PUT` `PATCH` | `/api/v1/dealflow/catalog/quantity-breaks` · `/role-authorities` · `/governance` | `dealflow.catalog.write` |
-| Catalog writers | `POST` `PATCH` `PUT` | `/api/v1/dealflow/catalog/products` · `/stock` | `dealflow.catalog.products.write` (Admin + Sales Representative) |
-| Policies & chains | `POST` `PATCH` | `/api/v1/dealflow/catalog/policies` · `/chains` | `dealflow.catalog.write` (Admin) |
-| Quotes | `GET` `POST` | `/api/v1/dealflow/quotes` | read / write |
-| Quote | `GET` | `/api/v1/dealflow/quotes/:id` | read |
-| Lines | `POST` `PATCH` `DELETE` | `/api/v1/dealflow/quotes/:id/lines…` | write |
-| Assess | `POST` | `/api/v1/dealflow/quotes/:id/assess` | write |
-| Negotiations | `GET` `POST` | `/api/v1/dealflow/quotes/:id/negotiations` · `…/send-to-manager` · `…/return` · `/agree` · `/finalize` | write |
-| Submit | `POST` | `/api/v1/dealflow/quotes/:id/submit` | write (only from `finalized`) |
-| Decide | `POST` | `/api/v1/dealflow/quotes/:id/approvals/:approvalId/decide` | approve |
-| Recommendations | `GET` `POST` | `/api/v1/dealflow/quotes/:id/recommendations` | read / write |
-| Fulfillment | `POST` | `/api/v1/dealflow/quotes/:id/fulfillment/plan` | fulfillment.write |
-| Billing | `POST` | `/api/v1/dealflow/quotes/:id/billing/generate` · `/billing/:scheduleId/cancel` | billing.write |
-| Lock / complete | `POST` | `/api/v1/dealflow/quotes/:id/lock` · `/confirm` · `/complete` | lock / write |
-| Vendor contact | `POST` | `/api/v1/dealflow/quotes/:id/vendor-contact` | write |
-| Portal | `GET` `PATCH` `POST` | `/api/v1/dealflow/portal/:token` · `…/negotiations` · `…/agree` | token, not staff JWT |
-
-Operational: `GET /health`, `GET /ready`.
-
----
-
-## Staff UI
-
-| Route | Page |
-| --- | --- |
-| `/login` | Sales operations sign-in |
-| `/dealflow` | Live dashboard (open value, approvals, risk) |
-| `/dealflow/quotes` | Quotation list + workspace |
-| `/dealflow/quotes/:quoteId` | Lines, risk, approvals, fulfillment, billing, activity |
-| `/dealflow/approvals` | Approval queue + decision |
-| `/dealflow/approvals/:quoteId` | Dedicated approval detail (risk, chain, decide) |
-| `/dealflow/fulfillment` | Stock overview + fulfillment history |
-| `/dealflow/fulfillment/:quoteId` | Warehouse split, overrides, complete deal |
-| `/dealflow/subscriptions` · `/invoices` | Recurring vs one-time schedules |
-| `/dealflow/subscriptions/:quoteId` · `/invoices/:quoteId` | Billing / invoice detail from live schedules |
-| `/dealflow/health` · `/reports` · `/catalog` | Exceptions, book metrics, live product catalog (Admin and Sales Representative can add SKUs) |
-| `/dealflow/catalog/products/:productId` | Product detail, stock, quantity breaks, activate/deactivate, and edit |
-| `/dealflow/catalog/policies` | Discount policies and approval chains (write requires `dealflow.catalog.write`) |
-| `/dealflow/assistant` | Contextual deal insights from assessment, stock, and catalog relations |
-| `/dealflow/anomalies` | Live-quote exceptions with resolve / ignore in-session |
-| `/dealflow/settings` | Catalog plus editable quantity breaks, role ranges, and governance (write requires `dealflow.catalog.write`) |
-| `/account` | Customer-role landing (no staff workspace) |
-| `/portal/:token` | Isolated customer quote |
-
-Command palette: `Ctrl/Cmd+K` in the staff shell.
-
----
-
-## 📁 Project Structure
-
-```text
-DealFlow360/
-├── frontend/                 # React + Vite + Tailwind (port 5173)
-├── backend/                  # Express API (port 5000)
-├── workers/                  # Background worker (backend image)
-├── packages/api-contract/    # Shared envelopes and feature names
-├── database/prisma/          # Schema, migrations, seeds
-├── modules/problem/          # DealFlow360 backend + frontend
-├── infra/                    # Compose, nginx profile, smoke scripts
-├── docs/                     # Operator and module documentation
-├── .github/workflows/        # CI + optional CD
-├── docker-compose.yml
-├── HACKATHON_MODULES.md      # Flag selection for this demo
-├── PROBLEM_STATEMENT.md
-└── README.md
-```
-
-Generated output (`dist/`, `coverage/`, `node_modules/`, `docker-data/`) is not source.
-
-### How to read the codebase
-
-| If you want… | Start here |
-| --- | --- |
-| Discount, risk, material change | `modules/problem/src/dealflow/discount-engine.ts` |
-| Approval steps and permissions | `modules/problem/src/dealflow/approval-engine.ts` |
-| Orchestration (note → finalize → approve → lock) | `modules/problem/src/dealflow/service.ts` |
-| Stock split / backorder / consume | `modules/problem/src/dealflow/fulfillment-engine.ts` |
-| One-time vs recurring schedules | `modules/problem/src/dealflow/billing-engine.ts` |
-| HTTP surface | `modules/problem/src/dealflow/routes.ts` |
-| Portal DTO | `modules/problem/src/dealflow/portal-view.ts` |
-| Seeded catalog | `modules/problem/src/dealflow/defaults.ts` |
-| Staff UI | `modules/problem/frontend/dealflow/` |
-| Prisma models | `database/prisma/schema.prisma` (`df_*`) |
-| Auth / RBAC / adapters | `backend/src/` |
-
----
-
-## 🚀 Quick Start
-
-Use **npm only** (`packageManager` `npm@11.6.2`; `.npmrc` has `engine-strict=true`). Do not use Yarn, pnpm, or Bun.
-
-### Prerequisites
-
-| Software | Version in this repo |
-| --- | --- |
-| Git | Current Git that can clone HTTPS/SSH |
-| Node.js | `^24` (`.nvmrc` is `24`) |
-| npm | `^11` |
-| Docker Engine + Compose **v2.24+** | Required for the documented Postgres/Redis path |
-| Browser | Any current desktop browser |
-
-Compose provides PostgreSQL 16 and Redis 7. Do not install native Postgres/Redis unless you are leaving this path. Odoo is **not** required.
-
-```bash
-git --version
-node -v
-npm -v
-docker version
-docker compose version
-```
-
-### Install
-
-```bash
-git clone https://github.com/upadhyaydhruv202-hue/dealflow360-intelligent-sales-operations.git
-cd dealflow360-intelligent-sales-operations
-npm install
-```
-
-PowerShell env copy: `Copy-Item .env.example .env`
-
-```bash
-cp .env.example .env
-```
-
-Authoritative variable catalog: [docs/environment.md](docs/environment.md). Never commit `.env`. Never prefix server secrets with `VITE_`.
-
-Host `DATABASE_URL` uses port **5433**: `postgresql://postgres:postgres@localhost:5433/hackathon`.
-
-### Data stores, migrate, seed
-
-```bash
-npm run deps:up
-npm run db:migrate
-npm run db:seed
-```
-
-`npm install` already runs `prisma generate`.
-
-### Run
-
-**Recommended (hybrid):** Docker for Postgres/Redis, Node on the host.
-
-```bash
-npm run dev
-```
-
-- UI: http://localhost:5173/login  
-- API: http://localhost:5000 · `/health` · `/ready`  
-- Leave `VITE_API_URL` empty so Vite proxies `/api`
-
-Do not run `docker compose up --build` and `npm run dev` on the same ports at once.
-
-**Alternative — full Compose:**
-
-```bash
-docker compose up --build
-```
-
-Compose migrates on API start and seeds when `SEED_ON_START=true`.
-
-Workers are optional for the golden path: `npm run dev:workers`.
-
-| Service | Host |
-| --- | --- |
-| Frontend | http://localhost:5173 |
-| API | http://localhost:5000 |
-| Postgres | `127.0.0.1:5433` |
-| Redis | `127.0.0.1:6379` |
-| Optional nginx | http://localhost:8080 (`docker compose --profile nginx up --build`) |
-
----
-
-## Implemented vs Intentionally Limited
+## 🏁 Implemented vs Intentionally Limited
 
 | In this build | Intentionally not this build |
 | --- | --- |
 | Policy-based discounts, blended risk, approval chains | Live Odoo `sale.order` / invoice writes |
 | Warehouse split + backorder | Payment collection or a payment provider |
-| Hybrid billing schedules (one-time + recurring) | Portal comments or delivery-date APIs |
+| Hybrid billing schedules | Portal comment threads or delivery-date APIs |
 | Token portal + material-change reapproval | Machine-learning price models |
 | Finance lock against PostgreSQL | Claiming Odoo is the system of record |
 | Kit AI (mock without a Gemini key) | AI executing SQL, shell, or arbitrary Odoo methods |
 | Redis + BullMQ + optional worker | A required worker for the golden path |
 | Deal Health / Reports from live quotes | A stored deal-health snapshot or FEATURE_ANALYTICS KPIs |
 
-Kit pages such as Copilot, intents, and project planning may appear when their flags are on. They are **not** the DealFlow360 golden path.
-
-### Future direction
-
-These are honest gaps, not shipped features: optional Odoo 19 confirmation through the existing allowlisted adapter, payment capture after billing schedules, and richer portal collaboration. Do not treat them as implemented.
-
 ---
 
-## Demo Accounts
-
-Created only when `DEMO_MODE=true` (local/dev and automated tests). Production seed (`DEMO_MODE=false`) writes RBAC plus DealFlow configuration (products, policies, chains, governance) and **skips** demo users, sample customers, fake inventory, and sample quotes.
-
-| Email | Role | Use for |
-| --- | --- | --- |
-| `demo.staff@example.com` | Sales Representative | Create quotes and products, send to manager, fulfill, bill (5%) |
-| `demo.manager@example.com` | Manager | Revise, finalize, first approval step (10%) |
-| `demo.finance@example.com` | Finance Manager | Finance approval and commercial lock (15%) |
-| `demo.admin@example.com` | Admin | Remaining approvals and catalog |
-| `demo.user@example.com` | Customer | `/account` only — not `/dealflow` |
-
-Portal token after a **demo** seed: `df-demo-portal-token-northwind-0001`. Production customers come from `/register` and see only their own quotations.
-
----
-
-## Environment Notes
-
-| Topic | Default demo truth |
-| --- | --- |
-| `DEMO_MODE` | `true` locally; **`false` in production** (no demo users or sample book) |
-| `FEATURE_REALTIME` | `true` — existing SSE pushes DealFlow quote/approval/billing/anomaly updates |
-| `FEATURE_ODOO` | `false` — do not install Odoo |
-| `FEATURE_AI` | `true` — mock if `GEMINI_API_KEY` is empty |
-| `FEATURE_SMS` / `EMAIL_ENABLED` | Off — no real messages |
-| `STORAGE_PROVIDER` | `local` |
-| JWT secrets | Placeholders in `.env.example`; generate your own beyond a laptop demo |
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-If you later enable Odoo 19: set `FEATURE_ODOO=true`, `ODOO_ENABLED=true`, origin (no `/json/2` suffix), database, and server-side API key. Probe: `GET /api/v1/odoo/health` with `odoo.read`. There is no “run any Odoo method” HTTP API.
-
----
-
-## Verification Checklist
-
-- [ ] Node 24 + npm 11
-- [ ] `npm install` and `.env` from `.env.example`
-- [ ] `npm run deps:up` · `db:migrate` · `db:seed`
-- [ ] `GET /health` and `GET /ready` succeed
-- [ ] Login as staff → `/dealflow` and quotations load
-- [ ] Approval center opens
-- [ ] Seeded portal token opens
-- [ ] Odoo stays unavailable unless you configured a real server
-- [ ] Optional: `npm run lint` · `npm run typecheck` · `npm test` · `npm run build`
-
----
-
-## Troubleshooting
-
-| Symptom | What to check |
-| --- | --- |
-| `npm install` refuses Node/npm | `.npmrc` `engine-strict=true`. Use Node 24 and npm 11 |
-| Database connection failed | `npm run deps:up`; `DATABASE_URL` port **5433**; `hackathon-postgres` healthy |
-| `/ready` 503 | `docker exec hackathon-redis redis-cli ping`; `REDIS_URL=redis://localhost:6379` |
-| Prisma migrate failed | Postgres up first; `npm run db:migrate` (schema is `database/prisma`) |
-| Port 5000 or 5173 in use | Stop the other `npm run dev` or Compose stack |
-| Frontend cannot reach API | Keep `VITE_API_URL` empty; API on :5000 |
-| Login “too many attempts” | Seeded demo email + `DEMO_MODE=true`, or wait 15 minutes |
-| `demo.user` blocked from `/dealflow` | Expected |
-| Empty warehouse split | Confirm consumed Core Gateway stock; `npm run db:seed` |
-| Odoo health fails | Expected when `FEATURE_ODOO=false` |
-| Gemini errors | Leave the key empty with `DEMO_MODE=true`, or `AI_PROVIDER=mock` |
-| Tests need a database | `Copy-Item .env.test.example .env.test` then `npm run db:test:prepare` |
-
----
-
-## Testing & Quality
-
-From the repository root:
-
-```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
-```
-
-Unit and HTTP tests mock Odoo, AI, email, SMS, and storage. Postgres integration tests need `DATABASE_URL`. Redis/BullMQ tests need `REDIS_URL`. E2E: `npm run db:test:prepare` then `npm run test:e2e`.
-
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit (coverage), integration, e2e, secret scan, audit, builds, and Docker smoke on `ubuntu-24.04` with Postgres 16 and Redis 7 service containers. It does not call paid SaaS.
-
----
-
-## Documentation Map
-
-| Topic | File |
-| --- | --- |
-| Problem statement | [PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md) |
-| Enabled / disabled flags | [HACKATHON_MODULES.md](HACKATHON_MODULES.md) |
-| A–Z kit manual | [docs/SETUP_MANUAL.md](docs/SETUP_MANUAL.md) |
-| Environment catalog | [docs/environment.md](docs/environment.md) |
-| Features | [docs/features.md](docs/features.md) |
-| Architecture | [ARCHITECTURE.md](ARCHITECTURE.md) · [ARCHITECTURE_DECISION.md](ARCHITECTURE_DECISION.md) |
-| Problem module boundary | [docs/problem-module.md](docs/problem-module.md) |
-| Database / Redis / Docker | [docs/database.md](docs/database.md) · [docs/redis.md](docs/redis.md) · [docs/docker.md](docs/docker.md) |
-| Security / testing / CI | [docs/security.md](docs/security.md) · [docs/testing.md](docs/testing.md) · [docs/ci-cd.md](docs/ci-cd.md) |
-| Fresh machine | [docs/FRESH_SETUP_CHECKLIST.md](docs/FRESH_SETUP_CHECKLIST.md) · [docs/prerequisites.md](docs/prerequisites.md) |
-
----
-
-## License
-
-AGPL-3.0-or-later. See the repository license files. Third-party dependencies remain under their own licenses.
+<p align="center">
+  <strong>DealFlow360</strong> — quotations that stay governed after the handshake.<br />
+  <a href="#-quick-start">Run it</a> ·
+  <a href="#-golden-demo">Walk the demo</a> ·
+  <a href="#-documentation">Read the docs</a> ·
+  <a href="#-license">AGPL-3.0-or-later</a>
+</p>
