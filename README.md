@@ -163,6 +163,7 @@ Use **npm only**. `.npmrc` sets `engine-strict=true`. Do not use Yarn, pnpm, or 
 - [Limitations](#-limitations)
 - [Why This Project Matters](#-why-this-project-matters)
 - [License](#-license)
+- [Extended Technical Handbook](#-extended-technical-handbook)
 
 ---
 
@@ -2583,3 +2584,5358 @@ When `DEMO_MODE=true`, seed loads a few months of connected sales-ops history (c
   <a href="#-documentation">Read the docs</a> ·
   <a href="#-license">AGPL-3.0-or-later</a>
 </p>
+
+---
+
+## 📘 Extended Technical Handbook
+
+This appendix is part of the same `README.md`. It does not add product features. It expands **implemented** HTTP contracts, Prisma fields, UI pages, seed catalog, formulas, tests, and operator runbooks so a new engineer can work without opening every source file on day one.
+
+Authoritative code remains:
+
+- Routes: `modules/problem/src/dealflow/routes.ts`
+- Zod: `modules/problem/src/dealflow/schemas.ts`
+- Domain types: `modules/problem/src/dealflow/types.ts`
+- Service: `modules/problem/src/dealflow/service.ts`
+- Prisma: `database/prisma/schema.prisma`
+- Env catalog: `docs/environment.md`
+- Frontend client: `modules/problem/frontend/dealflow/api.ts`
+
+Placeholder UUIDs below are **examples**. Replace them with values from `GET /api/v1/dealflow/catalog` on your seeded database. Never paste production tokens or passwords.
+
+### Handbook contents
+
+- [HTTP cookbook](#http-cookbook)
+- [Auth HTTP cookbook](#auth-http-cookbook)
+- [Zod contract notes](#zod-contract-notes)
+- [Prisma field catalog](#prisma-field-catalog)
+- [Seed catalog reference](#seed-catalog-reference)
+- [Engine formulas with worked numbers](#engine-formulas-with-worked-numbers)
+- [Quote status encyclopedia](#quote-status-encyclopedia)
+- [Negotiation status encyclopedia](#negotiation-status-encyclopedia)
+- [Error encyclopedia](#error-encyclopedia)
+- [Staff page operator manual](#staff-page-operator-manual)
+- [Frontend client map](#frontend-client-map)
+- [Click-level golden path](#click-level-golden-path)
+- [curl session](#curl-session)
+- [PowerShell session](#powershell-session)
+- [Test inventory](#test-inventory)
+- [Migration index](#migration-index)
+- [Source file map](#source-file-map)
+- [Environment catalog (complete)](#environment-catalog-complete)
+- [Judge and demo runbook](#judge-and-demo-runbook)
+- [Extended FAQ](#extended-faq)
+
+## HTTP cookbook
+
+All DealFlow routes are mounted at `/api/v1/dealflow` except the public problem probe at `/api/v1/problem`. IDs are UUIDs unless noted. Mutating quote operations generally require `expectedVersion` (positive integer) matching `quote.version`.
+
+Cookie-authenticated browsers must send a trusted `Origin` or `Referer`. The examples use Bearer tokens for copy-paste.
+
+### Problem manifest
+
+**Purpose.** Identify the loaded problem module without a session.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/problem` |
+| Auth | Public (rate limited) |
+| Permission | None |
+| UI | Foundation / health pages may read this |
+| Service | `createProblemManifestRouter` |
+| Persistence | None |
+
+**Request**
+
+```http
+GET /api/v1/problem HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "dealflow",
+    "title": "DealFlow360",
+    "replaceable": false,
+    "jobName": "dealflow.odoo.sync"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 429 | `RATE_LIMIT` | Public limiter exceeded |
+
+**Notes.** The job name `dealflow.odoo.sync` is registered even when FEATURE_ODOO is false. It does not imply live Odoo writes.
+
+### DealFlow probe
+
+**Purpose.** Same manifest as `/problem`, under the product prefix.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow` |
+| Auth | Public (rate limited) |
+| Permission | None |
+| UI | Optional client ping |
+| Service | `createDealflowRouter GET /` |
+| Persistence | None |
+
+**Request**
+
+```http
+GET /api/v1/dealflow HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "dealflow",
+    "title": "DealFlow360",
+    "replaceable": false,
+    "jobName": "dealflow.odoo.sync"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 429 | `RATE_LIMIT` | Public limiter exceeded |
+
+### Read catalog
+
+**Purpose.** Snapshot of customers, products, warehouses, stock, policies, chains, quantity breaks, role authorities, and governance.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/catalog` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.read` |
+| UI | Catalog, Settings, Quote workspace pickers |
+| Service | `DealflowService.catalog` |
+| Persistence | df_customers, df_products, df_warehouses, df_stock_levels, df_discount_policies, df_approval_chains, df_quantity_breaks, df_role_authorities, df_governance_config |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/catalog HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "customers": [],
+    "products": [],
+    "warehouses": [],
+    "stock": [],
+    "policies": [],
+    "chains": [],
+    "quantityBreaks": [],
+    "roleAuthorities": [],
+    "governance": {}
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 401 | `AUTHENTICATION_ERROR` | Missing/invalid session |
+| 403 | `AUTHORIZATION_ERROR` | Caller lacks catalog.read |
+
+### Replace quantity breaks
+
+**Purpose.** Replace the volume-price table (max 100 items).
+
+| Item | Value |
+| --- | --- |
+| Method | `PUT` |
+| Path | `/api/v1/dealflow/catalog/quantity-breaks` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | /dealflow/settings |
+| Service | `replaceQuantityBreaks` |
+| Persistence | df_quantity_breaks |
+
+**Request**
+
+```http
+PUT /api/v1/dealflow/catalog/quantity-breaks HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "items": [
+    {
+      "name": "Core Gateway 1–9 list",
+      "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      "minQuantity": 1,
+      "maxQuantity": 9,
+      "adjustmentKind": "fixed",
+      "adjustmentValue": 4000,
+      "active": true
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "Core Gateway 1–9 list",
+      "minQuantity": 1,
+      "maxQuantity": 9,
+      "adjustmentKind": "fixed",
+      "adjustmentValue": 4000
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Zod reject (missing name, bad UUID, >100 items) |
+| 403 | `AUTHORIZATION_ERROR` | Not catalog.write (staff cannot) |
+
+**Notes.** `adjustmentKind` is `fixed` (unit price) or `percent`. Seeded Core Gateway 1–9 is fixed 4000 so ×8 stays at list.
+
+### Replace role authorities
+
+**Purpose.** Replace discount ceilings used on writes (1–20 items).
+
+| Item | Value |
+| --- | --- |
+| Method | `PUT` |
+| Path | `/api/v1/dealflow/catalog/role-authorities` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | /dealflow/settings |
+| Service | `replaceRoleAuthorities` |
+| Persistence | df_role_authorities |
+
+**Request**
+
+```http
+PUT /api/v1/dealflow/catalog/role-authorities HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "items": [
+    {
+      "roleKey": "staff",
+      "maxDiscountPercent": 5,
+      "minMarginPercent": 20,
+      "maxPriceOverridePercent": 0,
+      "canNegotiate": true,
+      "exceedAction": "block"
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "roleKey": "staff",
+      "maxDiscountPercent": 5,
+      "exceedAction": "block"
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Empty items or percent out of 0–100 |
+| 403 | `AUTHORIZATION_ERROR` | Not catalog.write |
+
+**Notes.** `exceedAction` enum: allow | approval | block. Seeded staff is block at 5%. Admin writes still match staff/manager/finance keys, not a hidden 40%.
+
+### Patch governance
+
+**Purpose.** Update material-change thresholds, tax, stale days, commercial cap, loyalty stacking.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/governance` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | /dealflow/settings |
+| Service | `updateGovernance` |
+| Persistence | df_governance_config |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/governance HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "taxRatePercent": 0,
+  "cumulativeWarningLimit": 2,
+  "maxCommercialDiscountPercent": 25,
+  "allowLoyaltyStacking": true
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "cumulativeWarningLimit": 2,
+    "materialDiscountDeltaPp": 2,
+    "materialTotalDeltaRatio": 0.1,
+    "highValueNetTotal": 25000,
+    "maxApprovalLevels": 3,
+    "taxRatePercent": 0,
+    "staleQuoteDays": 7,
+    "unusualDiscountPercent": 25,
+    "largeDealNetTotal": 50000,
+    "maxCommercialDiscountPercent": 25,
+    "allowLoyaltyStacking": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Empty patch or maxApprovalLevels outside 1–3 |
+| 403 | `AUTHORIZATION_ERROR` | Not catalog.write |
+
+**Notes.** At least one field required. Defaults live in `DEFAULT_GOVERNANCE` (`types.ts`).
+
+### Create product
+
+**Purpose.** Create a SKU. Recurring products require `billingFrequency`.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/products` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.products.write` |
+| UI | /dealflow/catalog |
+| Service | `upsertProduct` |
+| Persistence | df_products |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/products HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "sku": "HW-DEMO-9",
+  "name": "Demo Appliance",
+  "category": "hardware",
+  "listPrice": 1000,
+  "cost": 400,
+  "billingType": "one_time",
+  "taxable": true,
+  "active": true
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "sku": "HW-DEMO-9",
+    "name": "Demo Appliance",
+    "billingType": "one_time",
+    "listPrice": 1000
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Recurring without frequency; SKU empty |
+| 403 | `AUTHORIZATION_ERROR` | Finance/manager without products.write |
+| 409 | `CONFLICT` | Duplicate SKU |
+
+**Notes.** 201 on create. Staff and admin hold products.write. Optional nested `stock` (max 20) and `quantityBreaks` (max 20).
+
+### Patch product
+
+**Purpose.** Update an existing product by `id`.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/products` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.products.write` |
+| UI | /dealflow/catalog/products/:productId |
+| Service | `upsertProduct` |
+| Persistence | df_products |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/products HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  "name": "Core Gateway",
+  "active": true
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+    "sku": "HW-CORE-1"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id UUID |
+| 404 | `NOT_FOUND` | Unknown product |
+
+### Delete product
+
+**Purpose.** Remove a SKU when the store allows it (typically unused).
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/products/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.products.write` |
+| UI | Product detail deactivate/delete controls |
+| Service | `deleteProduct` |
+| Persistence | df_products |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/products/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | id not UUID |
+| 409 | `CONFLICT` | Product is referenced by quote lines |
+
+### Create customer
+
+**Purpose.** Add a buying account. Public `/register` also provisions via `user.created`.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/customers` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Quote create customer picker / catalog |
+| Service | `upsertCustomer` |
+| Persistence | df_customers |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/customers HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "name": "Northwind Retail",
+  "email": "buyer@example.com",
+  "tier": "standard"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Northwind Retail",
+    "email": "buyer@example.com",
+    "tier": "standard"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Invalid email |
+| 403 | `AUTHORIZATION_ERROR` | Finance without quotes.write |
+
+**Notes.** 201 on create. Loyalty `new` is persisted as `standard`.
+
+### Patch customer
+
+**Purpose.** Update name, email, or stored tier.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/customers` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Catalog |
+| Service | `upsertCustomer` |
+| Persistence | df_customers |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/customers HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "name": "Northwind Retail"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Northwind Retail"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id |
+
+### Delete customer
+
+**Purpose.** Delete a customer not required by live quotes (restrict FK).
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/customers/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Catalog |
+| Service | `deleteCustomer` |
+| Persistence | df_customers |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/customers/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Quotes still reference the customer (onDelete Restrict) |
+
+### Create warehouse
+
+**Purpose.** Add a fulfillment location with per-unit cost.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/warehouses` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | /dealflow/settings, fulfillment |
+| Service | `upsertWarehouse` |
+| Persistence | df_warehouses |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/warehouses HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "name": "West DC",
+  "fulfillmentCostPerUnit": 18
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "West DC",
+    "fulfillmentCostPerUnit": 18
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Staff without catalog.write |
+
+### Patch warehouse
+
+**Purpose.** Rename or change fulfillment cost.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/warehouses` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Settings |
+| Service | `upsertWarehouse` |
+| Persistence | df_warehouses |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/warehouses HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  "fulfillmentCostPerUnit": 18
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+    "name": "West DC"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id |
+
+### Delete warehouse
+
+**Purpose.** Remove a DC (cascades stock rows).
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/warehouses/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Settings |
+| Service | `deleteWarehouse` |
+| Persistence | df_warehouses |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/warehouses/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Allocations still reference the warehouse |
+
+### Create product relation
+
+**Purpose.** Upsell or cross-sell edge from a source SKU.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/relations` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Product detail / recommendations on quote |
+| Service | `upsertRelation` |
+| Persistence | df_product_relations |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/relations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  "recommendedProductId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  "kind": "cross_sell",
+  "reason": "Edge sensors complete gateway deployments",
+  "promotion": "Bundle 5% after add",
+  "minQuantity": 1
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "kind": "cross_sell",
+    "reason": "Edge sensors complete gateway deployments"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | kind not upsell|cross_sell |
+
+### Patch product relation
+
+**Purpose.** Edit recommendation copy or min quantity.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/relations` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Catalog |
+| Service | `upsertRelation` |
+| Persistence | df_product_relations |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/relations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "eeeeeee1-eeee-4eee-8eee-eeeeeeeeeee1",
+  "reason": "Edge sensors complete gateway deployments"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "eeeeeee1-eeee-4eee-8eee-eeeeeeeeeee1",
+    "kind": "cross_sell"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id |
+
+### Delete product relation
+
+**Purpose.** Remove a recommendation edge.
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/relations/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Catalog |
+| Service | `deleteRelation` |
+| Persistence | df_product_relations |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/relations/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "eeeeeee1-eeee-4eee-8eee-eeeeeeeeeee1",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown relation |
+
+### Upsert stock
+
+**Purpose.** Set on-hand / reserved / incoming for a warehouse+product pair.
+
+| Item | Value |
+| --- | --- |
+| Method | `PUT` |
+| Path | `/api/v1/dealflow/catalog/stock` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.products.write` |
+| UI | Product detail stock editor |
+| Service | `upsertStock` |
+| Persistence | df_stock_levels |
+
+**Request**
+
+```http
+PUT /api/v1/dealflow/catalog/stock HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "warehouseId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  "quantityOnHand": 4,
+  "reserved": 0,
+  "incoming": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "warehouseId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      "quantityOnHand": 4,
+      "reserved": 0
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Negative on-hand |
+
+**Notes.** Body reserved/incoming default to 0 in the route if omitted. Available for planning is on-hand minus reserved.
+
+### Delete stock row
+
+**Purpose.** Remove a stock level composite key.
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/stock/:warehouseId/:productId` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.products.write` |
+| UI | Product detail |
+| Service | `deleteStock` |
+| Persistence | df_stock_levels |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/stock/:warehouseId/:productId HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Path params not UUIDs |
+
+### Create discount policy
+
+**Purpose.** Add a warning/approval/reject policy. Null tier/category means broader match.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/policies` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | /dealflow/catalog/policies |
+| Service | `upsertPolicy` |
+| Persistence | df_discount_policies |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/policies HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "name": "Default ceiling",
+  "warningPercent": 3,
+  "approvalPercent": 5,
+  "rejectPercent": 25,
+  "maxMarginImpactPercent": 40,
+  "priority": 100,
+  "active": true
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Default ceiling",
+    "warningPercent": 3,
+    "approvalPercent": 5,
+    "rejectPercent": 25
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Not catalog.write |
+
+### Patch discount policy
+
+**Purpose.** Change ceilings or priority.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/policies` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Discount policies page |
+| Service | `upsertPolicy` |
+| Persistence | df_discount_policies |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/policies HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "ccccccc1-cccc-4ccc-8ccc-ccccccccccc4",
+  "warningPercent": 3
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ccccccc1-cccc-4ccc-8ccc-ccccccccccc4",
+    "name": "Default ceiling"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id |
+
+### Delete discount policy
+
+**Purpose.** Remove a policy. Assessment falls through to remaining matches or implicit default.
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/policies/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Discount policies page |
+| Service | `deletePolicy` |
+| Persistence | df_discount_policies |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/policies/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ccccccc1-cccc-4ccc-8ccc-ccccccccccc4",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown policy |
+
+### Create approval chain
+
+**Purpose.** Define an ordered 1–3 step chain with roleKey manager|finance|final.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/catalog/chains` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Discount policies / settings |
+| Service | `upsertChain` |
+| Persistence | df_approval_chains, df_approval_chain_steps |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/catalog/chains HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "name": "Sales Manager",
+  "minRiskScore": 0,
+  "minBlendedDiscountPercent": 5,
+  "priority": 30,
+  "steps": [
+    {
+      "stepOrder": 1,
+      "roleKey": "manager",
+      "label": "Sales Manager"
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Sales Manager",
+    "steps": [
+      {
+        "roleKey": "manager"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | steps empty or >3; invalid roleKey |
+
+### Patch approval chain
+
+**Purpose.** Replace steps and thresholds for an existing chain id.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/catalog/chains` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Settings |
+| Service | `upsertChain` |
+| Persistence | df_approval_chains |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/catalog/chains HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "id": "ddddddd1-dddd-4ddd-8ddd-ddddddddddd1",
+  "name": "Sales Manager",
+  "minRiskScore": 0,
+  "minBlendedDiscountPercent": 5,
+  "priority": 30,
+  "steps": [
+    {
+      "stepOrder": 1,
+      "roleKey": "manager",
+      "label": "Sales Manager"
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ddddddd1-dddd-4ddd-8ddd-ddddddddddd1"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing id |
+
+### Delete approval chain
+
+**Purpose.** Remove a chain definition.
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/catalog/chains/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.catalog.write` |
+| UI | Settings |
+| Service | `deleteChain` |
+| Persistence | df_approval_chains |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/catalog/chains/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "ddddddd1-dddd-4ddd-8ddd-ddddddddddd1",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Quotes still point at requiredChainId |
+
+### List my quotes (customer)
+
+**Purpose.** Portal DTOs plus tokens for the signed-in buyer.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/me/quotes` |
+| Auth | Bearer or cookie |
+| Permission | Authenticated (no staff read key required) |
+| UI | /account |
+| Service | `listMyQuotes` |
+| Persistence | df_quotes (filtered by customer email/account) |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/me/quotes HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "number": "DF-00001",
+      "portalToken": "<token>",
+      "customer": {
+        "name": "Northwind Retail"
+      }
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 401 | `AUTHENTICATION_ERROR` | Anonymous |
+
+**Notes.** Uses `http.authenticate` only. Staff listing is `GET /quotes`.
+
+### List quotes (staff)
+
+**Purpose.** Full staff quote views including risk internals.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/quotes` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | /dealflow/quotes, dashboard aggregations |
+| Service | `listQuotes` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/quotes HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "number": "DF-00002",
+      "status": "draft",
+      "riskScore": 0
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 401 | `AUTHENTICATION_ERROR` | Anonymous |
+| 403 | `AUTHORIZATION_ERROR` | Customer role without quotes.read |
+
+### Create quote
+
+**Purpose.** Create a draft with optional initial lines. Issues unique `number` and `portalToken`.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | New quotation on /dealflow/quotes |
+| Service | `createQuote` |
+| Persistence | df_quotes, df_quote_lines |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "customerId": "11111111-1111-4111-8111-111111111111",
+  "lines": [
+    {
+      "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      "quantity": 8,
+      "discountPercent": 5
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "number": "DF-00010",
+    "status": "draft",
+    "version": 1,
+    "portalToken": "<unguessable>"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | customerId not UUID; discount > 100 |
+| 403 | `AUTHORIZATION_ERROR` | Finance without write; or staff discount above ceiling on included lines |
+
+**Notes.** 201. Lines optional. Discount on create still hits role ceiling.
+
+### Get quote
+
+**Purpose.** Full aggregate: lines, assessment, approvals, splits, schedules, negotiations, emails.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/quotes/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | /dealflow/quotes/:quoteId |
+| Service | `getQuote` |
+| Persistence | df_quotes and children |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/quotes/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "<uuid>",
+    "number": "DF-00010",
+    "status": "draft",
+    "lines": [],
+    "approvals": []
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | id not UUID |
+| 404 | `NOT_FOUND` | Unknown quote |
+
+### Delete quote
+
+**Purpose.** Delete only from `draft` or `rejected` (`canDeleteQuote`).
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/quotes/:id` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace delete |
+| Service | `deleteQuote` |
+| Persistence | df_quotes (cascade children) |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/quotes/:id HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 1
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "<uuid>",
+    "deleted": true
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Wrong version or illegal status |
+
+### Void quote
+
+**Purpose.** Void in-flight quotes (negotiation through finalized/approved).
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/void` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace |
+| Service | `voidQuote` |
+| Persistence | df_quotes.status |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/void HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 2
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "rejected"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Status not voidable (draft already uses delete; confirmed uses other paths) |
+
+### Add line
+
+**Purpose.** Add a SKU line. `expectedVersion` required.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/lines` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Quote workspace |
+| Service | `addLine` |
+| Persistence | df_quote_lines |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/lines HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "quantity": 1,
+  "discountPercent": 5,
+  "expectedVersion": 1
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "version": 2,
+    "lines": [
+      {
+        "quantity": 1,
+        "discountPercent": 5
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Discount above role ceiling |
+| 409 | `CONFLICT` | Frozen commercials or stale version |
+
+### Patch line
+
+**Purpose.** Change qty, discount, product, or unitPrice. At least one commercial field plus expectedVersion.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/quotes/:id/lines/:lineId` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Quote workspace |
+| Service | `updateLine` |
+| Persistence | df_quote_lines |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/quotes/:id/lines/:lineId HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "discountPercent": 5,
+  "expectedVersion": 2
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "version": 3,
+    "lines": [
+      {
+        "discountPercent": 5
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | No commercial field besides version |
+| 403 | `AUTHORIZATION_ERROR` | Staff 8% write |
+| 409 | `CONFLICT` | Locked or not commercially mutable |
+
+**Notes.** unitPrice is a governed override; assessments may flag “Unit price override”.
+
+### Remove line
+
+**Purpose.** Drop a line from a mutable quote.
+
+| Item | Value |
+| --- | --- |
+| Method | `DELETE` |
+| Path | `/api/v1/dealflow/quotes/:id/lines/:lineId` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Quote workspace |
+| Service | `removeLine` |
+| Persistence | df_quote_lines |
+
+**Request**
+
+```http
+DELETE /api/v1/dealflow/quotes/:id/lines/:lineId HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 3
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "version": 4,
+    "lines": []
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Stale version or frozen |
+
+### Assess quote
+
+**Purpose.** Run discount, risk, tax, chain selection without submitting.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/assess` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace risk panel |
+| Service | `assess` |
+| Persistence | df_quotes assessment fields |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/assess HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "assessmentDecision": "warning",
+    "riskScore": 12.5,
+    "blendedDiscountPercent": 5,
+    "requiredChainId": "<uuid>"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown quote |
+
+### Submit quote
+
+**Purpose.** Enter the approval engine. Only from `finalized`. Staff cannot approve the steps they just opened.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/submit` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace Submit |
+| Service | `submit` |
+| Persistence | df_quote_approvals |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/submit HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "approval_required",
+    "approvals": [
+      {
+        "status": "pending",
+        "roleKey": "manager"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Not finalized |
+| 403 | `AUTHORIZATION_ERROR` | No write |
+
+### Decide approval step
+
+**Purpose.** Approve or reject a pending step with a reason (1–500 chars).
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/approvals/:approvalId/decide` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.approve` plus step key via `canActOnRole` |
+| UI | /dealflow/approvals/:quoteId |
+| Service | `decide` |
+| Persistence | df_quote_approvals |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/approvals/:approvalId/decide HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "decision": "approved",
+  "reason": "Within manager authority after revision"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "approvals": [
+      {
+        "status": "approved",
+        "roleKey": "manager"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Staff; or wrong step role |
+| 409 | `CONFLICT` | Step not pending |
+
+**Notes.** Manager approval of a negotiated quote triggers provisional customer email. Admin may act on any step.
+
+### Start negotiation (staff)
+
+**Purpose.** Move a quote into customer_negotiation from staff side.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiate` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace |
+| Service | `startNegotiation` |
+| Persistence | df_quotes.status |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/negotiate HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "customer_negotiation"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Illegal transition |
+
+### List negotiations
+
+**Purpose.** Staff thread of negotiation requests.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiations` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | /dealflow/negotiations, workspace |
+| Service | `listNegotiationRequests` |
+| Persistence | df_negotiation_requests |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/quotes/:id/negotiations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "status": "open",
+      "note": "Please consider 8% on hardware",
+      "requestedDiscountPercent": 8
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown quote |
+
+### Create negotiation (authenticated)
+
+**Purpose.** Persist a request note. Used by linked customer sessions; portal has its own path.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiations` |
+| Auth | Bearer or cookie |
+| Permission | Authenticated (route does not require quotes.write) |
+| UI | Portal / account |
+| Service | `createNegotiationRequest` |
+| Persistence | df_negotiation_requests |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/negotiations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 2,
+  "note": "Need a higher discount on Core Gateway",
+  "requestedDiscountPercent": 8,
+  "requestedLines": [
+    {
+      "lineId": "<uuid>",
+      "discountPercent": 8,
+      "requestType": "discount",
+      "comment": "Budget cap"
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "customer_negotiation",
+    "negotiations": [
+      {
+        "status": "open"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Empty note |
+
+**Notes.** 201. Requested discount is stored, not applied.
+
+### Respond to negotiation
+
+**Purpose.** Staff accept/reject/in_review with a required responseNote.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiations/:nid/respond` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Negotiations page |
+| Service | `respondToNegotiation` |
+| Persistence | df_negotiation_requests |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/negotiations/:nid/respond HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 3,
+  "decision": "in_review",
+  "responseNote": "Sending to manager; 8% exceeds my ceiling."
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "negotiations": [
+      {
+        "status": "in_review",
+        "responseNote": "Sending to manager; 8% exceeds my ceiling."
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Missing responseNote |
+
+### Send negotiation to manager
+
+**Purpose.** Escalate a specific request. Quote status becomes manager_review.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiations/:nid/send-to-manager` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Negotiations |
+| Service | `sendNegotiationToManager` |
+| Persistence | df_quotes, df_negotiation_requests |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/negotiations/:nid/send-to-manager HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 4
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "manager_review"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Illegal status or stale version |
+
+### Send quote to manager (no nid)
+
+**Purpose.** Escalate the active negotiation without a path nid.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/send-to-manager` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace |
+| Service | `sendNegotiationToManager` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/send-to-manager HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 4
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "manager_review"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | No active negotiation / bad status |
+
+### Manager revise
+
+**Purpose.** Replace line qty/discount/product. Higher role replaces prior discount, it does not add.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/revise` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` (manager ceiling applies) |
+| UI | Workspace as manager |
+| Service | `reviseAsManager` |
+| Persistence | df_quote_lines, df_quote_revisions |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/revise HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 5,
+  "lines": [
+    {
+      "lineId": "<uuid>",
+      "discountPercent": 10
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "lines": [
+      {
+        "discountPercent": 10
+      }
+    ],
+    "version": 6
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Staff calling revise above 5% |
+| 409 | `CONFLICT` | Stale version |
+
+### Return revised quote
+
+**Purpose.** Send the revised commercial back toward the customer (optional nid variant exists).
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/return` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace |
+| Service | `returnRevisedQuote` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/return HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "customer_negotiation"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Not in manager_review |
+
+### Return revised quote (with nid)
+
+**Purpose.** Same as `/return` scoped to one request id.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/negotiations/:nid/return` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Negotiations |
+| Service | `returnRevisedQuote` |
+| Persistence | df_negotiation_requests |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/negotiations/:nid/return HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "negotiations": [
+      {
+        "status": "returned_to_customer"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Unknown nid or bad status |
+
+### Agree to final (authenticated)
+
+**Purpose.** Customer confirms a specific version. Blocked while a request is open/in review/with manager. Does not skip approval.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/agree` |
+| Auth | Bearer or cookie |
+| Permission | Authenticated |
+| UI | Portal / account |
+| Service | `agreeToFinal` |
+| Persistence | df_quotes customerDecision* |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/agree HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "customerDecision": "accepted",
+    "customerDecisionVersion": 6
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Open negotiation or version mismatch |
+
+### Finalize
+
+**Purpose.** Manager freeze. Stamps commerciallyFrozenAt. Required before submit.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/finalize` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace Finalize |
+| Service | `finalizeQuotation` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/finalize HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "finalized",
+    "commerciallyFrozenAt": "<iso>"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Not in a finalizable status |
+
+### Finance lock
+
+**Purpose.** Move approved quote to confirmed, stamp financeLockedAt, consume allocated stock, email final bill.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/lock` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.lock` |
+| UI | Workspace Lock |
+| Service | `lockDeal` |
+| Persistence | df_quotes, df_stock_levels, df_quote_email_deliveries |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/lock HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 7
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "confirmed",
+    "financeLockedAt": "<iso>"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | Staff or manager without lock |
+| 409 | `CONFLICT` | Not approved / stale version |
+
+### Confirm (alias of lock)
+
+**Purpose.** Same handler as lock (`lockDeal`).
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/confirm` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.lock` |
+| UI | Same as lock |
+| Service | `lockDeal` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/confirm HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 7
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "confirmed"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | No lock permission |
+
+### List recommendations
+
+**Purpose.** Catalog-relation suggestions for lines on the quote (not an LLM).
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/quotes/:id/recommendations` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | Workspace after lock in golden path |
+| Service | `recommendations` |
+| Persistence | df_product_relations (read) |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/quotes/:id/recommendations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "relationId": "eeeeeee1-eeee-4eee-8eee-eeeeeeeeeee1",
+      "kind": "cross_sell",
+      "sku": "HW-EDGE-2"
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown quote |
+
+### Apply recommendation
+
+**Purpose.** Add the recommended SKU as a line with recommendation source stamped.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/recommendations` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Workspace |
+| Service | `applyRecommendation` |
+| Persistence | df_quote_lines |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/recommendations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "relationId": "eeeeeee1-eeee-4eee-8eee-eeeeeeeeeee1",
+  "expectedVersion": 8
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "lines": [
+      {
+        "recommendedFromId": "<product-id>"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Not open for planning/commercial rules of the service |
+
+### Plan fulfillment
+
+**Purpose.** Allocate warehouses; remainder becomes backorder. Overrides must fit available stock.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/fulfillment/plan` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.fulfillment.write` |
+| UI | /dealflow/fulfillment/:quoteId |
+| Service | `planFulfillment` |
+| Persistence | df_quote_fulfillment_splits, df_quote_backorders |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/fulfillment/plan HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 9,
+  "overrides": [
+    {
+      "quoteLineId": "<uuid>",
+      "warehouseId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      "quantity": 4
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "allocations": [
+      {
+        "warehouseName": "West DC",
+        "quantity": 4
+      },
+      {
+        "warehouseName": "East DC",
+        "quantity": 3
+      }
+    ],
+    "backorders": [
+      {
+        "quantity": 1
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Insufficient available; quote not confirmed/fulfillment |
+
+**Notes.** Seeded Core Gateway: West 4, East 3. Qty 8 → backorder 1. Finance lock consumes allocated (not backorder).
+
+### Generate billing
+
+**Purpose.** Write one-time and recurring schedules. Does not capture payment.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/billing/generate` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.billing.write` |
+| UI | /dealflow/invoices/:quoteId, /dealflow/subscriptions/:quoteId |
+| Service | `generateBilling` |
+| Persistence | df_quote_billing_schedules |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/billing/generate HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 10
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "schedules": [
+      {
+        "kind": "one_time"
+      },
+      {
+        "kind": "recurring",
+        "frequency": "monthly"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Not open for billing |
+
+### Cancel billing schedule
+
+**Purpose.** Mark a schedule cancelled.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/billing/:scheduleId/cancel` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.billing.write` |
+| UI | Billing detail |
+| Service | `cancelBilling` |
+| Persistence | df_quote_billing_schedules |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/billing/:scheduleId/cancel HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 11
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "schedules": [
+      {
+        "status": "cancelled"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Already cancelled or stale version |
+
+### Vendor contact
+
+**Purpose.** Record a vendor outreach note. Client maps response as audit channel, not email send.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/vendor-contact` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Fulfillment / workspace |
+| Service | `contactVendor` |
+| Persistence | Audit (kit), not a mail provider |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/vendor-contact HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "productId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  "message": "Need inbound date for backorder qty 1"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "recorded": true,
+    "delivered": false,
+    "channel": "audit",
+    "quoteId": "<uuid>"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Empty message or >1000 chars |
+
+**Notes.** `delivered: false` is intentional in the frontend type. This is not SMTP.
+
+### Complete quote
+
+**Purpose.** Move confirmed/fulfillment/billing to completed when the service allows.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/quotes/:id/complete` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.write` |
+| UI | Fulfillment complete deal |
+| Service | `complete` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/quotes/:id/complete HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "expectedVersion": 12
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "completed"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Illegal transition |
+
+### Staff quotation PDF
+
+**Purpose.** Customer-safe PDF (pdf-lib). Content-Type application/pdf.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/quotes/:id/pdf` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | Workspace download |
+| Service | `customerQuotePdf` |
+| Persistence | Generated; uses live aggregate |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/quotes/:id/pdf HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "note": "Binary PDF, not JSON envelope"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown quote |
+
+**Notes.** Not the standard JSON envelope. Filename header uses the quote id.
+
+### List DealFlow anomalies
+
+**Purpose.** Rule-based exceptions on live quotes (not FEATURE_ANOMALY_DETECTION).
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/anomalies` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | /dealflow/anomalies |
+| Service | `listAnomalies` |
+| Persistence | df_anomalies |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/anomalies HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "type": "unusual_discount",
+      "severity": "critical",
+      "status": "open"
+    }
+  ],
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 403 | `AUTHORIZATION_ERROR` | No quotes.read |
+
+### Dispose anomaly
+
+**Purpose.** open | acknowledged | resolved | dismissed, optional resolution text.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/anomalies/:id/disposition` |
+| Auth | Bearer or cookie |
+| Permission | `dealflow.quotes.read` |
+| UI | Anomaly center |
+| Service | `disposeAnomaly` |
+| Persistence | df_anomalies |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/anomalies/:id/disposition HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+```json
+{
+  "status": "resolved",
+  "resolution": "Manager documented the exception"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "<uuid>",
+    "status": "resolved"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Invalid status enum |
+
+### Portal GET
+
+**Purpose.** Stripped commercial view. Unknown tokens 404.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/portal/:token` |
+| Auth | Portal token |
+| Permission | Possession of token (min 16, max 128 chars) |
+| UI | /portal/:token |
+| Service | `getQuoteByToken + toPortalView` |
+| Persistence | df_quotes.portal_token unique |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/portal/:token HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "number": "DF-00010",
+    "listTotal": 34400,
+    "netTotal": 32680,
+    "blendedDiscountPercent": 5,
+    "customer": {
+      "name": "Northwind Retail"
+    },
+    "lines": [
+      {
+        "quantity": 8,
+        "discountPercent": 5
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Token too short |
+| 404 | `NOT_FOUND` | Unknown token |
+| 429 | `RATE_LIMIT` | Public limiter |
+
+**Notes.** Must omit riskScore, approvals, fulfillment, billing ops, revisions, staff ids. Demo seed token: df-demo-portal-token-northwind-0001.
+
+### Portal PATCH lines
+
+**Purpose.** Customer qty/discount change on lines. May trigger material-change reapproval rules when applicable.
+
+| Item | Value |
+| --- | --- |
+| Method | `PATCH` |
+| Path | `/api/v1/dealflow/portal/:token` |
+| Auth | Portal token |
+| Permission | Token |
+| UI | Portal |
+| Service | `applyPortalChange` |
+| Persistence | df_quote_lines |
+
+**Request**
+
+```http
+PATCH /api/v1/dealflow/portal/:token HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "expectedVersion": 1,
+  "lines": [
+    {
+      "lineId": "<uuid>",
+      "quantity": 8,
+      "discountPercent": 5
+    }
+  ]
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "version": 2,
+    "lines": [
+      {
+        "quantity": 8
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Stale version or not mutable |
+
+### Portal create negotiation
+
+**Purpose.** Submit request. expectedVersion required on portal schema.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/portal/:token/negotiations` |
+| Auth | Portal token |
+| Permission | Token |
+| UI | Portal Submit request |
+| Service | `createPortalNegotiation` |
+| Persistence | df_negotiation_requests |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/portal/:token/negotiations HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "expectedVersion": 2,
+  "note": "Please review 8% on hardware",
+  "requestedDiscountPercent": 8
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "customer_negotiation",
+    "negotiations": [
+      {
+        "status": "open"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Note empty; expectedVersion missing |
+
+**Notes.** 201. Discount not applied.
+
+### Portal agree
+
+**Purpose.** Confirm revision as actor `{ id: portal, role: user }`.
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/portal/:token/agree` |
+| Auth | Portal token |
+| Permission | Token |
+| UI | Portal Confirm quotation |
+| Service | `agreeToFinal via token lookup` |
+| Persistence | df_quotes |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/portal/:token/agree HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "expectedVersion": 6
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "customerDecision": "accepted"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 409 | `CONFLICT` | Open request or wrong version |
+
+### Portal decision
+
+**Purpose.** accepted | declined with optional comment (max 500).
+
+| Item | Value |
+| --- | --- |
+| Method | `POST` |
+| Path | `/api/v1/dealflow/portal/:token/decision` |
+| Auth | Portal token |
+| Permission | Token |
+| UI | Portal |
+| Service | `applyPortalDecision` |
+| Persistence | df_quotes.customer_decision |
+
+**Request**
+
+```http
+POST /api/v1/dealflow/portal/:token/decision HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "expectedVersion": 6,
+  "action": "accepted",
+  "comment": "Looks good"
+}
+```
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "customerDecision": "accepted"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | action not in enum |
+
+### Portal PDF
+
+**Purpose.** Customer-safe PDF without staff JWT.
+
+| Item | Value |
+| --- | --- |
+| Method | `GET` |
+| Path | `/api/v1/dealflow/portal/:token/pdf` |
+| Auth | Portal token |
+| Permission | Token |
+| UI | Portal download |
+| Service | `customerQuotePdfByToken` |
+| Persistence | Generated |
+
+**Request**
+
+```http
+GET /api/v1/dealflow/portal/:token/pdf HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+No JSON body (empty object allowed where `expectedVersion` is optional).
+
+**Success envelope (shape)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "note": "Binary PDF"
+  },
+  "meta": {}
+}
+```
+
+**Typical failures**
+
+| Status | Code | When |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | Unknown token |
+
+## Auth HTTP cookbook
+
+Prefix `/api/v1/auth`. These are kit routes, not DealFlow routes. They are required to obtain tokens for the cookbook above.
+
+### Register
+
+**Purpose.** Create user with AUTH_DEFAULT_ROLE (`user`). Emits `user.created` → DealFlow `provisionCustomer`.
+
+```http
+POST /api/v1/auth/register HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "ada@example.com",
+  "password": "not-a-real-password",
+  "displayName": "Ada"
+}
+```
+
+**Success data (typical).** `user` + `tokens.accessToken` / `refreshToken`. Password hash never returned. Role is never admin.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Login
+
+**Purpose.** Verify bcrypt, issue tokens, set httpOnly cookies when AUTH_COOKIE_ENABLED=true.
+
+```http
+POST /api/v1/auth/login HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "demo.staff@example.com",
+  "password": "demo-password"
+}
+```
+
+**Success data (typical).** Same token envelope as register. Demo rate limits relaxed only for seeded demo.*@example.com when DEMO_MODE=true.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Refresh
+
+**Purpose.** Rotate refresh token. Reuse of a revoked token revokes the family.
+
+```http
+POST /api/v1/auth/refresh HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "<refresh-jwt>"
+}
+```
+
+**Success data (typical).** New access + refresh pair.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Logout
+
+**Purpose.** Revoke refresh family; denylist access jti if Authorization present; clear cookies.
+
+```http
+POST /api/v1/auth/logout HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "<refresh-jwt>"
+}
+```
+
+**Success data (typical).** Empty/ack envelope. Safe to call twice.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Current user
+
+**Purpose.** Reload roles and permissions from PostgreSQL.
+
+```http
+GET /api/v1/auth/me HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+**Success data (typical).** `id`, `email`, `displayName`, `status`, `role`, `roles`, `permissions`. Authorize from this object, not JWT role claim.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### OTP request
+
+**Purpose.** Issue OTP when FEATURE_OTP=true. Same response whether destination exists (reset flow).
+
+```http
+POST /api/v1/auth/otp/request HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "ada@example.com",
+  "purpose": "login"
+}
+```
+
+**Success data (typical).** Generic accepted message. Code is never in the JSON body.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### OTP verify
+
+**Purpose.** Verify hashed OTP; login purpose issues tokens for existing user.
+
+```http
+POST /api/v1/auth/otp/verify HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "ada@example.com",
+  "code": "123456",
+  "purpose": "login"
+}
+```
+
+**Success data (typical).** Tokens on success. Mock codes only apply in DEMO_MODE / test.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Password reset request
+
+**Purpose.** Always the same envelope if email unknown.
+
+```http
+POST /api/v1/auth/password-reset/request HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "ada@example.com"
+}
+```
+
+**Success data (typical).** No user enumeration.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Password reset confirm
+
+**Purpose.** Set password, revoke refresh and access issued before reset.
+
+```http
+POST /api/v1/auth/password-reset/confirm HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "ada@example.com",
+  "code": "123456",
+  "password": "new-password-placeholder"
+}
+```
+
+**Success data (typical).** Caller must log in again.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Schema fail |
+| 401 | `AUTHENTICATION_ERROR` | Bad credentials (login) |
+| 403 | `AUTHORIZATION_ERROR` | Disabled account |
+| 429 | `RATE_LIMIT` | Login/OTP/reset windows |
+
+### Health and readiness
+
+```http
+GET /health HTTP/1.1
+Host: localhost:5000
+```
+
+JSON success with `status: ok`, `service`, `environment`, `uptimeSeconds`, `timestamp`. Meta version `0.1.0`. Not rate-limited.
+
+```http
+GET /ready HTTP/1.1
+Host: localhost:5000
+```
+
+200 when configured dependencies ping. 503 `NOT_READY` with sanitized `checks.database|redis|odoo|ai`. Unconfigured integrations are skipped.
+
+### Features snapshot
+
+```http
+GET /api/v1/features HTTP/1.1
+Host: localhost:5000
+```
+
+Public map of `FEATURE_*` for UX (`FeatureProvider`). Enabling a flag here does not grant RBAC. DealFlow pages do not disappear solely because Copilot is off.
+
+### Realtime
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/api/v1/realtime/channels` | Session | Channels the caller may use |
+| GET | `/api/v1/realtime/events?channels=dashboard` | Session | SSE stream |
+
+DealFlow events arrive as dashboard payloads with `kind: dealflow`. Requires `FEATURE_REALTIME=true`. 404 `FEATURE_DISABLED` when off.
+
+### Audit list (kit)
+
+```http
+GET /api/v1/audit?resource=quote&resourceId=<uuid>&limit=50 HTTP/1.1
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+Requires `audit.read`. Frontend `listQuoteAudit` / `listProductAudit` use this. Events are redacted.
+
+## Zod contract notes
+
+All DealFlow JSON bodies use `.strict()` in `schemas.ts`. Unknown keys fail validation.
+
+| Schema | Constraint worth remembering |
+| --- | --- |
+| `tokenParamSchema` | token length 16–128 |
+| `expectedVersionSchema` | positive int |
+| `lineInputSchema` | discount 0–100; quantity positive |
+| `patchLineBodySchema` | at least one of productId, quantity, discountPercent, unitPrice |
+| `decideBodySchema` | reason 1–500 trimmed |
+| `portalChangeBodySchema` | lines min 1 |
+| `quantityBreakSchema` | name max 120; adjustmentKind fixed\|percent |
+| `roleAuthoritySchema` | roleKey max 40; exceedAction allow\|approval\|block |
+| `replaceQuantityBreaksBodySchema` | items max 100 |
+| `replaceRoleAuthoritiesBodySchema` | items 1–20 |
+| `patchGovernanceBodySchema` | maxApprovalLevels 1–3; at least one key |
+| `vendorContactBodySchema` | message 1–1000 |
+| `portalDecisionBodySchema` | action accepted\|declined; comment max 500 |
+| `anomalyDispositionBodySchema` | status open\|acknowledged\|resolved\|dismissed |
+| `fulfillmentPlanBodySchema` | override quantities positive |
+| `requestedLineSchema` | requestType enum including question, quantity_change, product_change, removal, pricing, discount, general |
+| `respondNegotiationBodySchema` | responseNote 1–2000 |
+| `negotiationBodySchema` | note 1–2000; requestedLines max 50 |
+| `portalNegotiationBodySchema` | expectedVersion **required** (unlike staff create where it is optional) |
+| `productFieldsSchema` | sku max 80; name max 160; stock max 20; breaks max 20 |
+| `productBodySchema` | recurring requires billingFrequency |
+| `policyBodySchema` | name max 160; description max 500 |
+| `chainBodySchema` | steps 1–3; roleKey manager\|finance\|final |
+| `customerBodySchema` | email max 200 |
+| `warehouseBodySchema` | fulfillmentCostPerUnit >= 0 |
+| `relationBodySchema` | reason 1–500; promotion max 200 |
+
+Path params `id`, `lineId`, `approvalId`, `scheduleId`, `nid`, `warehouseId`, `productId` are UUIDs.
+
+## Prisma field catalog
+
+Generated from `database/prisma/schema.prisma`. Types are Prisma/PostgreSQL as mapped.
+
+### User (`users`)
+
+| Field | Type / notes |
+| --- | --- |
+| `id` | UUID PK, gen_random_uuid() |
+| `email` | unique |
+| `passwordHash` | never API-returned |
+| `displayName` | string |
+| `status` | active \| invited \| disabled |
+| `createdAt / updatedAt` | timestamps |
+
+### RefreshToken (`refresh_tokens`)
+
+| Field | Type / notes |
+| --- | --- |
+| `hashed token + family` | rotation; reuse detection |
+| `userId` | FK users |
+
+### Role / Permission / joins (`roles, permissions, user_roles, role_permissions`)
+
+| Field | Type / notes |
+| --- | --- |
+| `name / key` | lowercase resource.action |
+| `DealFlow keys` | merged from problem module; admin gets every key |
+
+### DfCustomer (`df_customers`)
+
+| Field | Type / notes |
+| --- | --- |
+| `id` | UUID PK |
+| `name` | display |
+| `email` | matches login for portal listing |
+| `tier` | DfCustomerTier default standard (loyalty new persists here) |
+| `odooPartnerId` | nullable; unused while Odoo off |
+
+### DfProduct (`df_products`)
+
+| Field | Type / notes |
+| --- | --- |
+| `sku` | unique |
+| `name, category` | strings; category indexed |
+| `listPrice, cost` | Float |
+| `billingType` | one_time \| recurring |
+| `billingFrequency` | monthly \| quarterly \| yearly nullable |
+| `description, taxCategory, taxRatePercent` | optional |
+| `active` | default true |
+| `taxable` | default true; tax engine skips when false |
+| `odooProductId` | nullable |
+
+### DfProductRelation (`df_product_relations`)
+
+| Field | Type / notes |
+| --- | --- |
+| `productId / recommendedProductId` | FKs, cascade on source/target delete |
+| `kind` | upsell \| cross_sell |
+| `reason, promotion, minQuantity` | recommendation copy; minQuantity default 1 |
+
+### DfWarehouse (`df_warehouses`)
+
+| Field | Type / notes |
+| --- | --- |
+| `name` | West DC / East DC in seed |
+| `fulfillmentCostPerUnit` | used in planning cost context |
+| `odooWarehouseId` | nullable |
+
+### DfStockLevel (`df_stock_levels`)
+
+| Field | Type / notes |
+| --- | --- |
+| `warehouseId + productId` | composite PK |
+| `quantityOnHand` | physical |
+| `reserved` | default 0; lock consumes allocated |
+| `incoming` | informational for inbound |
+
+### DfDiscountPolicy (`df_discount_policies`)
+
+| Field | Type / notes |
+| --- | --- |
+| `customerTier, productCategory` | nullable match dimensions |
+| `warningPercent, approvalPercent, rejectPercent` | line decision thresholds |
+| `maxMarginImpactPercent` | can escalate to approval_required |
+| `priority` | lower wins after specificity; indexed |
+| `active` | default true |
+
+### DfApprovalChain (`df_approval_chains`)
+
+| Field | Type / notes |
+| --- | --- |
+| `minRiskScore, minBlendedDiscountPercent` | OR qualification |
+| `priority` | tie-break; indexed |
+| `active` | boolean |
+
+### DfApprovalChainStep (`df_approval_chain_steps`)
+
+| Field | Type / notes |
+| --- | --- |
+| `chainId + stepOrder` | unique |
+| `roleKey` | manager \| finance \| final |
+| `label` | UI string |
+
+### DfQuantityBreak (`df_quantity_breaks`)
+
+| Field | Type / notes |
+| --- | --- |
+| `productId` | indexed with minQuantity |
+| `customerTier` | nullable more-specific match |
+| `minQuantity, maxQuantity` | max nullable = open-ended |
+| `adjustmentKind / adjustmentValue` | fixed unit price or percent |
+
+### DfRoleAuthority (`df_role_authorities`)
+
+| Field | Type / notes |
+| --- | --- |
+| `roleKey` | PK (staff, manager, finance) |
+| `maxDiscountPercent` | hard cap on writes |
+| `minMarginPercent, maxPriceOverridePercent` | additional governance |
+| `canNegotiate` | default true |
+| `exceedAction` | allow \| approval \| block |
+
+### DfGovernanceConfig (`df_governance_config`)
+
+| Field | Type / notes |
+| --- | --- |
+| `id` | fixed UUID GOVERNANCE_CONFIG_ID |
+| `cumulativeWarningLimit` | default 2 |
+| `materialDiscountDeltaPp` | default 2 |
+| `materialTotalDeltaRatio` | default 0.1 |
+| `highValueNetTotal` | default 25000 |
+| `maxApprovalLevels` | capped at 3 in engine |
+| `taxRatePercent` | default 0 |
+| `staleQuoteDays` | default 7 |
+| `unusualDiscountPercent` | default 25 |
+| `largeDealNetTotal` | default 50000 |
+| `maxCommercialDiscountPercent` | default 25 |
+| `allowLoyaltyStacking` | default true |
+
+### Quote (`df_quotes`)
+
+| Field | Type / notes |
+| --- | --- |
+| `number` | unique human id DF-… |
+| `customerId` | restrict delete |
+| `ownerId` | optional staff |
+| `status` | DfQuoteStatus default draft |
+| `listTotal, discountTotal, netTotal, costTotal, marginPercent` | commercial rollups |
+| `blendedDiscountPercent, riskScore, assessmentDecision` | assessment |
+| `requiredChainId` | set null on chain delete |
+| `portalToken` | unique unguessable |
+| `version` | optimistic concurrency default 1 |
+| `odooSaleOrderId` | nullable; not invented in demo |
+| `taxTotal` | from tax engine |
+| `customerDecision / At / Comment / Version` | portal accept/decline |
+| `commerciallyFrozenAt / By` | finalize |
+| `financeLockedAt / By` | lock |
+| `activeNegotiationId` | pointer |
+| `indexes` | [status, createdAt], [customerId] |
+
+### QuoteLine (`df_quote_lines`)
+
+| Field | Type / notes |
+| --- | --- |
+| `quoteId` | cascade |
+| `productId` | restrict |
+| `quantity, listPrice, discountPercent, unitCost` | pricing snapshot |
+| `recommendedFromId` | nullable recommendation source |
+
+### QuoteApproval (`df_quote_approvals`)
+
+| Field | Type / notes |
+| --- | --- |
+| `chainId, stepOrder, roleKey, label` | copied from chain |
+| `status` | pending \| approved \| rejected \| skipped \| invalidated |
+| `actorId, decidedAt, decision, reason` | decision audit |
+
+### QuoteFulfillmentSplit (`df_quote_fulfillment_splits`)
+
+| Field | Type / notes |
+| --- | --- |
+| `quoteLineId, warehouseId, quantity` | allocation |
+
+### QuoteBackorder (`df_quote_backorders`)
+
+| Field | Type / notes |
+| --- | --- |
+| `quoteId, product/line, quantity` | unfilled remainder |
+
+### QuoteBillingSchedule (`df_quote_billing_schedules`)
+
+| Field | Type / notes |
+| --- | --- |
+| `one-time vs recurring` | status scheduled \| invoiced \| cancelled |
+| `frequency / dates` | from billing-engine PERIOD_DAYS |
+
+### QuoteRevision (`df_quote_revisions`)
+
+| Field | Type / notes |
+| --- | --- |
+| `snapshot + materialChange flag` | reapproval evidence |
+
+### DfAnomaly (`df_anomalies`)
+
+| Field | Type / notes |
+| --- | --- |
+| `type, severity, entityType, entityId, quoteId` | detector output |
+| `status, resolution, resolverId` | disposition |
+| `detectedAt, updatedAt` | timestamps |
+
+### DfNegotiationRequest (`df_negotiation_requests`)
+
+| Field | Type / notes |
+| --- | --- |
+| `note, requestedDiscountPercent, requestedTargetAmount, requestedLines JSON` | customer intent |
+| `status` | see encyclopedia |
+| `responseNote, respondedBy, respondedAt` | staff reply |
+| `quoteVersion` | version at request |
+
+### DfQuoteEmailDelivery (`df_quote_email_deliveries`)
+
+| Field | Type / notes |
+| --- | --- |
+| `eventType` | prelim_invoice \| final_invoice |
+| `status` | pending \| not_configured \| sent \| failed |
+| `idempotencyKey` | dealflow:quote:{id}:{event}:{stamp} |
+| `payload` | QuoteEmailDocument JSON |
+| `recipientEmail, provider, errorMessage, sentAt` | delivery metadata |
+
+Kit tables also exist for notifications, documents, copilot, automation, RAG, search, analytics, and kit anomalies. They are unused by the DealFlow golden path when those flags are off.
+
+## Seed catalog reference
+
+Stable UUIDs from `modules/problem/src/dealflow/defaults.ts`. Demo seed (`DEMO_MODE=true`) loads these plus presentation history from `presentation-book.ts`.
+
+### Seed customers
+
+| id | Name | Email | Persisted tier |
+| --- | --- | --- | --- |
+| `11111111-1111-4111-8111-111111111111` | Northwind Retail | `demo.user@example.com` | standard |
+| `22222222-2222-4222-8222-222222222222` | Globex Manufacturing | `buying@globex.example` | standard |
+| `33333333-3333-4333-8333-333333333333` | Initech Strategic | `deals@initech.example` | standard |
+
+Presentation book adds many additional named customers (Reliance Retail, Tata Steel, etc.) **only** in demo seed. Those emails are seed fixtures, not live companies using this software.
+
+### Seed products
+
+| SKU | Name | Category | List | Cost | Billing |
+| --- | --- | --- | ---: | ---: | --- |
+| HW-CORE-1 | Core Gateway | hardware | 4000 | 2200 | one_time |
+| HW-EDGE-2 | Edge Sensor Pack | hardware | 1500 | 800 | one_time |
+| SW-CTRL-1 | Control Suite | software | 2400 | 400 | recurring monthly |
+| SW-ANALYTICS | Analytics Add-on | software | 900 | 150 | recurring monthly |
+| SVC-PREMIUM | Premium Success Plan | services | 600 | 120 | recurring yearly |
+
+IDs: `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1` … `aaa5` in SKU order.
+
+### Seed warehouses
+
+| Name | Cost/unit | id suffix |
+| --- | ---: | --- |
+| West DC | 18 | `bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1` |
+| East DC | 25 | `bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2` |
+
+### Seed stock (Core Gateway and others)
+
+| Warehouse | Product | On hand | Incoming |
+| --- | --- | ---: | ---: |
+| West | Core Gateway | 4 | 6 |
+| East | Core Gateway | 3 | 0 |
+| West | Edge Sensor | 10 | 0 |
+| East | Edge Sensor | 2 | 0 |
+| Both | Control Suite | 50 | 0 |
+| Both | Analytics | 50 | 0 |
+| Both | Premium Success | 20 | 0 |
+
+Available Core Gateway for a fresh seed: 4 + 3 = 7. A qty-8 line yields backorder **1**.
+
+### Seed policies
+
+| Name | Match | Warn | Approve | Reject | Margin cap | Priority |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Platinum customer | tier platinum | 12 | 20 | 40 | 70 | 10 |
+| Gold customer | tier gold | 8 | 12 | 30 | 55 | 20 |
+| Software category | category software | 8 | 15 | 35 | 80 | 30 |
+| Default ceiling | none | 3 | 5 | 25 | 40 | 100 |
+
+Northwind `standard` + hardware uses **Default ceiling**. A 5% hardware line is at the approval threshold of that policy even when the staff role ceiling allows 5%.
+
+### Seed quantity breaks
+
+| Name | Product | Qty | Kind | Value |
+| --- | --- | --- | --- | ---: |
+| Core Gateway 1–9 list | HW-CORE-1 | 1–9 | fixed | 4000 |
+| Core Gateway 10–49 volume | HW-CORE-1 | 10–49 | fixed | 3700 |
+| Core Gateway 50+ contract | HW-CORE-1 | 50+ | fixed | 3400 |
+| Edge Sensor 10+ volume | HW-EDGE-2 | 10+ | fixed | 1350 |
+
+### Seed relations
+
+| From | To | Kind | Reason |
+| --- | --- | --- | --- |
+| Core Gateway | Edge Sensor Pack | cross_sell | Edge sensors complete gateway deployments |
+| Control Suite | Analytics Add-on | upsell | Analytics increases recurring software attach |
+
+### Presentation portal
+
+| Constant | Value |
+| --- | --- |
+| `PRESENTATION_PORTAL_TOKEN` | `df-demo-portal-token-northwind-0001` |
+| `PRESENTATION_QUOTE_ID` | `ffffffff-ffff-4fff-8fff-fffffffffff1` |
+| Quote number | DF-00001 (draft catalog quote) |
+
+Do not use DF-00001 as the golden-path quote you submit, lock, and split unless you intend to consume the presentation book’s stock story. Create a **new** Northwind quote for the eleven-step demo.
+
+## Engine formulas with worked numbers
+
+### Line net
+
+`lineNet = listPrice × quantity × (1 − discountPercent/100)`
+
+Core Gateway ×8 @ 5%: `4000 × 8 × 0.95 = 30400`.
+
+Control Suite ×1 @ 5%: `2400 × 1 × 0.95 = 2280`.
+
+### Quote rollup (two lines, no tax)
+
+| | List | Net | Discount $ |
+| --- | ---: | ---: | ---: |
+| Hardware | 32000 | 30400 | 1600 |
+| Software | 2400 | 2280 | 120 |
+| Total | 34400 | 32680 | 1720 |
+
+`blendedDiscountPercent = 1720 / 34400 × 100 ≈ 5.00`.
+
+### Line decision vs Default ceiling
+
+Hardware 5% vs warn 3 / approve 5 / reject 25 → **approval_required** (hits approvalPercent).
+
+Software 5% vs Software category warn 8 / approve 15 → **allowed** (below warning).
+
+Staff write of 8% hardware: role cap 5% with exceedAction `block` → **403**, no persist, regardless of policy.
+
+Manager replace to 10% hardware: role cap 10% → persists **10%**, not 15%.
+
+Worked manager hardware line: `4000 × 8 × 0.90 = 28800`. Software unchanged 2280. List still 34400. Discount $ = 34400 − 31080 = 3320. Blended ≈ 9.65%.
+
+### Risk score sketch (illustrative of the formula, not a guaranteed UI screenshot)
+
+```text
+risk = clamp(0, 100,
+  blendedDiscountPercent * 2.5
+  + average(marginErosionPercent) * 0.4
+  + warningCount * 8
+  + approvalLineCount * 15
+  + rejectedCount * 40
+)
+```
+
+Two warning-level lines force quote decision `approval_required` even if blended is modest (`cumulativeWarningLimit = 2`).
+
+### Margin erosion
+
+Cost Core Gateway 2200, list 4000, discount 5%: net unit 3800. Margin vs list depends on the engine’s exact marginErosionPercent definition in `discount-engine.ts` (compare net to cost/list as implemented). If erosion ≥ `maxMarginImpactPercent` (40% default policy), the line escalates to `approval_required` unless already `rejected`.
+
+### Quantity break selection
+
+Qty 8 matches Core Gateway 1–9 list (fixed 4000), not 10–49 (3700). Qty 10 would reprice unit to 3700 before discount.
+
+### Loyalty
+
+| Won purchases | Loyalty API tier | Bonus % | Persisted customer.tier |
+| ---: | --- | ---: | --- |
+| 0–1 | new | 0 | standard |
+| 2–4 | gold | 5 | gold |
+| ≥5 | platinum | 10 | platinum |
+
+Ceiling = min(maxCommercialDiscountPercent, roleMax + bonus) when stacking enabled. Strategic stored tier maps to platinum bonus in `normalizeCustomerTier`.
+
+### Tax
+
+Default `taxRatePercent = 0` → `taxTotal = 0`, `grandTotal = netTotal`. If governance tax is 10% and both lines taxable: `taxTotal = round(32680 * 0.10, 2) = 3268`, grand 35948.
+
+### Fulfillment consume
+
+Available West Core Gateway = max(0, 4 − 0) = 4. East = 3. Plan qty 8 → allocate 4+3, backorder 1. Lock decrements on-hand and reserved on the 7 allocated units, not the backorder row.
+
+### Billing split
+
+Hardware nets → one-time `dueToday` component. Control Suite monthly recurring → `recurringMonthly`. Premium Success yearly → `recurringYearly` / annual rollup in `hybridCommercials`. Quarterly SKUs contribute monthly equivalent `/ 3`.
+
+### Material change
+
+Δ blended ≥ 2 percentage points **or** |Δ net| / previousNet ≥ 0.10. Example: blended 5% → 8% is +3pp → material. Net 32680 → 29412 (10% down) is material on the ratio rule.
+
+### Email idempotency
+
+`dealflow:quote:{quoteId}:prelim_invoice:prelim` vs `…:final_invoice:{financeLockedAt|vN}`. Repeat lock with same stamp should not double-send.
+
+### PDF
+
+A4 595×842, Helvetica, customer-safe lines (SKU, qty, unit, discount, net, billing label). No risk score on the page.
+
+## Quote status encyclopedia
+
+| Status | Meaning | Typical entry | Typical next | Mutate commercials? |
+| --- | --- | --- | --- | --- |
+| `draft` | Staff building | createQuote | negotiation, manager_review, or unusual assess paths | Yes |
+| `customer_negotiation` | Buyer request open | portal negotiations | manager_review, finalized, draft | Yes |
+| `manager_review` | Escalated | send-to-manager | customer_negotiation, finalized | Yes |
+| `finalized` | Frozen | finalize | approval_required | No (frozen stamp) |
+| `approval_required` | Chain pending | submit | approved, rejected, draft | No |
+| `approved` | Chain complete | last decide | confirmed (lock) | No until new revision |
+| `confirmed` | Finance locked | lock | fulfillment, billing, completed | No |
+| `fulfillment` | Planning/shipping | plan | billing, completed | No |
+| `billing` | Schedules exist | generateBilling | completed | No |
+| `completed` | Closed | complete | none | No |
+| `rejected` | Failed/voided | reject/void | draft | Yes (rejected is mutable per canMutateCommercials) |
+
+`canMutateCommercials`: draft, rejected, customer_negotiation, manager_review.
+
+`isOpenForPlanning`: confirmed, fulfillment.
+
+`isOpenForBilling`: those plus billing.
+
+`isCommerciallyLocked`: financeLockedAt set **or** confirmed/fulfillment/billing/completed.
+
+Delete: draft, rejected. Void: customer_negotiation, manager_review, approval_required, approved, finalized.
+
+Illegal transitions throw `CONFLICT` via `assertTransition`.
+
+## Negotiation status encyclopedia
+
+| Status | Meaning |
+| --- | --- |
+| `open` | Customer submitted; staff has not finished |
+| `in_review` | Staff responded in_review |
+| `sent_to_manager` | Escalated |
+| `manager_revised` | Manager changed commercials |
+| `returned_to_customer` | Sent back for confirm |
+| `accepted` | Request accepted |
+| `rejected` | Request rejected |
+| `resolved` | Closed without the other terminals |
+| `agreed` | Linked to agree-to-final |
+| `withdrawn` | Cancelled by process |
+
+Portal confirmation is blocked while a request is open, in review, or with the manager. That is a service rule, not a frontend-only disable.
+
+Request types on lines: `question`, `quantity_change`, `product_change`, `removal`, `pricing`, `discount`, `general`.
+
+Line actions: `add`, `remove`, `update`.
+
+## Error encyclopedia
+
+Envelope error codes from `@hackathon/api-contract` `ERROR_CODES`:
+
+| Code | Typical HTTP | DealFlow example |
+| --- | ---: | --- |
+| `VALIDATION_ERROR` | 400 | discount 101; token length 10; empty governance patch |
+| `AUTHENTICATION_ERROR` | 401 | expired access JWT; missing cookie/bearer |
+| `AUTHORIZATION_ERROR` | 403 | staff approve; staff lock; staff 8% write; customer `/quotes` list |
+| `NOT_FOUND` | 404 | bad quote UUID that does not exist; unknown portal token |
+| `FEATURE_DISABLED` | 404 | SSE when FEATURE_REALTIME false |
+| `CONFLICT` | 409 | expectedVersion mismatch; bad status transition; insufficient stock override |
+| `RATE_LIMIT` | 429 | public portal hammering; login brute force |
+| `EXTERNAL_SERVICE_ERROR` | 502-ish via AppError | provider failure (email/Odoo) when enabled |
+| `DATABASE_ERROR` | 500 class | Prisma connectivity (sanitized) |
+| `TIMEOUT` | 504 class | bounded provider timeout |
+| `NOT_READY` | 503 | GET /ready |
+| `INTERNAL_ERROR` | 500 | unhandled; no stack in body |
+
+Login: unknown email and wrong password share one 401 message. Disabled account with correct password: 403 Account is disabled.
+
+Portal: unknown token is 404, not 401, because there is no session.
+
+## Staff page operator manual
+
+### `/login`
+
+**Module file.** `modules/problem/frontend/dealflow/../ — actually frontend/src/pages/LoginPage.tsx`
+
+**Purpose.** Sales operations sign-in. Demo chips when FEATURE demo snapshot says demo mode.
+
+**APIs commonly used**
+
+- POST /api/v1/auth/login
+- GET /api/v1/features
+- GET /api/v1/auth/me
+
+**Permissions (UX + API).** Public
+
+**Empty / error.** Pending redirect if already authenticated via homePathForUser.
+
+**Pitfalls.** Customers land on /account. Rate limit after 5 failures except seeded demo emails in DEMO_MODE.
+
+### `/register`
+
+**Module file.** `modules/problem/frontend/dealflow/— frontend/src/pages/RegisterPage.tsx`
+
+**Purpose.** Public signup as user + DfCustomer.
+
+**APIs commonly used**
+
+- POST /api/v1/auth/register
+
+**Permissions (UX + API).** Public
+
+**Empty / error.** Validation errors from Zod via envelope.
+
+**Pitfalls.** Never grants staff. AUTH_DEFAULT_ROLE=user.
+
+### `/forgot-password`
+
+**Module file.** `modules/problem/frontend/dealflow/— frontend/src/pages/ForgotPasswordPage.tsx`
+
+**Purpose.** OTP reset when FEATURE_OTP=true.
+
+**APIs commonly used**
+
+- POST /api/v1/auth/password-reset/request
+- POST /api/v1/auth/password-reset/confirm
+
+**Permissions (UX + API).** Public
+
+**Empty / error.** Same success if email unknown.
+
+**Pitfalls.** Requires OTP feature and a delivery mock or provider.
+
+### `/account`
+
+**Module file.** `modules/problem/frontend/dealflow/CustomerAccountPage.tsx`
+
+**Purpose.** Buyer list of quotations with portal tokens.
+
+**APIs commonly used**
+
+- GET /api/v1/dealflow/me/quotes
+
+**Permissions (UX + API).** Authenticated customer
+
+**Empty / error.** EmptyState when no quotes.
+
+**Pitfalls.** demo.user cannot open /dealflow even if they guess the URL (SessionGate / canAccessInternalDealflow).
+
+### `/portal/:token`
+
+**Module file.** `modules/problem/frontend/dealflow/PortalPage.tsx`
+
+**Purpose.** Isolated commercial quote. Outside AppLayout.
+
+**APIs commonly used**
+
+- GET /portal/:token
+- PATCH /portal/:token
+- POST /portal/:token/negotiations
+- POST /portal/:token/agree
+- POST /portal/:token/decision
+- GET /portal/:token/pdf
+
+**Permissions (UX + API).** Token only
+
+**Empty / error.** 404 page when token invalid.
+
+**Pitfalls.** If you see riskScore in the network response, that is a regression in toPortalView.
+
+### `/dealflow`
+
+**Module file.** `modules/problem/frontend/dealflow/DashboardPage.tsx`
+
+**Purpose.** Live open value, approvals waiting, risk derived from listQuotes.
+
+**APIs commonly used**
+
+- GET /quotes
+- SSE dashboard
+
+**Permissions (UX + API).** quotes.read
+
+**Empty / error.** Zeros when book empty (production seed without demo data).
+
+**Pitfalls.** Numbers are computed, not a snapshot table.
+
+### `/dealflow/quotes`
+
+**Module file.** `modules/problem/frontend/dealflow/QuotesListPage.tsx`
+
+**Purpose.** Create and open quotations. DataTable pagination.
+
+**APIs commonly used**
+
+- GET /quotes
+- POST /quotes
+- GET /catalog
+
+**Permissions (UX + API).** read + write to create
+
+**Empty / error.** Empty table with create action.
+
+**Pitfalls.** Pick Northwind for golden path. Copy **this** quote’s portal URL.
+
+### `/dealflow/quotes/:quoteId`
+
+**Module file.** `modules/problem/frontend/dealflow/QuoteWorkspacePage.tsx`
+
+**Purpose.** Lines, assess, negotiate, finalize, submit, approve (if permitted), lock, recommend, fulfill, bill, PDF, audit.
+
+**APIs commonly used**
+
+- GET /quotes/:id
+- line CRUD
+- assess
+- submit
+- decide
+- lock
+- recommendations
+- pdf
+
+**Permissions (UX + API).** write / approve / lock as applicable
+
+**Empty / error.** ErrorState if 404.
+
+**Pitfalls.** expectedVersion: refresh if 409. Staff Submit only after Finalize.
+
+### `/dealflow/negotiations`
+
+**Module file.** `modules/problem/frontend/dealflow/NegotiationsPage.tsx`
+
+**Purpose.** Queue of customer requests across quotes.
+
+**APIs commonly used**
+
+- GET quotes + negotiations
+- respond
+- send-to-manager
+
+**Permissions (UX + API).** read/write
+
+**Empty / error.** Empty when no open requests.
+
+**Pitfalls.** Do not try to apply 8% as staff; send to manager.
+
+### `/dealflow/approvals`
+
+**Module file.** `modules/problem/frontend/dealflow/ApprovalsPage.tsx`
+
+**Purpose.** Quotes waiting on a chain step.
+
+**APIs commonly used**
+
+- GET /quotes
+
+**Permissions (UX + API).** approve to decide
+
+**Empty / error.** Empty queue is valid.
+
+**Pitfalls.** Staff can see some queues via read but decide returns 403.
+
+### `/dealflow/approvals/:quoteId`
+
+**Module file.** `modules/problem/frontend/dealflow/ApprovalDetailPage.tsx`
+
+**Purpose.** Risk, chain, decide with reason.
+
+**APIs commonly used**
+
+- GET /quotes/:id
+- POST …/decide
+
+**Permissions (UX + API).** quotes.approve + step permission
+
+**Empty / error.** No pending step → nothing to decide.
+
+**Pitfalls.** Reason is required (min 1 character).
+
+### `/dealflow/fulfillment`
+
+**Module file.** `modules/problem/frontend/dealflow/FulfillmentPage.tsx`
+
+**Purpose.** Stock overview and history of planned quotes.
+
+**APIs commonly used**
+
+- GET /catalog
+- GET /quotes
+
+**Permissions (UX + API).** read; write for planning
+
+**Empty / error.** No confirmed quotes yet.
+
+**Pitfalls.** Plan after finance lock.
+
+### `/dealflow/fulfillment/:quoteId`
+
+**Module file.** `modules/problem/frontend/dealflow/FulfillmentDetailPage.tsx`
+
+**Purpose.** Suggested split, overrides, complete deal, vendor contact.
+
+**APIs commonly used**
+
+- POST fulfillment/plan
+- POST vendor-contact
+- POST complete
+
+**Permissions (UX + API).** fulfillment.write / quotes.write
+
+**Empty / error.** Override conflict if qty exceeds available.
+
+**Pitfalls.** West 4 East 3 backorder 1 on seeded Core Gateway ×8.
+
+### `/dealflow/subscriptions`
+
+**Module file.** `modules/problem/frontend/dealflow/BillingPages.tsx`
+
+**Purpose.** Recurring schedules list.
+
+**APIs commonly used**
+
+- GET /quotes
+
+**Permissions (UX + API).** read
+
+**Empty / error.** Empty until generateBilling.
+
+**Pitfalls.** Not a payment processor.
+
+### `/dealflow/subscriptions/:quoteId`
+
+**Module file.** `modules/problem/frontend/dealflow/CommercialDetailPages.tsx BillingDetailPage`
+
+**Purpose.** Recurring lines and cancel.
+
+**APIs commonly used**
+
+- POST billing/generate
+- POST billing/:id/cancel
+
+**Permissions (UX + API).** billing.write
+
+**Empty / error.** Generate first.
+
+**Pitfalls.** expectedVersion on cancel.
+
+### `/dealflow/invoices`
+
+**Module file.** `modules/problem/frontend/dealflow/BillingPages.tsx InvoicesPage`
+
+**Purpose.** One-time schedules.
+
+**APIs commonly used**
+
+- GET /quotes
+
+**Permissions (UX + API).** read
+
+**Empty / error.** Empty until generate.
+
+**Pitfalls.** “Invoice” here is a schedule record, not AR cash.
+
+### `/dealflow/invoices/:quoteId`
+
+**Module file.** `modules/problem/frontend/dealflow/CommercialDetailPages.tsx InvoiceDetailPage`
+
+**Purpose.** One-time detail.
+
+**APIs commonly used**
+
+- POST billing/generate
+
+**Permissions (UX + API).** billing.write
+
+**Empty / error.** Need lock + generate.
+
+**Pitfalls.** Provisional/final emails are separate from this page.
+
+### `/dealflow/health`
+
+**Module file.** `modules/problem/frontend/dealflow/InsightsPages.tsx DealHealthPage`
+
+**Purpose.** Scores from health-engine over live quotes.
+
+**APIs commonly used**
+
+- GET /quotes
+
+**Permissions (UX + API).** read
+
+**Empty / error.** Healthy empty book or N/A factors.
+
+**Pitfalls.** Not FEATURE_ANALYTICS.
+
+### `/dealflow/reports`
+
+**Module file.** `modules/problem/frontend/dealflow/InsightsPages.tsx ReportsPage`
+
+**Purpose.** Book metrics from the same live list.
+
+**APIs commonly used**
+
+- GET /quotes
+
+**Permissions (UX + API).** read
+
+**Empty / error.** Zeros without quotes.
+
+**Pitfalls.** No separate reports table.
+
+### `/dealflow/anomalies`
+
+**Module file.** `modules/problem/frontend/dealflow/AnomalyCenterPage.tsx`
+
+**Purpose.** Rule exceptions; resolve/ignore.
+
+**APIs commonly used**
+
+- GET /anomalies
+- POST /anomalies/:id/disposition
+
+**Permissions (UX + API).** quotes.read
+
+**Empty / error.** No rows.
+
+**Pitfalls.** Not kit z-score engine.
+
+### `/dealflow/assistant`
+
+**Module file.** `modules/problem/frontend/dealflow/AssistantPage.tsx`
+
+**Purpose.** Contextual insights from assessment, stock, catalog relations (intelligence.ts).
+
+**APIs commonly used**
+
+- GET /quotes/:id
+- GET recommendations
+- GET catalog
+
+**Permissions (UX + API).** read
+
+**Empty / error.** Pick a quote.
+
+**Pitfalls.** Not Gemini pricing.
+
+### `/dealflow/catalog`
+
+**Module file.** `modules/problem/frontend/dealflow/InsightsPages.tsx CatalogPage`
+
+**Purpose.** SKUs and navigation to policies.
+
+**APIs commonly used**
+
+- GET /catalog
+- POST/PATCH products
+
+**Permissions (UX + API).** catalog.read; products.write to edit SKUs
+
+**Empty / error.** Empty catalog only if seed skipped.
+
+**Pitfalls.** Policies write still needs catalog.write.
+
+### `/dealflow/catalog/products/:productId`
+
+**Module file.** `modules/problem/frontend/dealflow/CatalogDetailPages.tsx ProductDetailPage`
+
+**Purpose.** Stock, breaks, activate, audit.
+
+**APIs commonly used**
+
+- PATCH products
+- PUT stock
+- GET /audit?resource=catalog
+
+**Permissions (UX + API).** products.write / audit.read
+
+**Empty / error.** Unknown id error.
+
+**Pitfalls.** Deactivate vs delete: FK to quote lines.
+
+### `/dealflow/catalog/policies`
+
+**Module file.** `modules/problem/frontend/dealflow/CatalogDetailPages.tsx DiscountPoliciesPage`
+
+**Purpose.** Policies and chains.
+
+**APIs commonly used**
+
+- POST/PATCH/DELETE policies and chains
+
+**Permissions (UX + API).** catalog.write
+
+**Empty / error.** Need admin.
+
+**Pitfalls.** Priority and specificity both matter.
+
+### `/dealflow/settings`
+
+**Module file.** `modules/problem/frontend/dealflow/SettingsPage.tsx + SettingsGovernanceForms.tsx + CatalogEditors.tsx`
+
+**Purpose.** Quantity breaks, role ranges, governance, warehouses.
+
+**APIs commonly used**
+
+- PUT quantity-breaks
+- PUT role-authorities
+- PATCH governance
+
+**Permissions (UX + API).** catalog.write
+
+**Empty / error.** Forms disabled without permission.
+
+**Pitfalls.** Saving empty governance patch 400.
+
+### Kit pages (not golden path)
+
+| Route | Flag | Notes |
+| --- | --- | --- |
+| `/` Foundation | always | Kit status |
+| `/dashboard` | always | Platform dashboard placeholder layout |
+| `/ui` | always | Component gallery |
+| `/notifications` | notifications | Inbox |
+| `/copilot` | copilot | Untrusted AI |
+| `/intents` | intents | NL actions |
+| `/problem-intelligence` | problemIntelligence | Statement analysis |
+| `/capability-recommendations` | capabilityRecommendations | Advisory |
+| `/project-planning` | projectPlanning | Config, no codegen |
+| `/project-generator` | projectGenerator | Overlay writer |
+| `/rag` | rag | Off in .env.example |
+| `/search` | search | Off |
+| `/analytics` | analytics | Off |
+| `/automations` | automation | Kit rules |
+| `/realtime` | realtime | SSE debugger UI |
+
+Command palette (`Ctrl/Cmd+K`) indexes `appNavGroups` in `frontend/src/layouts/nav.ts`.
+
+## Frontend client map
+
+All functions live in `modules/problem/frontend/dealflow/api.ts` unless noted. `ROOT = /api/v1/dealflow`. Tokens are access JWTs except portal helpers.
+
+| Function | HTTP |
+| --- | --- |
+| `getDealflowManifest` | GET /api/v1/problem |
+| `getDealflowCatalog` | GET /catalog |
+| `listQuotes` | GET /quotes |
+| `listMyQuotes` | GET /me/quotes |
+| `getQuote` | GET /quotes/:id |
+| `createQuote` | POST /quotes |
+| `addQuoteLine` | POST /quotes/:id/lines |
+| `updateQuoteLine` | PATCH /quotes/:id/lines/:lineId |
+| `removeQuoteLine` | DELETE /quotes/:id/lines/:lineId |
+| `replaceQuantityBreaks` | PUT /catalog/quantity-breaks |
+| `replaceRoleAuthorities` | PUT /catalog/role-authorities |
+| `updateGovernance` | PATCH /catalog/governance |
+| `assessQuote` | POST /quotes/:id/assess |
+| `submitQuote` | POST /quotes/:id/submit |
+| `decideApproval` | POST …/approvals/:approvalId/decide |
+| `startNegotiation` | POST /quotes/:id/negotiate |
+| `listNegotiations` | GET /quotes/:id/negotiations |
+| `createNegotiation` | POST /quotes/:id/negotiations |
+| `respondToNegotiation` | POST …/negotiations/:nid/respond |
+| `sendToManager` | POST send-to-manager (optional nid) |
+| `reviseAsManager` | POST /quotes/:id/revise |
+| `returnRevisedQuote` | POST /return (optional nid) |
+| `finalizeQuote` | POST /finalize |
+| `lockQuote` | POST /lock |
+| `agreeToFinal` | POST /agree |
+| `upsertProduct` | POST or PATCH /catalog/products |
+| `listProductAudit` | GET /api/v1/audit?resource=catalog |
+| `upsertStock` | PUT /catalog/stock |
+| `upsertPolicy` | POST/PATCH /catalog/policies |
+| `upsertChain` | POST/PATCH /catalog/chains |
+| `getRecommendations` | GET /quotes/:id/recommendations |
+| `applyRecommendation` | POST /quotes/:id/recommendations |
+| `listAnomalies` | GET /anomalies |
+| `disposeAnomaly` | POST /anomalies/:id/disposition |
+| `decidePortalQuote` | POST /portal/:token/decision |
+| `downloadCustomerQuotePdf` | GET /quotes/:id/pdf blob |
+| `portalQuotePdfHref` | URL helper |
+| `planFulfillment` | POST /fulfillment/plan |
+| `generateBilling` | POST /billing/generate |
+| `cancelBilling` | POST /billing/:scheduleId/cancel |
+| `confirmQuote` | POST /confirm (lock alias) |
+| `completeQuote` | POST /complete |
+| `deleteQuote` | DELETE /quotes/:id |
+| `voidQuote` | POST /void |
+| `deleteProduct` | DELETE /catalog/products/:id |
+| `deletePolicy` | DELETE /catalog/policies/:id |
+| `deleteChain` | DELETE /catalog/chains/:id |
+| `deleteWarehouse` | DELETE /catalog/warehouses/:id |
+| `upsertCustomer` | POST/PATCH /catalog/customers |
+| `deleteCustomer` | DELETE /catalog/customers/:id |
+| `upsertWarehouse` | POST/PATCH /catalog/warehouses |
+| `deleteStock` | DELETE /catalog/stock/:w/:p |
+| `upsertRelation` | POST/PATCH /catalog/relations |
+| `deleteRelation` | DELETE /catalog/relations/:id |
+| `contactVendor` | POST /vendor-contact |
+| `getPortalQuote` | GET /portal/:token |
+| `applyPortalChange` | PATCH /portal/:token |
+| `createPortalNegotiation` | POST /portal/:token/negotiations |
+| `agreePortalQuote` | POST /portal/:token/agree |
+| `listQuoteAudit` | GET /api/v1/audit?resource=quote |
+
+Shared HTTP helper: `frontend/src/services/api.ts` (`apiGet`, `apiRequest`). Base URL `import.meta.env.VITE_API_URL` (empty → same origin / Vite proxy). Credentials include cookies.
+
+## Click-level golden path
+
+Assume hybrid stack is running and seed completed with DEMO_MODE=true. Password is always `demo-password`.
+
+| Step | Action |
+| ---: | --- |
+| 1 | Open http://localhost:5173/login |
+| 2 | Click Sales Representative chip or type demo.staff@example.com |
+| 3 | Submit login; land on /dealflow |
+| 4 | Open Quotations |
+| 5 | New quotation → customer Northwind Retail |
+| 6 | Add product Core Gateway, quantity 8, discount 5 |
+| 7 | Add product Control Suite, quantity 1, discount 5 |
+| 8 | Confirm list ≈ 34400 and net ≈ 32680 (tax 0) |
+| 9 | Copy the portal link shown for this quote (not the DF-00001 demo token) |
+| 10 | Optional: try discount 8 on hardware → error toast 403 |
+| 11 | Logout |
+| 12 | Open the portal URL in the same or a private window |
+| 13 | Change a quantity or add a line comment and counter-discount 8% |
+| 14 | Submit request; status Under Negotiation |
+| 15 | Login staff again |
+| 16 | Open Customer negotiations |
+| 17 | Open the request; respond in_review or note the ceiling |
+| 18 | Send to Manager |
+| 19 | Logout; login demo.manager@example.com |
+| 20 | Open the quote; set hardware discount 10; save/revise |
+| 21 | Return to customer if the UI offers Return |
+| 22 | Logout; open portal; Confirm quotation on the new version |
+| 23 | Login manager; Finalize |
+| 24 | Logout; login staff; Submit |
+| 25 | Login manager; Approvals detail; Approve step 1 with a reason |
+| 26 | Logout; login demo.finance@example.com |
+| 27 | Approve remaining finance/final steps if present |
+| 28 | Lock |
+| 29 | Login staff; add recommended Edge Sensor Pack |
+| 30 | Fulfillment detail; accept West 4 / East 3 / backorder 1 |
+| 31 | Generate billing; open Invoices and Subscriptions |
+| 32 | Optional: GET portal PDF and staff PDF |
+| 33 | Optional: inspect GET /api/v1/dealflow/portal/:token JSON for omitted riskScore |
+
+If Core Gateway available is not 7, re-seed. If login is rate-limited, wait 15 minutes or confirm DEMO_MODE.
+
+Admin `demo.admin@example.com` can complete manager and finance approval steps because `canActOnRole` returns true for admin. Discount writes still do not become 40%.
+
+## curl session
+
+Unix-style. Replace cookies vs `-H Authorization` as needed. Do not log tokens.
+
+```bash
+# Health
+curl -sS http://localhost:5000/health
+curl -sS http://localhost:5000/ready
+
+# Features
+curl -sS http://localhost:5000/api/v1/features
+
+# Login staff
+curl -sS -c cookies.txt -H "Content-Type: application/json" \
+  -d '{"email":"demo.staff@example.com","password":"demo-password"}' \
+  http://localhost:5000/api/v1/auth/login
+```
+
+Capture `data.tokens.accessToken` as `STAFF`.
+
+```bash
+export STAFF="<paste>"
+curl -sS -H "Authorization: Bearer $STAFF" http://localhost:5000/api/v1/auth/me
+curl -sS -H "Authorization: Bearer $STAFF" http://localhost:5000/api/v1/dealflow/catalog
+curl -sS -H "Authorization: Bearer $STAFF" http://localhost:5000/api/v1/dealflow/quotes
+```
+
+```bash
+# Create quote (customerId from catalog Northwind)
+curl -sS -H "Authorization: Bearer $STAFF" -H "Content-Type: application/json" \
+  -d '{"customerId":"11111111-1111-4111-8111-111111111111"}' \
+  http://localhost:5000/api/v1/dealflow/quotes
+```
+
+```bash
+# Add hardware line (quote id and version from create)
+curl -sS -H "Authorization: Bearer $STAFF" -H "Content-Type: application/json" \
+  -d '{"productId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1","quantity":8,"discountPercent":5,"expectedVersion":1}' \
+  http://localhost:5000/api/v1/dealflow/quotes/<QUOTE_ID>/lines
+```
+
+```bash
+# Forbidden 8%
+curl -sS -H "Authorization: Bearer $STAFF" -H "Content-Type: application/json" \
+  -d '{"discountPercent":8,"expectedVersion":2}' \
+  http://localhost:5000/api/v1/dealflow/quotes/<QUOTE_ID>/lines/<LINE_ID>
+```
+
+Expect `success: false` and `AUTHORIZATION_ERROR`.
+
+```bash
+# Portal
+curl -sS http://localhost:5000/api/v1/dealflow/portal/<PORTAL_TOKEN>
+
+curl -sS -H "Content-Type: application/json" \
+  -d '{"expectedVersion":2,"note":"Please consider 8%","requestedDiscountPercent":8}' \
+  http://localhost:5000/api/v1/dealflow/portal/<PORTAL_TOKEN>/negotiations
+```
+
+```bash
+# Manager login
+curl -sS -H "Content-Type: application/json" \
+  -d '{"email":"demo.manager@example.com","password":"demo-password"}' \
+  http://localhost:5000/api/v1/auth/login
+```
+
+```bash
+# Finance lock (after approved)
+curl -sS -H "Authorization: Bearer $FINANCE" -H "Content-Type: application/json" \
+  -d '{"expectedVersion":7}' \
+  http://localhost:5000/api/v1/dealflow/quotes/<QUOTE_ID>/lock
+```
+
+```bash
+# PDF
+curl -sS -H "Authorization: Bearer $STAFF" -H "Accept: application/pdf" \
+  -o quote.pdf http://localhost:5000/api/v1/dealflow/quotes/<QUOTE_ID>/pdf
+```
+
+Logout:
+
+```bash
+curl -sS -H "Content-Type: application/json" -H "Authorization: Bearer $STAFF" \
+  -d '{"refreshToken":"<refresh>"}' \
+  http://localhost:5000/api/v1/auth/logout
+```
+
+## PowerShell session
+
+```powershell
+Invoke-RestMethod http://localhost:5000/health
+Invoke-RestMethod http://localhost:5000/ready
+
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:5000/api/v1/auth/login -ContentType application/json -Body (@{
+  email = 'demo.staff@example.com'
+  password = 'demo-password'
+} | ConvertTo-Json)
+$staff = $login.data.tokens.accessToken
+$headers = @{ Authorization = "Bearer $staff" }
+Invoke-RestMethod -Headers $headers http://localhost:5000/api/v1/dealflow/catalog
+```
+
+Copy env file:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item .env.test.example .env.test
+```
+
+If `cp` is not an alias, do not use Unix `cp`. Docker commands are the same (`docker compose`).
+
+Stop port conflicts:
+
+```powershell
+Get-NetTCPConnection -LocalPort 5000,5173 -ErrorAction SilentlyContinue | Format-Table
+```
+
+## Test inventory
+
+Run from repo root unless noted. DealFlow-focused files:
+
+| File | What it guards |
+| --- | --- |
+| `modules/problem/src/dealflow/discount-engine.test.ts` | Policy match, blended, risk, decisions |
+| `modules/problem/src/dealflow/loyalty.test.ts` | Tiers, stacking, admin fallback ceiling |
+| `modules/problem/src/dealflow/pricing-engine.test.ts` | Quantity breaks |
+| `modules/problem/src/dealflow/tax-engine.test.ts` | Taxable skip, rounding |
+| `modules/problem/src/dealflow/billing-engine.test.ts` | Hybrid commercials, schedules |
+| `modules/problem/src/dealflow/health-engine.test.ts` | Score factors |
+| `modules/problem/src/dealflow/anomaly-engine.test.ts` | Detectors |
+| `modules/problem/src/dealflow/portal-view.test.ts` | Stripped keys absent |
+| `modules/problem/src/dealflow/quote-pdf.test.ts` | PDF bytes / labels |
+| `modules/problem/src/dealflow/customer-email.test.ts` | Document + idempotency key |
+| `modules/problem/src/dealflow/governance-config.test.ts` | Defaults / patch merge |
+| `modules/problem/src/dealflow/presentation-book.test.ts` | Stable token / book shape |
+| `modules/problem/src/dealflow/service.test.ts` | Orchestration, 403 ceilings, lock, negotiation |
+| `modules/problem/src/module.test.ts` | Module register contract |
+| `modules/problem/frontend/dealflow/DealflowPage.test.tsx` | Staff pages render with fixtures |
+| `modules/problem/frontend/dealflow/CustomerAccountPage.test.tsx` | Account isolation |
+| `modules/problem/frontend/dealflow/intelligence.test.ts` | Assistant insights |
+| `frontend/src/problem.test.ts` | Shim exports |
+| `frontend/src/lib/rbac.test.ts` | homePathForUser / canAccessInternalDealflow |
+| `frontend/src/pages/LoginPage.test.tsx` | Demo chips / remap |
+| `backend/tests/problem.http.test.ts` | HTTP DealFlow + portal |
+| `backend/src/problem/customer-email.test.ts` | Host email wiring |
+| `backend/src/rbac/catalog-merge.test.ts` | finance/operations merge |
+| `backend/src/realtime/realtime.hub.test.ts` | dealflow payload delivery |
+
+Kit tests (auth, jobs, notifications, etc.) live under `backend/src/**/*.test.ts` and `backend/tests/**/*.test.ts`. They mock Odoo/AI/email/SMS/storage.
+
+```bash
+npm test -w @hackathon/problem
+npm test -w backend
+npm test -w frontend
+npm run test:e2e
+```
+
+## Migration index
+
+Directory: `database/prisma/migrations/`. Apply with `npm run db:migrate` (`migrate deploy`).
+
+| Folder | Topic |
+| --- | --- |
+| `20260828120000_init` | Kit users/roles foundation |
+| `20260828160000_auth_refresh_tokens` | Refresh families |
+| `20260828193000_document_intelligence` | Documents |
+| `20260828220000_document_permissions` | Document RBAC |
+| `20260828230000_stored_objects` | Object store |
+| `20260828240000_copilot_audit` | Copilot + audit |
+| `20260828250000_automation` | Automation |
+| `20260828260000_notification_engine` | Notifications |
+| `20260829100000_stored_files` | Files |
+| `20260829140000_audit_observability` | Audit extras |
+| `20260830080000_rag` | RAG (flag off in demo) |
+| `20260830094000_anomaly` | Kit anomaly |
+| `20260904120000_search` | Search |
+| `20260904200000_analytics` | Analytics |
+| `20260905080000_dealflow` | Initial df_* |
+| `20260906020000_dealflow_governance` | Governance / authorities / breaks |
+| `20260906030000_dealflow_ops_intelligence` | Health/anomaly ops |
+| `20260906040000_dealflow_commercial_workflow` | Negotiation/freeze/lock workflow |
+| `20260906050000_dealflow_customer_emails` | Email deliveries |
+| `20260906060000_dealflow_negotiation_response` | Response fields |
+
+Never edit applied SQL in place on a shared database; add a new migration.
+
+## Source file map
+
+### DealFlow backend
+
+| File | Responsibility |
+| --- | --- |
+| `index.ts` | Package export |
+| `constants.ts` | Module id |
+| `types.ts` | Domain types + DEFAULT_GOVERNANCE |
+| `errors.ts` | forbidden / conflict / invalid |
+| `lifecycle.ts` | Status graph |
+| `defaults.ts` | Seed catalog |
+| `presentation-book.ts` | Demo history + portal token |
+| `loyalty.ts` | Ceilings and tiers |
+| `pricing-engine.ts` | Quantity breaks |
+| `discount-engine.ts` | Policy, risk, assessment |
+| `approval-engine.ts` | Steps, canActOnRole, decide |
+| `fulfillment-engine.ts` | Split / backorder / available |
+| `billing-engine.ts` | Hybrid schedules |
+| `tax-engine.ts` | Quote tax |
+| `recommendation-engine.ts` | Relation suggest |
+| `health-engine.ts` | Deal health score |
+| `anomaly-engine.ts` | Quote exceptions |
+| `governance-config.ts` | Load/merge config |
+| `portal-view.ts` | DTO strip |
+| `customer-email.ts` | Prelim/final documents |
+| `quote-pdf.ts` | pdf-lib renderer |
+| `store.ts` | Memory store (tests) |
+| `prisma-store.ts` | PostgreSQL store |
+| `service.ts` | Orchestration |
+| `routes.ts` | HTTP |
+| `schemas.ts` | Zod |
+| `jobs.ts` | Odoo sync job registration |
+| `capability.ts` | Capability metadata |
+
+### DealFlow frontend
+
+| File | Responsibility |
+| --- | --- |
+| `api.ts` | HTTP client |
+| `types.ts` | View models |
+| `hooks.ts` | Data hooks |
+| `format.ts` | Money/status labels |
+| `components.tsx` | Shared DealFlow UI |
+| `intelligence.ts` | Assistant rules |
+| `test-fixtures.ts` | Tests |
+| `*Page.tsx` | Routes in `frontend/index.ts` |
+
+### Platform (selected)
+
+| Path | Responsibility |
+| --- | --- |
+| `backend/src/app.ts` | createApp composition |
+| `backend/src/problem/load.ts` | Runtime require problem module |
+| `backend/src/problem/create-host.ts` | Host adapters |
+| `backend/src/auth/` | JWT, password, cookies |
+| `backend/src/rbac/` | Catalog, merge, middleware |
+| `backend/src/security/` | Helmet, CORS, CSRF, SSRF, rate limit |
+| `backend/src/jobs/` | Queue |
+| `backend/src/realtime/` | SSE hub |
+| `backend/src/notifications/` | Channels + templates |
+| `backend/src/integrations/ai/` | Gemini + mock |
+| `backend/src/integrations/odoo/` | JSON-2 adapter |
+| `packages/api-contract/` | Envelopes, paths, flags |
+| `frontend/src/auth/AuthProvider.tsx` | Session |
+| `frontend/src/services/api.ts` | Fetch wrapper |
+| `frontend/src/ui/` | Design system |
+
+## Environment catalog complete
+
+The following restates `docs/environment.md` for operators who only open the README. Secrets are placeholders. Full column semantics (Used by / Secret?) remain in that doc.
+
+### Application
+
+| Variable | Default / example |
+| --- | --- |
+| NODE_ENV | development |
+| PORT | 5000 |
+| HOST | 0.0.0.0 |
+| APP_NAME | DealFlow360 |
+| APP_URL | http://localhost:5000 |
+| FRONTEND_URL | example file may list 5174; Vite serves **5173**; CORS lists both |
+| LOG_LEVEL | info |
+| SHUTDOWN_TIMEOUT_MS | 10000 |
+| REQUEST_BODY_LIMIT | 1mb |
+| VITE_API_URL | empty |
+| API_PROXY_TARGET | http://localhost:5000 |
+| SEED_ON_START | true in Compose |
+
+### Data stores
+
+| Variable | Notes |
+| --- | --- |
+| DATABASE_URL | Host 5433 / Compose postgres:5432 |
+| DATABASE_POOL_MAX | 10 |
+| DATABASE_POOL_TIMEOUT_SECONDS | 10 |
+| POSTGRES_USER / PASSWORD / DB | Compose only; local placeholders |
+| REDIS_URL | localhost:6379 / redis:6379 |
+
+### Auth
+
+| Variable | Notes |
+| --- | --- |
+| JWT_ACCESS_SECRET / JWT_REFRESH_SECRET | 32+ chars in production; placeholders locally |
+| JWT_ACCESS_EXPIRES_IN | 15m |
+| JWT_REFRESH_EXPIRES_IN | 7d |
+| JWT_ISSUER / JWT_AUDIENCE | hackathon-starter-kit / …-api |
+| AUTH_PASSWORD_* | min 8, bcrypt 12, complexity flags false |
+| AUTH_DEFAULT_ROLE | user |
+| AUTH_LOGIN_RATE_LIMIT_* | 5 email / 20 IP / 15m |
+| AUTH_COOKIE_ENABLED | true |
+| AUTH_COOKIE_SAMESITE | lax |
+| OTP_* | digits 6, ttl 10m; OTP_HASH_SECRET required in prod when OTP on |
+
+### Jobs
+
+| Variable | Notes |
+| --- | --- |
+| JOB_MAX_ATTEMPTS | 3 |
+| JOB_BACKOFF_MS | 200 |
+| JOB_TIMEOUT_MS | 60000 |
+| JOBS_PROCESS | false on Compose API; true on worker; unset for npm run dev |
+| SCHEDULER_ENABLED | follows FEATURE_AUTOMATION |
+| SCHEDULER_INTERVAL | 1m |
+| SCHEDULER_POLL | 1s |
+
+### Email / SMS / storage
+
+| Variable | Demo truth |
+| --- | --- |
+| EMAIL_ENABLED | false |
+| EMAIL_PROVIDER | smtp (mock when demo) |
+| SMTP_* / RESEND_API_KEY / BREVO_API_KEY | empty |
+| SMS_ENABLED / FEATURE_SMS | false |
+| STORAGE_PROVIDER | local |
+| STORAGE_SIGNING_SECRET | dedicated, not JWT |
+| AWS_* | empty unless S3 |
+
+### Security / CORS
+
+| Variable | Demo truth |
+| --- | --- |
+| RATE_LIMIT_ENABLED | true |
+| TRUST_PROXY | false (1 only behind nginx profile) |
+| CORS_ORIGINS | 5173, 5174, 8080 localhost/127.0.0.1 |
+| DEMO_MODE | true locally; false in production |
+| ALLOW_DEMO_IN_PRODUCTION | never on a real tenant |
+
+### Flags (`.env.example`)
+
+| Flag | Value |
+| --- | --- |
+| FEATURE_AI | true (mock without key) |
+| FEATURE_ODOO | false |
+| FEATURE_AUTOMATION | true |
+| FEATURE_NOTIFICATIONS | true |
+| FEATURE_OTP | true |
+| FEATURE_SMS | false |
+| FEATURE_S3 | false |
+| FEATURE_RAG | false |
+| FEATURE_SEARCH | false |
+| FEATURE_ANALYTICS | false |
+| FEATURE_COPILOT | true |
+| FEATURE_INTENTS | true |
+| FEATURE_PROBLEM_INTELLIGENCE | true |
+| FEATURE_CAPABILITY_RECOMMENDATIONS | true |
+| FEATURE_PROJECT_PLANNING | true |
+| FEATURE_PROJECT_GENERATOR | true |
+| FEATURE_ANOMALY_DETECTION | false |
+| FEATURE_REALTIME | true |
+| FEATURE_PDF | true |
+
+Odoo/AI extra knobs (`ODOO_TIMEOUT_MS`, `AI_MAX_OUTPUT_TOKENS`, RAG/search/analytics/anomaly/realtime numeric settings) are documented in `docs/environment.md` and remain optional. They are not required for the golden path.
+
+CI/CD GitHub `vars`/`secrets` (`IMAGE_REGISTRY`, `DEPLOY_PROVIDER`, `HEALTHCHECK_URL`, …) are not loaded by `backend/src/config`. See [docs/ci-cd.md](docs/ci-cd.md).
+
+## Judge and demo runbook
+
+### Time box
+
+| Minute | Goal |
+| ---: | --- |
+| 0–5 | Clone, npm install, deps:up, migrate, seed, npm run dev |
+| 5–7 | /health and /ready; login staff |
+| 7–20 | Golden path through lock |
+| 20–25 | Show portal JSON missing risk; show 403 staff lock |
+| 25–30 | Fulfillment split + hybrid billing |
+
+### Talking points that match the code
+
+1. PostgreSQL is the system of record.
+2. Role ceilings are 403, not warnings.
+3. Customer requests do not silently change price.
+4. Manager replace, not stack.
+5. Finalize then submit.
+6. Finance lock consumes allocated stock.
+7. Email mock is not `sent`.
+8. AI is not on the price path.
+9. Odoo is off.
+10. No payments.
+
+### What not to claim
+
+- Live sale.order ids
+- Card capture
+- WCAG certification
+- Production APM
+- Screenshots that are not in git
+- Awards
+
+## Extended FAQ
+
+### Why does staff 5% still need approval?
+
+Default ceiling approvalPercent is 5% for unmatched hardware. Role ceiling and policy are different gates: role blocks writes; policy decides chain.
+
+### Why did my chain have three steps?
+
+Risk ≥ 70 or blended ≥ 20 selects Sales Manager → Finance → Final. Two approval-required lines can lift risk.
+
+### Why is tax zero?
+
+DEFAULT_GOVERNANCE.taxRatePercent is 0 until an admin patches governance.
+
+### Can I use Yarn?
+
+No. engine-strict npm only.
+
+### Can I run without Docker?
+
+Only if you provide Postgres 16 and Redis yourself and retarget URLs. Not the documented path.
+
+### Why 5433?
+
+Avoids native Postgres on 5432, especially on Windows.
+
+### Why is FRONTEND_URL 5174 in the example file?
+
+CORS allowlist includes 5174. Vite is 5173. Both are allowed.
+
+### Does completeQuote collect money?
+
+No.
+
+### Does vendor-contact email a vendor?
+
+The typed client result is delivered:false channel audit.
+
+### Can operations users log in?
+
+Role exists in merge; no demo user; seed deletes demo.operations@example.com.
+
+### Is DF-00001 the golden path?
+
+No. Isolation token only.
+
+### Why 409 after lock when editing lines?
+
+isCommerciallyLocked. Clone/revise path required for material commercial change.
+
+### Why PDF is not JSON?
+
+Binary stream with Content-Type application/pdf.
+
+### Can I point VITE_API_URL at production from a laptop SPA?
+
+You can, but CORS and cookies must match. Default is empty proxy.
+
+### Does FEATURE_NOTIFICATIONS=false block customer emails?
+
+DealFlow uses host.notifications.sendCustomerEmail; kit side effects may differ. Golden path still writes df_quote_email_deliveries. Keep flags as in .env.example for the judged demo.
+
+### Is Redis optional on a laptop?
+
+Ready checks skip unconfigured Redis, but production requires it. Compose hybrid sets REDIS_URL.
+
+### What is JOBS_PROCESS on the API container?
+
+false — the worker consumes. Local npm run dev leaves it unset so the API can consume.
+
+### Can I enable Odoo mid-demo?
+
+Not without credentials and flags. Health will fail if enabled without a server. Leave it false.
+
+### Where are bcrypt costs in tests?
+
+Tests use cost 4; runtime default 12; production min 10.
+
+### How do I reset the book?
+
+npm run db:seed (destructive to demo operational data as implemented by seed). db:reset is migrate reset --force.
+
+### More operator questions
+
+#### How do I add a SKU as staff?
+
+Catalog write products.write: POST /catalog/products. Cannot change policies.
+
+#### How do I change the 2pp material rule?
+
+PATCH governance materialDiscountDeltaPp as admin.
+
+#### How do I turn off loyalty stacking?
+
+PATCH allowLoyaltyStacking false.
+
+#### How do I inspect SSE?
+
+GET /api/v1/realtime/events?channels=dashboard with Authorization. Browser uses fetch stream, not EventSource.
+
+#### How do I run only DealFlow unit tests?
+
+npm test -w @hackathon/problem
+
+#### How do I see Prisma SQL?
+
+LOG_LEVEL debug is not a Prisma query logger; NODE_ENV=test quiets Prisma. Use Prisma tracing only if you add it — not documented as default.
+
+#### How do I backup local Docker Postgres?
+
+pg_dump against localhost:5433; volume is docker-data/postgres. Treat as local only.
+
+#### How do I avoid seeding on Compose?
+
+SEED_ON_START=false
+
+#### How do I create a production .env?
+
+Copy example, set DEMO_MODE=false, unique JWT/storage secrets, real DATABASE_URL/REDIS_URL, CORS https origins, FEATURE_ODOO as intended.
+
+#### How do I verify portal isolation in code?
+
+portal-view.test.ts and problem.http.test.ts
+
+---
+
+End of extended handbook. Return to [Quick Start](#-quick-start), [API Reference](#-api-reference), or [Golden Demo](#-golden-demo).
