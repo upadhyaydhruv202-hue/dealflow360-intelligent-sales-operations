@@ -19,7 +19,7 @@ import {
 import { CreateQuoteButton, DecisionBadge, StatusBadge } from './components';
 import { DealflowGate } from './components';
 import { formatMoney, formatPercent, OPEN_STATUSES, ownerLabel, riskLabel } from './format';
-import { useAnomalies, useCatalog, useDealflowRealtime, useQuotes } from './hooks';
+import { useAnomalies, useCatalog, useQuotes } from './hooks';
 import { dashboardAnalytics } from './intelligence';
 
 function greeting(name?: string) {
@@ -36,10 +36,6 @@ export function DealflowDashboardPage() {
   const quotes = useQuotes(accessToken);
   const catalog = useCatalog(accessToken);
   const anomalies = useAnomalies(accessToken);
-  useDealflowRealtime(accessToken, () => {
-    void quotes.reload();
-    void anomalies.reload();
-  });
   const rows = quotes.data ?? [];
 
   const analytics = dashboardAnalytics(rows);
@@ -107,11 +103,18 @@ export function DealflowDashboardPage() {
                 <Link to="/dealflow/quotes?status=open" className="block rounded-control focus:outline-none focus-visible:ring-2">
                   <KpiCard label="Open quotations" value={String(open.length)} hint="Draft through negotiation" />
                 </Link>
+                <Link to="/dealflow/negotiations" className="block rounded-control focus:outline-none focus-visible:ring-2">
+                  <KpiCard
+                    label="Under negotiation"
+                    value={String(rows.filter((item) => item.status === 'customer_negotiation' || item.status === 'manager_review').length)}
+                    hint="Customer and manager review"
+                  />
+                </Link>
                 <Link to="/dealflow/approvals" className="block rounded-control focus:outline-none focus-visible:ring-2">
                   <KpiCard
                     label="Pending approvals"
                     value={String(pending.length)}
-                    hint={pending.length ? `${Math.min(pending.length, 3)} urgent` : 'Queue is clear'}
+                    hint={pending.length ? `${pending.length} waiting` : 'Queue is clear'}
                     delta={{ label: pending.length ? 'Needs review' : 'All clear', trend: pending.length ? 'down' : 'flat' }}
                   />
                 </Link>

@@ -1,3 +1,4 @@
+import { MoreHorizontal } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
@@ -16,6 +17,7 @@ import {
   LoadingState,
   Modal,
   Select,
+  Dropdown,
 } from '@/ui';
 
 import { createQuote } from './api';
@@ -180,9 +182,12 @@ export function RiskPanel({
           const policy = policyForLine(policies, line);
           const allowed = policy?.approvalPercent;
           const delta = allowed == null ? null : line.discountPercent - allowed;
-          const productName = quote.lines.find((item) => item.productId === line.productId)?.product?.name ?? line.sku;
+          const productName =
+            quote.lines.find((item) => item.id === line.lineId)?.product?.name ??
+            quote.lines.find((item) => item.productId === line.productId)?.product?.name ??
+            line.sku;
           return (
-            <div key={`${line.productId}-${line.sku}`} className="rounded-lg bg-surface-muted p-3">
+            <div key={line.lineId || `${line.productId}-${line.sku}-${line.quantity}`} className="rounded-lg bg-surface-muted p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">{productName}</p>
@@ -281,12 +286,12 @@ export function NegotiationStory({ quote }: { quote: QuoteView }) {
   const accepted = ['confirmed', 'fulfillment', 'billing', 'completed'].includes(quote.status);
   const steps = [
     { id: 'sent', label: 'Quotation ready', active: quote.lines.length > 0 },
-    { id: 'approved', label: 'Approved', active: quote.status === 'approved' || material || invalidated || accepted },
-    { id: 'negotiate', label: 'Customer viewed', active: quote.status === 'customer_negotiation' || material || accepted },
-    { id: 'material', label: 'Counter-offer', active: material || quote.status === 'customer_negotiation' },
-    { id: 'reapprove', label: 'Re-approval', active: quote.status === 'approval_required' && (material || invalidated) },
-    { id: 'again', label: 'Final approval', active: (quote.status === 'approved' && (material || invalidated)) || accepted },
-    { id: 'accepted', label: 'Accepted', active: accepted },
+    { id: 'note', label: 'Customer note', active: quote.status === 'customer_negotiation' || quote.status === 'manager_review' || quote.status === 'finalized' || accepted || material },
+    { id: 'review', label: 'Manager review', active: quote.status === 'manager_review' || quote.status === 'finalized' || accepted },
+    { id: 'final', label: 'Frozen final', active: quote.status === 'finalized' || quote.status === 'approval_required' || quote.status === 'approved' || accepted },
+    { id: 'approve', label: 'Approval', active: quote.status === 'approval_required' || quote.status === 'approved' || accepted || invalidated },
+    { id: 'lock', label: 'Finance lock', active: accepted },
+    { id: 'accepted', label: 'Locked', active: accepted },
   ];
   return (
     <Card>
@@ -515,5 +520,144 @@ export function OverrideForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+export interface RecordMenuItem {
+  id: string;
+  label: string;
+  description: string;
+  confirmLabel?: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  immediate?: boolean;
+  informational?: boolean;
+  onConfirm: () => void | Promise<void>;
+}
+
+export function editRecordItem(description: string, onConfirm: () => void): RecordMenuItem {
+  return {
+    id: 'edit',
+    label: 'Edit ✏️',
+    description,
+    immediate: true,
+    onConfirm,
+  };
+}
+
+export function deleteRecordItem(
+  description: string,
+  onConfirm: () => void | Promise<void>,
+  options?: { confirmLabel?: string; unavailable?: string },
+): RecordMenuItem {
+  if (options?.unavailable) {
+    return {
+      id: 'delete',
+      label: 'Delete 🗑️',
+      description: options.unavailable,
+      informational: true,
+      onConfirm: () => undefined,
+    };
+  }
+  return {
+    id: 'delete',
+    label: 'Delete 🗑️',
+    description,
+    confirmLabel: options?.confirmLabel ?? 'Delete permanently',
+    destructive: true,
+    onConfirm,
+  };
+}
+
+export function RecordMenu({
+  items,
+  label = 'Actions',
+  buttonLabel,
+}: {
+  items: RecordMenuItem[];
+  label?: string;
+  buttonLabel?: string;
+}) {
+  const visible = items.filter((item) => !item.disabled);
+  const [pending, setPending] = useState<RecordMenuItem | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!visible.length) return null;
+
+  function openItem(item: RecordMenuItem) {
+    if (item.immediate && !item.informational) {
+      void item.onConfirm();
+      return;
+    }
+    setPending(item);
+  }
+
+  const single = visible.length === 1 && buttonLabel ? visible[0] : null;
+
+  return (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {single ? (
+        <Button type="button" size="sm" variant="outline" aria-label={label} onClick={() => openItem(single)}>
+          {buttonLabel}
+        </Button>
+      ) : (
+        <Dropdown
+          label={label}
+          trigger={
+            buttonLabel ? (
+              <Button type="button" size="sm" variant="outline" aria-label={label}>
+                {buttonLabel}
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="ghost" aria-label={label} className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">{label}</span>
+              </Button>
+            )
+          }
+          items={visible.map((item) => ({
+            id: item.id,
+            label: item.label,
+            destructive: item.destructive,
+            onSelect: () => openItem(item),
+          }))}
+        />
+      )}
+      <Modal
+        open={Boolean(pending)}
+        onClose={() => (busy ? undefined : setPending(null))}
+        title={pending?.label ?? 'Confirm'}
+        description={pending?.description}
+        footer={
+          <>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => setPending(null)}>
+              Back
+            </Button>
+            {pending?.informational ? null : (
+              <Button
+                type="button"
+                variant={pending?.destructive ? 'danger' : 'primary'}
+                loading={busy}
+                onClick={() => {
+                  if (!pending) return;
+                  setBusy(true);
+                  void Promise.resolve(pending.onConfirm())
+                    .catch(() => undefined)
+                    .finally(() => {
+                      setBusy(false);
+                      setPending(null);
+                    });
+                }}
+              >
+                {pending?.confirmLabel ?? pending?.label ?? 'Confirm'}
+              </Button>
+            )}
+          </>
+        }
+      />
+    </div>
   );
 }

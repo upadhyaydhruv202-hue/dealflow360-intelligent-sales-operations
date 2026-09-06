@@ -45,6 +45,23 @@ export interface ProblemHost {
       title: string;
       body: string;
     }) => Promise<unknown>;
+    sendCustomerEmail?: (input: {
+      to: string;
+      subject: string;
+      text: string;
+      html?: string;
+      attachments?: Array<{ filename: string; contentBase64: string; contentType: string }>;
+      idempotencyKey: string;
+      quoteId: string;
+      eventType: string;
+      data?: Record<string, unknown>;
+    }) => Promise<{
+      status: 'sent' | 'not_configured' | 'failed' | 'skipped';
+      provider?: string;
+      providerMessageId?: string;
+      notificationDeliveryId?: string;
+      error?: string;
+    }>;
   } | null;
   audit?: {
     record: (input: {

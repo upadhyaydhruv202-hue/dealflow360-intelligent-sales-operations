@@ -49,6 +49,28 @@ describe('data displays', () => {
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 
+  it('pages long tables instead of rendering every row', () => {
+    const rows = Array.from({ length: 20 }, (_, index) => ({ name: `Row ${index + 1}` }));
+    render(
+      <DataTable
+        columns={[{ id: 'name', header: 'Name', accessor: 'name' }]}
+        rows={rows}
+        rowId={(row) => row.name}
+        pageSize={8}
+      />,
+    );
+
+    expect(screen.getByText('Row 1')).toBeInTheDocument();
+    expect(screen.getByText('Row 8')).toBeInTheDocument();
+    expect(screen.queryByText('Row 9')).not.toBeInTheDocument();
+    expect(screen.getByText('1–8 of 20')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Row 9')).toBeInTheDocument();
+    expect(screen.queryByText('Row 1')).not.toBeInTheDocument();
+    expect(screen.getByText('9–16 of 20')).toBeInTheDocument();
+  });
+
   it('submits search and filter actions', () => {
     const onSubmit = vi.fn();
     const onApply = vi.fn();

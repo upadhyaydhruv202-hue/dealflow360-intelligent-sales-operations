@@ -6,6 +6,8 @@ import type {
   ApprovalStatus,
   BillingStatus,
   DiscountDecision,
+  QuoteEmailEvent,
+  QuoteEmailStatus,
   QuoteStatus,
   QuoteView,
 } from './types';
@@ -36,7 +38,10 @@ export function statusTone(status: QuoteStatus): BadgeTone {
       return 'success';
     case 'approval_required':
     case 'customer_negotiation':
+    case 'manager_review':
       return 'warning';
+    case 'finalized':
+      return 'info';
     case 'rejected':
       return 'danger';
     case 'fulfillment':
@@ -80,6 +85,17 @@ export function approvalTone(status: ApprovalStatus): BadgeTone {
   }
 }
 
+export function emailEventLabel(eventType: QuoteEmailEvent): string {
+  return eventType === 'final_invoice' ? 'Final bill' : 'Provisional invoice';
+}
+
+export function emailStatusLabel(status: QuoteEmailStatus): string {
+  if (status === 'not_configured') return 'Pending — email not configured';
+  if (status === 'sent') return 'Sent';
+  if (status === 'failed') return 'Failed';
+  return 'Pending';
+}
+
 export function billingTone(status: BillingStatus): BadgeTone {
   if (status === 'invoiced') return 'success';
   if (status === 'cancelled') return 'neutral';
@@ -110,18 +126,20 @@ export const OPEN_STATUSES: QuoteStatus[] = [
   'approval_required',
   'approved',
   'customer_negotiation',
+  'manager_review',
+  'finalized',
 ];
 
 export function canEditLines(status: QuoteStatus): boolean {
-  return status === 'draft' || status === 'rejected' || status === 'customer_negotiation';
+  return status === 'draft' || status === 'rejected' || status === 'customer_negotiation' || status === 'manager_review';
 }
 
 export function canApplyRecommendation(status: QuoteStatus): boolean {
-  return canEditLines(status) || status === 'approved';
+  return canEditLines(status);
 }
 
 export function canSubmit(status: QuoteStatus): boolean {
-  return status === 'draft' || status === 'rejected';
+  return status === 'finalized';
 }
 
 export function canDecide(status: QuoteStatus): boolean {
@@ -129,19 +147,41 @@ export function canDecide(status: QuoteStatus): boolean {
 }
 
 export function canNegotiate(status: QuoteStatus): boolean {
-  return status === 'approved';
+  return status === 'draft' || status === 'rejected';
+}
+
+export function canSendToManager(status: QuoteStatus): boolean {
+  return status === 'draft' || status === 'customer_negotiation';
+}
+
+export function canFinalize(status: QuoteStatus): boolean {
+  return status === 'manager_review' || status === 'customer_negotiation';
 }
 
 export function canConfirm(status: QuoteStatus): boolean {
-  return status === 'approved' || status === 'customer_negotiation';
+  return status === 'approved';
 }
 
 export function canPlan(status: QuoteStatus): boolean {
-  return status === 'approved' || status === 'customer_negotiation' || status === 'confirmed' || status === 'fulfillment';
+  return status === 'confirmed' || status === 'fulfillment';
 }
 
 export function canBill(status: QuoteStatus): boolean {
   return canPlan(status) || status === 'billing';
+}
+
+export function canDeleteQuote(status: QuoteStatus): boolean {
+  return status === 'draft' || status === 'rejected';
+}
+
+export function canVoidQuote(status: QuoteStatus): boolean {
+  return (
+    status === 'customer_negotiation' ||
+    status === 'manager_review' ||
+    status === 'approval_required' ||
+    status === 'approved' ||
+    status === 'finalized'
+  );
 }
 
 export function availableUnits(
@@ -183,6 +223,16 @@ export function workspaceToast(kind: string): string {
       return 'Quote confirmed';
     case 'negotiate':
       return 'Customer negotiation opened';
+    case 'respond':
+      return 'Negotiation response recorded';
+    case 'send':
+      return 'Quotation sent to manager';
+    case 'return':
+      return 'Revised quotation returned to customer';
+    case 'finalize':
+      return 'Quotation finalized';
+    case 'void':
+      return 'Quotation voided';
     case 'recommend':
       return 'Recommendation added to the quote';
     case 'assess':

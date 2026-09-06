@@ -2,7 +2,7 @@
 
 Server-to-client live status for allowlisted channels. The module is **off by default**. REST polling remains the default and keeps working when the flag is off.
 
-Enable `FEATURE_REALTIME=true` only when a problem statement needs push updates (job progress, inbox, dashboard, automation, long-running document/AI processing).
+Enable `FEATURE_REALTIME=true` when the product needs push updates (job progress, inbox, dashboard, automation, long-running document/AI processing, or DealFlow360 quote/approval/billing/anomaly changes). DealFlow360’s `.env.example` turns this on so staff workspaces refresh from SSE instead of a manual reload.
 
 See `backend/src/realtime/` and `frontend/src/services/realtime.ts`.
 
@@ -43,7 +43,7 @@ Unknown channel names, `*`, and EventBus types (`user.created`, …) are rejecte
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `FEATURE_REALTIME` | `false` | Turns SSE HTTP, publishers, optional Redis fan-out, and the `/realtime` UI on |
+| `FEATURE_REALTIME` | `false` in the feature registry; `true` in DealFlow360 `.env.example` | Turns SSE HTTP, publishers, optional Redis fan-out, and the `/realtime` UI on. Production DealFlow360 should set `true`. |
 | `REALTIME_HEARTBEAT` | `15s` | SSE comment interval so proxies keep the socket |
 | `REALTIME_MAX_CONNECTIONS` | `200` | Process-wide cap |
 | `REALTIME_MAX_CONNECTIONS_PER_USER` | `5` | Per authenticated user |
@@ -82,9 +82,11 @@ No new RBAC key. Existing permissions apply to both the HTTP connection and each
 | `notifications` | `notifications.read` | `audience.userId` is the caller |
 | `documents` | `documents.read` | same user |
 | `automation` | `automations.read` | all such callers (no execution payload) |
-| `dashboard` | any of the above | same filters on the **source** event |
+| `dashboard` | any of the above | same filters on the **source** event; DealFlow `kind=dealflow` events are delivered to any caller who may subscribe to `dashboard` |
 
-A notifications-only user who subscribes to `dashboard` still does not receive other users’ jobs.
+A notifications-only user who subscribes to `dashboard` still does not receive other users’ jobs. DealFlow360 publishes `dashboard.updated` with `{ kind: 'dealflow', source: 'dealflow', event, quoteId }` after quote, approval, fulfillment, billing, negotiation, and anomaly writes.
+
+The staff UI (`useQuotes` / `useQuote` / `useCatalog` / `useAnomalies`) subscribes to `dashboard` only when the flag is on and reloads those REST resources. It does not poll and does not invent numbers.
 
 ## Frontend
 

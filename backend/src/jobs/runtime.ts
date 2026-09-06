@@ -35,6 +35,7 @@ import { isFeatureEnabled } from '../features';
 import { createEventBus, eventIdFor } from '../events';
 import { createRealtimeService, isRealtimeEnabled, type RealtimeService } from '../realtime';
 import { applyProblemModule, createProblemHost, loadProblemModule } from '../problem';
+import { createCustomerEmailSender } from '../problem/customer-email';
 import type { AppConfig } from '../types/config';
 import type { AppLogger } from '../utils/logger';
 import { registerCleanupJob } from './cleanup';
@@ -264,6 +265,14 @@ export function createBackgroundWorker(options: {
       prisma,
       capabilities: capabilityRegistry,
       audit,
+      notifications: {
+        notify: notificationService ? (input) => notificationService!.notify(input) : async () => undefined,
+        sendCustomerEmail: createCustomerEmailSender({
+          config,
+          email: emailService,
+          notifications: prisma ? new NotificationRepository(prisma) : null,
+        }),
+      },
       reports: reportService.getRegistry(),
       automation: automationService?.registries ?? null,
       ai: aiService,

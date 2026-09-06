@@ -1,8 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { cn } from '../cn';
 import { Skeleton } from '../primitives/Skeleton';
 import { EmptyState } from '../states/FeedbackStates';
+import { Pagination } from './Pagination';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -25,6 +26,8 @@ export interface DataTableProps<T> {
   onSortChange?: (sort: { id: string; direction: SortDirection }) => void;
   onRowClick?: (row: T) => void;
   caption?: string;
+  pageSize?: number;
+  pageSizeOptions?: number[];
 }
 
 function cellValue<T>(row: T, column: DataTableColumn<T>): ReactNode {
@@ -48,9 +51,14 @@ export function DataTable<T>({
   onSortChange,
   onRowClick,
   caption,
+  pageSize = 8,
+  pageSizeOptions = [8, 16, 32],
 }: DataTableProps<T>) {
   const [internalSort, setInternalSort] = useState(sort);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(pageSize);
   const activeSort = onSortChange ? sort : internalSort;
+  const paginate = pageSize > 0;
 
   const sortedRows = useMemo(() => {
     if (onSortChange || !activeSort) {
@@ -67,6 +75,21 @@ export function DataTable<T>({
       return activeSort.direction === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
     });
   }, [activeSort, columns, onSortChange, rows]);
+
+  const rowSignature = useMemo(
+    () => `${sortedRows.length}:${sortedRows[0] ? rowId(sortedRows[0]) : ''}:${sortedRows.at(-1) ? rowId(sortedRows.at(-1)!) : ''}`,
+    [rowId, sortedRows],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [rowSignature, rowsPerPage]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / Math.max(rowsPerPage, 1)));
+  const safePage = Math.min(Math.max(page, 1), pageCount);
+  const pagedRows = paginate
+    ? sortedRows.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage)
+    : sortedRows;
 
   function toggleSort(column: DataTableColumn<T>) {
     if (!column.sortable) {
@@ -102,7 +125,7 @@ export function DataTable<T>({
         <thead className="sticky top-0 z-10 bg-surface-elevated text-caption font-medium uppercase tracking-[0.12em] text-foreground-muted">
           <tr className="border-b border-edge">
             {columns.map((column) => (
-              <th key={column.id} scope="col" className={cn('px-3 py-3 font-medium', column.className)}>
+              <th key={column.id} scope="col" className={cn('px-3 py-2 font-medium', column.className)}>
                 {column.sortable ? (
                   <button
                     type="button"
@@ -127,7 +150,7 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => (
+          {pagedRows.map((row) => (
             <tr
               key={rowId(row)}
               className={cn(
@@ -137,7 +160,7 @@ export function DataTable<T>({
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((column) => (
-                <td key={column.id} className={cn('px-3 py-3.5 text-foreground', column.className)}>
+                <td key={column.id} className={cn('px-3 py-2 text-foreground', column.className)}>
                   {cellValue(row, column)}
                 </td>
               ))}
@@ -145,6 +168,18 @@ export function DataTable<T>({
           ))}
         </tbody>
       </table>
+      {paginate && sortedRows.length > pageSize ? (
+        <div className="mt-3 border-t border-edge/80 pt-3">
+          <Pagination
+            page={safePage}
+            pageSize={rowsPerPage}
+            total={sortedRows.length}
+            onPageChange={setPage}
+            onPageSizeChange={setRowsPerPage}
+            pageSizeOptions={pageSizeOptions}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -62,7 +62,7 @@ Defaults apply when the variable is **missing**. `.env.example` turns common loc
 | `FEATURE_PROJECT_PLANNING` | `false` | — | Project planning UI/API: selection + validated Project Configuration. Does not generate code or enable flags |
 | `FEATURE_PROJECT_GENERATOR` | `false` | — | Deterministic generator: approved configuration → isolated overlay under `generated/`. Does not modify kit source |
 | `FEATURE_ANOMALY_DETECTION` | `false` | AI optional | Optional statistical anomaly engine plus AI explanation. Off by default |
-| `FEATURE_REALTIME` | `false` | — | Optional Server-Sent Events for allowlisted job, notification, dashboard, automation, and document status. REST polling stays available |
+| `FEATURE_REALTIME` | `false` in the registry; `true` in DealFlow360 `.env.example` | — | Optional Server-Sent Events for allowlisted job, notification, dashboard, automation, document, and DealFlow quote/approval/billing/anomaly status. REST polling stays available when off |
 | `FEATURE_PDF` | `true` | storage | PDF generate and report HTTP APIs. Set `false` to disable. Jobs and automation can still render PDFs |
 
 Dependencies in this table are runtime needs, not automatic AND-gates. `FEATURE_COPILOT=true` does not silently enable AI; set `FEATURE_AI` (or `AI_ENABLED`) as well.
@@ -82,7 +82,7 @@ When demo mode is on:
 
 Production (`NODE_ENV=production`) refuses `DEMO_MODE=true` unless `ALLOW_DEMO_IN_PRODUCTION=true`. It also refuses mock AI, email, SMS, and OTP providers unless demo mode is allowed that way. Do not set either flag on a real production tenant.
 
-Demo-user seed is skipped when `DEMO_MODE` is off (including production). RBAC catalog seed still runs.
+Demo-user seed is skipped when `DEMO_MODE` is off (including production). RBAC catalog seed still runs. DealFlow also skips customers, inventory, and quotations; configuration (products, policies, chains, governance) still seeds. When `DEMO_MODE` is on, seed recreates the connected presentation book so dashboards and lists stay internally consistent.
 
 ## Frontend
 

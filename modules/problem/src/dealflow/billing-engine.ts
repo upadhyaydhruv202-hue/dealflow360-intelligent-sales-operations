@@ -17,6 +17,43 @@ export function lineNetAmount(line: QuoteLine): number {
   return Math.round(line.listPrice * (1 - line.discountPercent / 100) * line.quantity * 10000) / 10000;
 }
 
+export function hybridCommercials(input: {
+  lines: QuoteLine[];
+  products: Product[];
+  taxTotal?: number;
+}): {
+  oneTimeNet: number;
+  recurringMonthly: number;
+  recurringYearly: number;
+  recurringAnnual: number;
+  dueToday: number;
+  taxTotal: number;
+} {
+  let oneTimeNet = 0;
+  let recurringMonthly = 0;
+  let recurringYearly = 0;
+  for (const line of input.lines) {
+    const product = input.products.find((item) => item.id === line.productId);
+    const net = lineNetAmount(line);
+    if (!product || product.billingType !== 'recurring') {
+      oneTimeNet += net;
+      continue;
+    }
+    if (product.billingFrequency === 'yearly') recurringYearly += net;
+    else if (product.billingFrequency === 'quarterly') recurringMonthly += net / 3;
+    else recurringMonthly += net;
+  }
+  const taxTotal = input.taxTotal ?? 0;
+  return {
+    oneTimeNet,
+    recurringMonthly,
+    recurringYearly,
+    recurringAnnual: recurringMonthly * 12 + recurringYearly,
+    dueToday: oneTimeNet + recurringMonthly + recurringYearly + taxTotal,
+    taxTotal,
+  };
+}
+
 export function buildBillingSchedules(input: {
   quoteId: string;
   lines: QuoteLine[];

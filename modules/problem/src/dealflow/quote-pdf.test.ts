@@ -1,8 +1,27 @@
+import { inflateSync } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_CUSTOMERS, DEFAULT_PRODUCTS } from './defaults';
 import { renderCustomerQuotePdf } from './quote-pdf';
 import { emptyAggregate } from './store';
+
+function pdfText(pdf: Buffer): string {
+  const raw = pdf.toString('binary');
+  const parts = [raw];
+  for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    try {
+      parts.push(inflateSync(Buffer.from(match[1] ?? '', 'binary')).toString('latin1'));
+    } catch {
+      // XRef and object streams may use a different filter; ignore those.
+    }
+  }
+  const combined = parts.join('\n');
+  const decoded = [...combined.matchAll(/<([0-9A-Fa-f]+)>/g)]
+    .map((item) => Buffer.from(item[1] ?? '', 'hex').toString('latin1'))
+    .join('\n');
+  return `${combined}\n${decoded}`;
+}
 
 describe('renderCustomerQuotePdf', () => {
   it('renders a customer-safe PDF without internal margin, risk, or approval text', async () => {
@@ -40,7 +59,10 @@ describe('renderCustomerQuotePdf', () => {
       },
     ];
 
-    const pdf = await renderCustomerQuotePdf(aggregate, 288);
+    const pdf = await renderCustomerQuotePdf(aggregate, 288, 'prelim_invoice');
+    const latin = pdfText(pdf);
+    expect(latin).toContain('Provisional');
+    expect(latin.toLowerCase()).not.toContain('risk score');
     const { PDFDocument } = await import('pdf-lib');
     const loaded = await PDFDocument.load(pdf);
     expect(pdf.subarray(0, 4).toString()).toBe('%PDF');

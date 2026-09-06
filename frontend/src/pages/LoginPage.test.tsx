@@ -168,11 +168,11 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Sales rep')).toBeInTheDocument();
-    expect(screen.getByText('Sales manager')).toBeInTheDocument();
+    expect(await screen.findByText('Sales Representative')).toBeInTheDocument();
+    expect(screen.getByText('Manager')).toBeInTheDocument();
     expect(screen.getByText('Admin / director')).toBeInTheDocument();
-    expect(screen.getByText('Finance')).toBeInTheDocument();
-    expect(screen.getByText('Operations')).toBeInTheDocument();
+    expect(screen.getByText('Finance Manager')).toBeInTheDocument();
+    expect(screen.queryByText('Operations')).not.toBeInTheDocument();
     expect(screen.getByText('Customer')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /demo\.staff@example\.com/i }));
     expect(screen.getByLabelText('Email')).toHaveValue('demo.staff@example.com');
@@ -216,7 +216,7 @@ describe('LoginPage', () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText('Sales rep');
+    await screen.findByText('Sales Representative');
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'demo.staff@example.com' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'demo-password' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));

@@ -13,6 +13,7 @@ function createService(host: ProblemHost) {
     store: host.prisma ? createPrismaStore(host.prisma) : createMemoryStore(),
     audit: host.audit ?? null,
     notify: host.notifications?.notify ?? null,
+    sendCustomerEmail: host.notifications?.sendCustomerEmail ?? null,
     publish: async (event) => {
       await host.events.emit({
         type: `dealflow.${event.type}`,

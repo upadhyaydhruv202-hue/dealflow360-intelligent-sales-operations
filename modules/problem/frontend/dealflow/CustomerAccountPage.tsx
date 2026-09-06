@@ -81,7 +81,8 @@ export function CustomerAccountPage() {
           <h2 className="text-display">Quotations for {user.displayName}</h2>
           <p className="mt-3 text-sm leading-6 text-foreground-muted">
             This account is a customer identity. Internal margin, approvals, risk, fulfillment, and audit stay on staff
-            APIs — those requests are rejected even if a URL is guessed. Open a quotation through its portal link.
+            APIs — those requests are rejected even if a URL is guessed. Open a quotation through its portal link to send
+            a negotiation note, request quantities, or agree to a final quotation.
           </p>
         </div>
         {loading ? <p className="text-sm text-foreground-muted">Loading quotations…</p> : null}

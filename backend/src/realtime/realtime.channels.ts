@@ -110,6 +110,9 @@ export function resolveRequestedChannels(
 
 export function canDeliverRealtimeEvent(event: RealtimeEvent, user: AuthenticatedUser): boolean {
   if (event.channel === 'dashboard') {
+    if (event.payload.kind === 'dealflow' || event.payload.source === 'dealflow') {
+      return canSubscribeToChannel(user, 'dashboard');
+    }
     return canDeliverRealtimeEvent({ ...event, channel: sourceChannelForDashboard(event) }, user);
   }
 

@@ -53,7 +53,7 @@ High and critical priority deliver inline when possible. Normal and low enqueue 
 
 ## Templates
 
-Built-in ids: `generic`, `welcome`, `document-analyzed`, `order-updated`, `invoice-reminder`, `security-alert`, `report-ready`, `marketing`.
+Built-in ids: `generic`, `welcome`, `document-analyzed`, `order-updated`, `quote-prelim-invoice`, `quote-final-invoice`, `invoice-reminder`, `security-alert`, `report-ready`, `marketing`.
 
 Strings use `{{field}}` interpolation from `data`. Register another template on the registry:
 
@@ -133,6 +133,22 @@ Job name: `notification.dispatch`. SMS uses `sms.send` when `SmsService.send(...
 Example: a future Twilio SMS provider implements `SmsProvider.send` and is selected from `SMS_PROVIDER`. `NotificationService` and React never mention Twilio.
 
 Successful deliveries write `notification.sent` audit events (no message body secrets) and increment `notification.delivery` metrics. See [audit.md](audit.md) and [observability.md](observability.md).
+
+## DealFlow360 customer quotation emails
+
+Triggered only by backend commercial events — never by opening a page.
+
+| Event | When | Document |
+| --- | --- | --- |
+| `prelim_invoice` | Manager approval of the negotiated quotation (or auto-approve after finalize) | Provisional / raw invoice. Awaiting Finance lock |
+| `final_invoice` | Finance Manager lock (`dealflow.quotes.lock`) | Final bill, payable amount, recurring totals |
+
+Records are stored in PostgreSQL:
+
+- `df_quote_email_deliveries` — quote ID, event type, recipient, version, status, error, payload
+- `notification_deliveries` — kit delivery row with the same idempotency key (`dealflow:quote:{id}:{event}:{freeze-or-lock-stamp}`)
+
+Status is `not_configured` / pending when `EMAIL_ENABLED` is off or the provider is mock/demo. The UI must not show those as sent. Customer payloads omit margin, risk, approval-chain internals, and audit data. PDFs are generated from the live quotation aggregate.
 
 ## Tests
 

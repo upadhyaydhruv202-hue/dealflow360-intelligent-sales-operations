@@ -26,28 +26,28 @@ Product logic lives in `modules/problem/`. Auth, RBAC, Prisma, queues, and adapt
 
 ## ⚡ DealFlow360 in 60 Seconds
 
-A sales rep prices a mixed hardware + subscription quote. The server explains the discount against policy, scores revenue-weighted risk, and opens the right approval chain. After approval, the same quote can attach a recommended line, split warehouses (including backorder), and generate one-time plus recurring billing. The customer negotiates on an isolated portal. A material commercial change invalidates prior approvals and starts a new chain. Staff then confirms locally.
+A sales representative prices a mixed hardware + subscription quote. The customer submits a persisted request (quantity, line comments, counter-discount). Status becomes Under Negotiation. The representative reviews it on **Customer negotiations**, cannot silently apply an 8% write (Sales Rep ceiling 5%), and escalates to a manager. The manager revises discounts (replacing the prior line value) and returns or finalizes. The customer confirms a specific revision. The existing approval engine still runs. Manager approval emails the customer a provisional invoice. Finance then locks the deal and emails the final bill. After lock, the same quote can attach a recommended line, split warehouses (including backorder), and generate one-time plus recurring billing. A material commercial change after freeze must clone a new revision and reopen approval.
 
 ```mermaid
 flowchart LR
-  A[Sales rep] --> B[Quote]
-  B --> C[Policy + risk]
-  C --> D[Approval chain]
-  D --> E[Fulfillment]
-  E --> F[Hybrid billing]
-  F --> G[Customer portal]
-  G --> H{Material change?}
-  H -->|Yes| D
-  H -->|No| I[Local confirm]
+  A[Sales Representative] --> B[Estimated quote]
+  B --> C[Customer submit request]
+  C --> D[Sales Rep review]
+  D --> E[Manager review]
+  E --> F[Customer confirm]
+  F --> G[Approval engine]
+  G --> H[Provisional customer email]
+  H --> I[Finance lock]
+  I --> J[Final bill email]
+  J --> K[Fulfillment + billing]
 ```
 
 | Actor | Seeded account | What they do | What they cannot do |
 | --- | --- | --- | --- |
-| Staff | `demo.staff@example.com` | Create, submit, fulfill, bill, confirm | Approve a chain step (API 403) |
-| Manager | `demo.manager@example.com` | First approval step; also has quote write | Act as Finance or Final |
-| Finance | `demo.finance@example.com` | Billing, finance approvals, reports, and audit | Admin settings or catalog write |
-| Operations | `demo.operations@example.com` | Inventory, warehouses, fulfillment, and backorders | Finance billing or admin governance write |
-| Admin | `demo.admin@example.com` | Finance + Final; every catalog permission after RBAC merge; may act on any step | Treat the customer portal as an internal console |
+| Sales Representative | `demo.staff@example.com` | Create quotes and products, send to manager, fulfill after lock (5%) | Approve a chain step, lock a deal, or change discount policies (API 403) |
+| Manager | `demo.manager@example.com` | Review, finalize, first approval step (10%) | Act as Finance or Final |
+| Finance Manager | `demo.finance@example.com` | Finance approval and commercial lock (15%) | Admin settings or catalog write |
+| Admin | `demo.admin@example.com` | Finance + Final; every catalog permission after RBAC merge; may act on any step | A silent 40% discount ceiling — writes use the highest staff/manager/finance authority held |
 | Customer | `demo.user@example.com` or `/register` | `/account` + portal links for their quotes | Open `/dealflow` or staff APIs |
 | Portal holder | Unguessable `portalToken` | See commercial totals and change line discounts | See risk score, reasons, approvals, fulfillment, billing ops, revisions, or staff IDs |
 
@@ -150,9 +150,11 @@ Planning reads live stock. Available units are **on-hand minus reserved**. The s
 | Fulfillment split | ✅ | Multi-warehouse plan + optional overrides |
 | Backorders | ✅ | Remainder after available stock |
 | Hybrid billing | ✅ | One-time vs recurring schedules |
-| Customer portal | ✅ | Token read + line-discount negotiation |
+| Customer portal | ✅ | Token read + negotiation notes (qty / discount / target / products) |
+| Manager finalize | ✅ | Freeze commercials; submit only from `finalized` |
 | Reapproval | ✅ | Material change invalidates prior steps |
-| Local confirm | ✅ | Consumes allocated stock; no Odoo sale-order ID in the default demo |
+| Finance lock | ✅ | Consumes allocated stock after approval; staff cannot lock |
+| Customer emails | ✅ | Manager approval → provisional invoice; Finance lock → final bill. Mock/demo is `not_configured`, never `sent` |
 | Audit trail | ✅ | Kit `AuditEvent` + quote revisions |
 | Deal Health / Reports | ✅ | Derived from live quotes — no snapshot table |
 | Auth + JWT + RBAC | ✅ | Required when `DATABASE_URL` is set |
@@ -176,43 +178,42 @@ Seeded password for every demo account: `demo-password`.
 ```mermaid
 sequenceDiagram
   participant Staff
+  participant Portal
   participant API
   participant Manager
-  participant Admin
-  participant Portal
-  Staff->>API: Create Northwind quote + HW-CORE-1×8@16% + SW-CTRL-1×1@16%
-  API-->>Staff: Assessment: why, variance, Sales Manager → Finance → Final
-  Staff->>API: Submit
+  participant Finance
+  Staff->>API: Create Northwind quote + HW-CORE-1×8@5% + SW-CTRL-1×1@5%
+  Portal->>API: Submit request (qty / comment / counter-discount)
+  Staff->>API: Review / respond; 8% write blocked
+  Staff->>API: Send to Manager
+  Manager->>API: Replace line discounts (max 10%) and return revised quote
+  Portal->>API: Confirm quotation (specific revision)
+  Manager->>API: Finalize (freeze commercials)
+  Staff->>API: Submit finalized quote
+  API-->>Staff: Assessment + approval chain
   Manager->>API: Approve step 1
-  Admin->>API: Approve Finance, then Final
+  Finance->>API: Approve remaining steps
+  Finance->>API: Lock deal
   Staff->>API: Add recommended Edge Sensor Pack
   Staff->>API: Plan fulfillment (West 4, East 3, backorder 1)
   Staff->>API: Generate billing (one-time + monthly)
-  Portal->>API: PATCH discount to 22%
-  API-->>Portal: Material change; approvals invalidated
-  Manager->>API: Re-approve
-  Admin->>API: Re-approve remaining steps
-  Staff->>API: Confirm locally
 ```
 
 1. Sign in as **staff** → Dashboard → New quotation → **Northwind Retail**.
-2. Add **Core Gateway × 8 @ 16%** and **Control Suite × 1 @ 16%**.
-3. Open Discount / Risk: requested vs allowed vs variance, why, who.
-4. Submit. Staff cannot approve.
-5. Sign in as **manager**; approve Sales Manager.
-6. Sign in as **admin**; approve Finance, then Final.
-7. Add the recommended **Edge Sensor Pack**.
-8. Accept the suggested split: West 4, East 3, backorder 1.
-9. Generate billing. One-time and recurring stay separate.
-10. Copy **this quote’s** portal link from the workspace (a new quote gets a new token).
-11. As the customer, raise a line discount to **22%**. That exceeds the 2 pp material-change threshold.
-12. The server invalidates outstanding approvals and opens a new chain.
-13. Manager + admin approve again.
-14. Staff confirms locally. Activity is visible on a manager or admin session.
+2. Add **Core Gateway × 8 @ 5%** and **Control Suite × 1 @ 5%**. Staff writes above 5% are rejected (403).
+3. Copy **this quote’s** portal link. As the customer, change quantity, add a line comment, counter a discount, and **Submit request**. Status becomes **Under Negotiation**. Requested discount is stored, not applied.
+4. Sign in as **staff** → **Customer negotiations**. Respond or try an 8% line write (403 — Sales Rep ceiling 5%). **Send to Manager**.
+5. Sign in as **manager**. Adjust lines (a higher role **replaces** the prior discount; 5% then 10% stores 10%). Return the revised quote if needed.
+6. As the customer, **Confirm quotation** on that revision. Confirmation is blocked while a request is open, in review, or with the manager. Confirmation does not skip approval.
+7. As **manager**, **Finalize**. Commercials freeze.
+8. As **staff**, **Submit**. Only `finalized` quotes can enter the existing approval engine.
+9. Manager approves the first step; **finance** (or admin acting on that step) completes the chain.
+10. As **finance**, **Lock**. Staff cannot lock (403).
+11. Add the recommended **Edge Sensor Pack**, accept the suggested split (West 4, East 3, backorder 1), and generate billing. One-time and recurring stay separate.
 
-Seeded token `df-demo-portal-token-northwind-0001` opens **DF-00001** (draft Northwind catalog quote) so you can inspect portal isolation immediately. It is not a substitute for the quote you just created.
+When `DEMO_MODE=true`, seed loads a few months of connected sales-ops history (customers, catalog, quotations, fulfillment, billing) and the portal token `df-demo-portal-token-northwind-0001` opens **DF-00001** (draft Northwind catalog quote). Use that token to inspect portal isolation; it is not a substitute for a quotation you create in the golden-path walkthrough. Production seed (`DEMO_MODE=false`) does not create those operational records or that token.
 
-If you confirm another qty-8 Core Gateway quote, run `npm run db:seed` before repeating the split. Seed resets on-hand **and** reserved; it does not rewrite an already-created DF-00001.
+If you lock another qty-8 Core Gateway quote, run `npm run db:seed` before repeating the split. Seed resets on-hand **and** reserved, and recreates the presentation quotations so dashboard totals stay consistent.
 
 ---
 
@@ -285,23 +286,24 @@ Persisted DealFlow entities (`database/prisma/schema.prisma`):
 
 | Entity | Table | Role |
 | --- | --- | --- |
-| Customer | `df_customers` | Tiered account (standard / gold / strategic) |
+| Customer | `df_customers` | Account; `tier` caches server loyalty (`new` / gold / platinum) |
 | Product | `df_products` | SKU, list, cost, billing type |
 | Product relation | `df_product_relations` | Upsell / cross-sell recommendations |
 | Warehouse | `df_warehouses` | Fulfillment cost per unit |
 | Stock level | `df_stock_levels` | On-hand + reserved |
 | Discount policy | `df_discount_policies` | Warning / approval / reject / margin impact |
 | Approval chain + steps | `df_approval_chains`, `df_approval_chain_steps` | Who must sign, in order |
-| Quote | `df_quotes` | Totals, risk, status, portal token |
+| Quote | `df_quotes` | Totals, risk, status, portal token, freeze/lock stamps |
 | Quote line | `df_quote_lines` | Qty, discount, optional recommendation source |
 | Approval | `df_quote_approvals` | Step state, actor, reason |
 | Fulfillment split | `df_quote_fulfillment_splits` | Warehouse allocation |
 | Backorder | `df_quote_backorders` | Unfilled quantity |
 | Billing schedule | `df_quote_billing_schedules` | One-time or recurring |
 | Quote revision | `df_quote_revisions` | Snapshot + material-change flag |
+| Negotiation request | `df_negotiation_requests` | Customer note + structured qty/discount/target/line intents |
 | Audit event | `audit_events` | Kit audit (managers/admins) |
 
-Quote statuses: `draft` → `approval_required` → `approved` → `customer_negotiation` → `confirmed` / `fulfillment` / `billing` / `completed`, or `rejected`.
+Quote statuses: `draft` → `customer_negotiation` → `manager_review` → `finalized` → `approval_required` → `approved` → `confirmed` / `fulfillment` / `billing` / `completed`, or `rejected`.
 
 There is **no** stored “deal health snapshot” table. Deal Health and Reports compute from the live quote list.
 
@@ -311,11 +313,11 @@ There is **no** stored “deal health snapshot” table. Deal Health and Reports
 
 All of the following run on the server (`modules/problem/src/dealflow`).
 
-**Policy match.** More specific policies win (customer tier and/or product category), then lower `priority`. Northwind is `standard`, so hardware at 16% hits **Default ceiling** (warning 3%, approval 5%, reject 25%).
+**Policy match.** More specific policies win (customer tier and/or product category), then lower `priority`. Northwind starts as loyalty `new` (persisted `standard`). A Sales Rep 5% hardware line is inside the role ceiling and still assessed against **Default ceiling** (warning 3%, approval 5%, reject 25%).
 
 **Quantity breaks.** Seeded volume prices (for example Core Gateway 1–9 list / 10–49 volume / 50+ contract) reprice the line when quantity changes. The golden path uses ×8, so HW-CORE-1 stays at list $4,000.
 
-**Role authority.** Staff / manager / admin have configured max discount %, min margin, and exceed → approval (not an automatic Admin step). High-value quotes (net ≥ $25,000) also require the selected chain; Admin is not inserted unless that chain already includes a matching role.
+**Role authority.** Discount writes are hard-capped. Sales Representative 5%, Manager 10%, Finance Manager 15%. Over-cap writes return 403 and are not persisted. Admin may act on manager/finance **approval** steps but does not receive a silent 40% ceiling; writes use the highest matching staff/manager/finance authority. Loyalty (`new` +0 / gold +5 / platinum +10 from confirmed+completed purchase count) may stack onto the role cap, then `maxCommercialDiscountPercent` (default 25) still applies. High-value quotes (net ≥ $25,000) also require the selected chain.
 
 **Line decision.**
 
@@ -353,7 +355,7 @@ blendedDiscountPercent × 2.5
 | Sales Manager → Finance | blended ≥ 12% or risk ≥ 40 | Manager, Finance |
 | Sales Manager → Finance → Final | blended ≥ 20% or risk ≥ 70 | Manager, Finance, Final |
 
-Hardware-only 16% (Northwind) typically selects **Sales Manager → Finance** (blended 16 ≥ 12, risk below 70). The golden two-line quote (hardware + software at 16%) typically selects the **three-step** chain because two approval-required lines push risk ≥ 70.
+A manager-revised 10% hardware line typically selects **Sales Manager → Finance** (blended 10 is below 12, but risk and line decisions still escalate). Two approval-required lines can still select the **three-step** chain when risk ≥ 70.
 
 **Approvals.** Staff has `dealflow.quotes.write` but not `dealflow.quotes.approve`. Each pending step also checks `dealflow.approvals.{manager|finance|final}`. Seeded **admin** receives every catalog permission after RBAC merge, and `canActOnRole` allows the admin role on any step.
 
@@ -369,7 +371,9 @@ Hardware-only 16% (Northwind) typically selects **Sales Manager → Finance** (b
 available = max(0, quantityOnHand - reserved)
 ```
 
-**Confirm.** Allocated (non-backorder) splits decrement both on-hand and reserved. Backorder rows are not consumed.
+**Finance lock.** `dealflow.quotes.lock` (Finance Manager) moves an **approved** quote to `confirmed` and stamps `financeLockedAt`. Staff cannot confirm. After lock, commercial edits conflict (409) until a new revision reopens approval. Allocated (non-backorder) splits decrement both on-hand and reserved. Backorder rows are not consumed.
+
+**Customer emails.** Manager approval of the negotiated quotation emails a provisional invoice (awaiting Finance lock). Finance lock emails the final bill. Both use the live PostgreSQL quotation, attach a customer-safe PDF, and write `df_quote_email_deliveries` plus `notification_deliveries`. If no real email provider is configured, the event stays pending / not configured — it is never marked sent.
 
 **Recommendations.** Catalog relations, not an LLM. Core Gateway suggests Edge Sensor Pack (cross-sell). Control Suite suggests Analytics Add-on (upsell).
 
@@ -387,7 +391,7 @@ available = max(0, quantityOnHand - reserved)
 | Audit | Structured events; no passwords, OTPs, or tokens in logs |
 | Production | Refuses to start without required secrets; `DEMO_MODE` must not behave as production |
 
-Portal holders **cannot**: list staff quotes, call approve/fulfill/bill/confirm, or see risk reasons, approval actors, warehouse reservations, billing operations, or audit. They **can** see list / discount / net totals and blended discount %.
+Portal holders **cannot**: list staff quotes, call approve/fulfill/bill/lock, or see risk reasons, approval actors, warehouse reservations, billing operations, or audit. They **can** see list / discount / tax / net / recurring totals and send negotiation notes.
 
 Do not describe this fork as “fully secure.” See [docs/security.md](docs/security.md).
 
@@ -408,19 +412,21 @@ Public probe: `GET /api/v1/problem` and `GET /api/v1/dealflow`.
 | --- | --- | --- | --- |
 | Catalog | `GET` | `/api/v1/dealflow/catalog` | `dealflow.catalog.read` |
 | Governance config | `PUT` `PATCH` | `/api/v1/dealflow/catalog/quantity-breaks` · `/role-authorities` · `/governance` | `dealflow.catalog.write` |
+| Catalog writers | `POST` `PATCH` `PUT` | `/api/v1/dealflow/catalog/products` · `/stock` | `dealflow.catalog.products.write` (Admin + Sales Representative) |
+| Policies & chains | `POST` `PATCH` | `/api/v1/dealflow/catalog/policies` · `/chains` | `dealflow.catalog.write` (Admin) |
 | Quotes | `GET` `POST` | `/api/v1/dealflow/quotes` | read / write |
 | Quote | `GET` | `/api/v1/dealflow/quotes/:id` | read |
 | Lines | `POST` `PATCH` `DELETE` | `/api/v1/dealflow/quotes/:id/lines…` | write |
 | Assess | `POST` | `/api/v1/dealflow/quotes/:id/assess` | write |
-| Submit | `POST` | `/api/v1/dealflow/quotes/:id/submit` | write |
+| Negotiations | `GET` `POST` | `/api/v1/dealflow/quotes/:id/negotiations` · `…/send-to-manager` · `…/return` · `/agree` · `/finalize` | write |
+| Submit | `POST` | `/api/v1/dealflow/quotes/:id/submit` | write (only from `finalized`) |
 | Decide | `POST` | `/api/v1/dealflow/quotes/:id/approvals/:approvalId/decide` | approve |
-| Negotiate | `POST` | `/api/v1/dealflow/quotes/:id/negotiate` | write |
 | Recommendations | `GET` `POST` | `/api/v1/dealflow/quotes/:id/recommendations` | read / write |
 | Fulfillment | `POST` | `/api/v1/dealflow/quotes/:id/fulfillment/plan` | fulfillment.write |
 | Billing | `POST` | `/api/v1/dealflow/quotes/:id/billing/generate` · `/billing/:scheduleId/cancel` | billing.write |
-| Confirm / complete | `POST` | `/api/v1/dealflow/quotes/:id/confirm` · `/complete` | write |
+| Lock / complete | `POST` | `/api/v1/dealflow/quotes/:id/lock` · `/confirm` · `/complete` | lock / write |
 | Vendor contact | `POST` | `/api/v1/dealflow/quotes/:id/vendor-contact` | write |
-| Portal | `GET` `PATCH` | `/api/v1/dealflow/portal/:token` | token, not staff JWT |
+| Portal | `GET` `PATCH` `POST` | `/api/v1/dealflow/portal/:token` · `…/negotiations` · `…/agree` | token, not staff JWT |
 
 Operational: `GET /health`, `GET /ready`.
 
@@ -440,9 +446,9 @@ Operational: `GET /health`, `GET /ready`.
 | `/dealflow/fulfillment/:quoteId` | Warehouse split, overrides, complete deal |
 | `/dealflow/subscriptions` · `/invoices` | Recurring vs one-time schedules |
 | `/dealflow/subscriptions/:quoteId` · `/invoices/:quoteId` | Billing / invoice detail from live schedules |
-| `/dealflow/health` · `/reports` · `/catalog` | Exceptions, book metrics, read-only catalog |
-| `/dealflow/catalog/products/:productId` | Read-only SKU, stock, and quantity breaks |
-| `/dealflow/catalog/policies` | Discount policies and approval chains |
+| `/dealflow/health` · `/reports` · `/catalog` | Exceptions, book metrics, live product catalog (Admin and Sales Representative can add SKUs) |
+| `/dealflow/catalog/products/:productId` | Product detail, stock, quantity breaks, activate/deactivate, and edit |
+| `/dealflow/catalog/policies` | Discount policies and approval chains (write requires `dealflow.catalog.write`) |
 | `/dealflow/assistant` | Contextual deal insights from assessment, stock, and catalog relations |
 | `/dealflow/anomalies` | Live-quote exceptions with resolve / ignore in-session |
 | `/dealflow/settings` | Catalog plus editable quantity breaks, role ranges, and governance (write requires `dealflow.catalog.write`) |
@@ -480,7 +486,7 @@ Generated output (`dist/`, `coverage/`, `node_modules/`, `docker-data/`) is not 
 | --- | --- |
 | Discount, risk, material change | `modules/problem/src/dealflow/discount-engine.ts` |
 | Approval steps and permissions | `modules/problem/src/dealflow/approval-engine.ts` |
-| Orchestration (submit → confirm) | `modules/problem/src/dealflow/service.ts` |
+| Orchestration (note → finalize → approve → lock) | `modules/problem/src/dealflow/service.ts` |
 | Stock split / backorder / consume | `modules/problem/src/dealflow/fulfillment-engine.ts` |
 | One-time vs recurring schedules | `modules/problem/src/dealflow/billing-engine.ts` |
 | HTTP surface | `modules/problem/src/dealflow/routes.ts` |
@@ -586,7 +592,7 @@ Workers are optional for the golden path: `npm run dev:workers`.
 | Warehouse split + backorder | Payment collection or a payment provider |
 | Hybrid billing schedules (one-time + recurring) | Portal comments or delivery-date APIs |
 | Token portal + material-change reapproval | Machine-learning price models |
-| Local confirm against PostgreSQL | Claiming Odoo is the system of record |
+| Finance lock against PostgreSQL | Claiming Odoo is the system of record |
 | Kit AI (mock without a Gemini key) | AI executing SQL, shell, or arbitrary Odoo methods |
 | Redis + BullMQ + optional worker | A required worker for the golden path |
 | Deal Health / Reports from live quotes | A stored deal-health snapshot or FEATURE_ANALYTICS KPIs |
@@ -601,14 +607,17 @@ These are honest gaps, not shipped features: optional Odoo 19 confirmation throu
 
 ## Demo Accounts
 
+Created only when `DEMO_MODE=true` (local/dev and automated tests). Production seed (`DEMO_MODE=false`) writes RBAC plus DealFlow configuration (products, policies, chains, governance) and **skips** demo users, sample customers, fake inventory, and sample quotes.
+
 | Email | Role | Use for |
 | --- | --- | --- |
-| `demo.staff@example.com` | Staff | Create, submit, fulfill, bill, confirm |
-| `demo.manager@example.com` | Manager | First approval step |
+| `demo.staff@example.com` | Sales Representative | Create quotes and products, send to manager, fulfill, bill (5%) |
+| `demo.manager@example.com` | Manager | Revise, finalize, first approval step (10%) |
+| `demo.finance@example.com` | Finance Manager | Finance approval and commercial lock (15%) |
 | `demo.admin@example.com` | Admin | Remaining approvals and catalog |
 | `demo.user@example.com` | Customer | `/account` only — not `/dealflow` |
 
-Portal token after seed: `df-demo-portal-token-northwind-0001`.
+Portal token after a **demo** seed: `df-demo-portal-token-northwind-0001`. Production customers come from `/register` and see only their own quotations.
 
 ---
 
@@ -616,7 +625,8 @@ Portal token after seed: `df-demo-portal-token-northwind-0001`.
 
 | Topic | Default demo truth |
 | --- | --- |
-| `DEMO_MODE` | `true` — seeded users; mock fallbacks |
+| `DEMO_MODE` | `true` locally; **`false` in production** (no demo users or sample book) |
+| `FEATURE_REALTIME` | `true` — existing SSE pushes DealFlow quote/approval/billing/anomaly updates |
 | `FEATURE_ODOO` | `false` — do not install Odoo |
 | `FEATURE_AI` | `true` — mock if `GEMINI_API_KEY` is empty |
 | `FEATURE_SMS` / `EMAIL_ENABLED` | Off — no real messages |

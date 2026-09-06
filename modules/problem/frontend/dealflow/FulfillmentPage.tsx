@@ -80,7 +80,7 @@ export function FulfillmentPage() {
               rows={stockRows}
               onRowClick={(row) => navigate(`/dealflow/catalog/products/${row.product.id}`)}
               emptyTitle="No stocked products"
-              emptyDescription="Seeded hardware SKUs appear here with on-hand, reserved, and incoming quantities."
+              emptyDescription="Products with warehouse stock appear here with on-hand, reserved, and incoming quantities."
               columns={[
                 { id: 'sku', header: 'SKU', accessor: (row) => row.product.sku },
                 { id: 'name', header: 'Product', accessor: (row) => row.product.name },

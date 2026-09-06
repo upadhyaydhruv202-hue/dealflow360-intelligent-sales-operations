@@ -10,11 +10,10 @@ import { AuthScreen } from '../ui/auth/AuthScreen';
 import { LoginForm } from '../ui/auth/LoginForm';
 
 const DEMO_ACCOUNTS = [
-  { role: 'Sales rep', email: 'demo.staff@example.com', note: 'Create quotes, submit, fulfill, bill' },
-  { role: 'Sales manager', email: 'demo.manager@example.com', note: 'First approval step' },
+  { role: 'Sales Representative', email: 'demo.staff@example.com', note: 'Create quotes and products, send to manager, fulfill after lock' },
+  { role: 'Manager', email: 'demo.manager@example.com', note: 'Review, finalize, first approval step' },
   { role: 'Admin / director', email: 'demo.admin@example.com', note: 'Remaining approvals and catalog' },
-  { role: 'Finance', email: 'demo.finance@example.com', note: 'Billing and finance approvals' },
-  { role: 'Operations', email: 'demo.operations@example.com', note: 'Inventory, warehouses, and fulfillment' },
+  { role: 'Finance Manager', email: 'demo.finance@example.com', note: 'Approvals and commercial lock' },
   { role: 'Customer', email: 'demo.user@example.com', note: 'Customer account page and portal — not the staff dashboard' },
 ] as const;
 

@@ -113,5 +113,12 @@ export function validateGovernance(input: GovernanceConfig): GovernanceConfig {
   if (!Number.isFinite(input.largeDealNetTotal) || input.largeDealNetTotal < 0) {
     throw invalid('Large-deal threshold must be zero or greater');
   }
-  return { ...input };
+  if (
+    !Number.isFinite(input.maxCommercialDiscountPercent) ||
+    input.maxCommercialDiscountPercent < 0 ||
+    input.maxCommercialDiscountPercent > 100
+  ) {
+    throw invalid('Maximum commercial discount must be between 0 and 100');
+  }
+  return { ...input, allowLoyaltyStacking: input.allowLoyaltyStacking !== false };
 }

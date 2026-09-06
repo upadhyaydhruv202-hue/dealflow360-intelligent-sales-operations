@@ -37,6 +37,22 @@ const BUILTIN_TEMPLATES: NotificationTemplate[] = [
     sms: 'Order {{orderId}} is now {{status}}.',
   },
   {
+    id: 'quote-prelim-invoice',
+    category: 'order_updates',
+    title: 'Provisional quotation {{quoteNumber}}',
+    body: 'Quotation {{quoteNumber}} was approved by the Manager and is awaiting Finance lock.',
+    emailSubject: 'Provisional quotation {{quoteNumber}} — awaiting Finance lock',
+    sms: 'Quotation {{quoteNumber}} is awaiting Finance lock.',
+  },
+  {
+    id: 'quote-final-invoice',
+    category: 'order_updates',
+    title: 'Final bill {{quoteNumber}}',
+    body: 'Finance locked quotation {{quoteNumber}}. Payable {{payableAmount}}.',
+    emailSubject: 'Final bill for {{quoteNumber}}',
+    sms: 'Final bill for {{quoteNumber}} is ready.',
+  },
+  {
     id: 'invoice-reminder',
     category: 'order_updates',
     title: 'Invoice reminder',

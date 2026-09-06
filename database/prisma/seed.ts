@@ -45,11 +45,6 @@ const DEMO_USERS = [
     displayName: 'Demo Finance',
     role: 'finance',
   },
-  {
-    email: 'demo.operations@example.com',
-    displayName: 'Demo Operations',
-    role: 'operations',
-  },
 ] as const;
 
 const prisma = new PrismaClient();
@@ -58,10 +53,14 @@ async function seed(): Promise<void> {
   const { roles } = await seedRbacCatalog(prisma);
 
   if (!shouldSeedDemoDataFromEnv()) {
-    await seedDealflowCatalog(prisma);
-    console.log('Seeded RBAC catalog. Skipped demo users because DEMO_MODE is off.');
+    await seedDealflowCatalog(prisma, { includePresentationData: false });
+    console.log(
+      'Seeded RBAC catalog and DealFlow configuration. Skipped demo users, sample customers, inventory, and sample quotes because DEMO_MODE is off.',
+    );
     return;
   }
+
+  await prisma.user.deleteMany({ where: { email: 'demo.operations@example.com' } });
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
@@ -108,32 +107,32 @@ async function seed(): Promise<void> {
     {
       userId: users[0].id,
       type: 'success',
-      title: 'Welcome to the starter kit',
-      body: 'Your admin demo account is ready. This is example data, not a real credential notice.',
+      title: 'Pipeline loaded',
+      body: 'Discount policies, approval chains, and the current quarter of quotations are ready for review.',
     },
     {
       userId: users[1].id,
-      type: 'info',
-      title: 'Team digest available',
-      body: 'Example notification for the manager demo user.',
+      type: 'warning',
+      title: 'Approvals waiting',
+      body: 'Infosys and HDFC Bank quotations need a manager or finance step before they can be sent.',
     },
     {
       userId: users[2].id,
       type: 'info',
-      title: 'Shift briefing',
-      body: 'Example notification for the staff demo user.',
+      title: 'Fulfillment queue',
+      body: 'Flipkart, Maersk, and DP World Mundra have allocated hardware. Check reserved stock in Mumbai and Jebel Ali.',
     },
     {
       userId: users[3].id,
       type: 'warning',
-      title: 'Complete your profile',
-      body: 'Example unread notification for the standard demo user.',
+      title: 'Northwind draft is open',
+      body: 'DF-00001 is still a draft. Open the customer portal to review line items before you submit a change request.',
     },
     {
       userId: users[3].id,
       type: 'info',
-      title: 'Welcome aboard',
-      body: 'Example already-read notification.',
+      title: 'Invoice received',
+      body: 'Shoprite Holdings completed DF-00036. The Core Gateway and Control Suite charges are on the account.',
       readAt: new Date(),
     },
   ];
@@ -152,7 +151,8 @@ async function seed(): Promise<void> {
     }
   }
 
-  await seedDealflowCatalog(prisma);
+  const staff = users.find((item) => item.email === 'demo.staff@example.com');
+  await seedDealflowCatalog(prisma, { includePresentationBook: true, ownerId: staff?.id });
 
   console.log('Seeded demo roles, permissions, users, notifications, and DealFlow360 catalog.');
   console.log('Demo login (local/demo only, not a real credential):');

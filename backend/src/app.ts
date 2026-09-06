@@ -111,6 +111,7 @@ import { createNotificationService } from './notifications';
 import { createObservability, requestLoggingMiddleware, type Observability } from './observability';
 import { RbacService } from './services/rbac.service';
 import { applyProblemModule, createProblemHost, loadProblemModule, type ProblemModule } from './problem';
+import { createCustomerEmailSender } from './problem/customer-email';
 import { bindPlatformPlugins, type PlatformPlugin } from './platform';
 import type { AppConfig } from './types/config';
 import type { Pingable } from './types/lifecycle';
@@ -713,8 +714,20 @@ export function createApp(options: CreateAppOptions): AppContext {
         notifications: notificationService
           ? {
               notify: (input) => notificationService.notify(input),
+              sendCustomerEmail: createCustomerEmailSender({
+                config: options.config,
+                email: emailService,
+                notifications: prisma ? new NotificationRepository(prisma) : null,
+              }),
             }
-          : null,
+          : {
+              notify: async () => undefined,
+              sendCustomerEmail: createCustomerEmailSender({
+                config: options.config,
+                email: emailService,
+                notifications: prisma ? new NotificationRepository(prisma) : null,
+              }),
+            },
         app,
         http: {
           authenticate: authenticateUser,

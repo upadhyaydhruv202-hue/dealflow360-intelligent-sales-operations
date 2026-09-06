@@ -171,9 +171,11 @@ describe('requireFeature', () => {
 });
 
 describe('seeded demo login rate-limit relaxation', () => {
-  it('recognizes only the four seeded demo emails', () => {
+  it('recognizes only the seeded demo emails and excludes Operations', () => {
     expect(isSeededDemoAccountEmail('demo.staff@example.com')).toBe(true);
     expect(isSeededDemoAccountEmail('  Demo.Admin@example.com ')).toBe(true);
+    expect(isSeededDemoAccountEmail('demo.finance@example.com')).toBe(true);
+    expect(isSeededDemoAccountEmail('demo.operations@example.com')).toBe(false);
     expect(isSeededDemoAccountEmail('limited@example.com')).toBe(false);
     expect(isSeededDemoAccountEmail('')).toBe(false);
   });

@@ -21,13 +21,13 @@ export const DEFAULT_CUSTOMERS: Customer[] = [
     id: '22222222-2222-4222-8222-222222222222',
     name: 'Globex Manufacturing',
     email: 'buying@globex.example',
-    tier: 'gold',
+    tier: 'standard',
   },
   {
     id: '33333333-3333-4333-8333-333333333333',
     name: 'Initech Strategic',
     email: 'deals@initech.example',
-    tier: 'strategic',
+    tier: 'standard',
   },
 ];
 
@@ -111,8 +111,8 @@ export const DEFAULT_STOCK: StockLevel[] = [
 export const DEFAULT_POLICIES: DiscountPolicy[] = [
   {
     id: 'ccccccc1-cccc-4ccc-8ccc-ccccccccccc1',
-    name: 'Strategic customer',
-    customerTier: 'strategic',
+    name: 'Platinum customer',
+    customerTier: 'platinum',
     warningPercent: 12,
     approvalPercent: 20,
     rejectPercent: 40,
@@ -232,23 +232,23 @@ export const DEFAULT_ROLE_AUTHORITIES: RoleAuthority[] = [
     minMarginPercent: 20,
     maxPriceOverridePercent: 0,
     canNegotiate: true,
-    exceedAction: 'approval',
+    exceedAction: 'block',
   },
   {
     roleKey: 'manager',
-    maxDiscountPercent: 12,
+    maxDiscountPercent: 10,
     minMarginPercent: 18,
     maxPriceOverridePercent: 3,
     canNegotiate: true,
-    exceedAction: 'approval',
+    exceedAction: 'block',
   },
   {
-    roleKey: 'admin',
-    maxDiscountPercent: 40,
+    roleKey: 'finance',
+    maxDiscountPercent: 15,
     minMarginPercent: 10,
-    maxPriceOverridePercent: 15,
+    maxPriceOverridePercent: 5,
     canNegotiate: true,
-    exceedAction: 'approval',
+    exceedAction: 'block',
   },
 ];
 

@@ -18,6 +18,7 @@ import {
 
 import { disposeAnomaly, listAnomalies } from './api';
 import { DealflowGate } from './components';
+import { useDealflowRealtime } from './hooks';
 
 type Tab = 'open' | 'acknowledged' | 'resolved' | 'dismissed';
 
@@ -58,6 +59,18 @@ export function AnomalyCenterPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useDealflowRealtime(accessToken, () => {
+    if (!accessToken) return;
+    void listAnomalies(accessToken)
+      .then((items) => {
+        setRows(items);
+        setError(undefined);
+      })
+      .catch((caught) => {
+        setError(getApiErrorMessage(caught, 'Could not load anomalies.'));
+      });
+  });
 
   const visible = useMemo(() => rows.filter((item) => item.status === tab), [rows, tab]);
 

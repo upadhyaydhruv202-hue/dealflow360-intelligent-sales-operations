@@ -1,14 +1,22 @@
 import { apiGet, apiRequest } from '@/services/api';
 
 import type {
+  ApprovalChain,
   AuditEvent,
+  Customer,
   CustomerQuote,
   DealflowCatalog,
+  DiscountPolicy,
   GovernanceSettings,
+  NegotiationRequest,
+  Product,
+  ProductRelation,
   QuantityBreak,
   QuoteView,
   Recommendation,
   RoleAuthority,
+  StockLevel,
+  Warehouse,
 } from './types';
 
 const ROOT = '/api/v1/dealflow';
@@ -97,6 +105,115 @@ export function decideApproval(
 
 export function startNegotiation(quoteId: string, token: string) {
   return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/negotiate`, { method: 'POST', token });
+}
+
+export function listNegotiations(quoteId: string, token: string) {
+  return apiGet<NegotiationRequest[]>(`${ROOT}/quotes/${quoteId}/negotiations`, token);
+}
+
+export function createNegotiation(
+  quoteId: string,
+  input: {
+    expectedVersion?: number;
+    note: string;
+    requestedDiscountPercent?: number | null;
+    requestedTargetAmount?: number | null;
+    requestedLines?: NegotiationRequest['requestedLines'];
+  },
+  token: string,
+) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/negotiations`, { method: 'POST', body: input, token });
+}
+
+export function respondToNegotiation(
+  quoteId: string,
+  negotiationId: string,
+  input: { expectedVersion: number; decision: 'accepted' | 'rejected' | 'in_review'; responseNote: string },
+  token: string,
+) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/negotiations/${negotiationId}/respond`, {
+    method: 'POST',
+    body: input,
+    token,
+  });
+}
+
+export function sendToManager(quoteId: string, expectedVersion: number, token: string, negotiationId?: string) {
+  const path = negotiationId
+    ? `${ROOT}/quotes/${quoteId}/negotiations/${negotiationId}/send-to-manager`
+    : `${ROOT}/quotes/${quoteId}/send-to-manager`;
+  return apiRequest<QuoteView>(path, { method: 'POST', body: { expectedVersion }, token });
+}
+
+export function reviseAsManager(
+  quoteId: string,
+  input: { expectedVersion: number; lines?: Array<{ lineId: string; quantity?: number; discountPercent?: number }> },
+  token: string,
+) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/revise`, { method: 'POST', body: input, token });
+}
+
+export function returnRevisedQuote(quoteId: string, expectedVersion: number, token: string, negotiationId?: string) {
+  const path = negotiationId
+    ? `${ROOT}/quotes/${quoteId}/negotiations/${negotiationId}/return`
+    : `${ROOT}/quotes/${quoteId}/return`;
+  return apiRequest<QuoteView>(path, { method: 'POST', body: { expectedVersion }, token });
+}
+
+export function finalizeQuote(quoteId: string, token: string, expectedVersion: number) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/finalize`, { method: 'POST', body: { expectedVersion }, token });
+}
+
+export function lockQuote(quoteId: string, token: string, expectedVersion: number) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/lock`, { method: 'POST', body: { expectedVersion }, token });
+}
+
+export function agreeToFinal(quoteId: string, token: string, expectedVersion: number) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/agree`, { method: 'POST', body: { expectedVersion }, token });
+}
+
+export function upsertProduct(
+  input: Partial<Product> & {
+    sku: string;
+    name: string;
+    category: string;
+    listPrice: number;
+    cost: number;
+    billingType: Product['billingType'];
+    stock?: Array<{ warehouseId: string; quantityOnHand: number; incoming?: number }>;
+    quantityBreaks?: Array<{
+      name: string;
+      minQuantity: number;
+      maxQuantity?: number | null;
+      adjustmentKind: 'fixed' | 'percent';
+      adjustmentValue: number;
+      customerTier?: string | null;
+      active?: boolean;
+    }>;
+  },
+  token: string,
+) {
+  return apiRequest<Product>(`${ROOT}/catalog/products`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
+}
+
+export async function listProductAudit(productId: string, token: string): Promise<AuditEvent[]> {
+  const result = await apiGet<{ items: AuditEvent[] }>(
+    `/api/v1/audit?resource=catalog&resourceId=${encodeURIComponent(productId)}&limit=50`,
+    token,
+  );
+  return result.items ?? [];
+}
+
+export function upsertStock(input: StockLevel, token: string) {
+  return apiRequest<StockLevel[]>(`${ROOT}/catalog/stock`, { method: 'PUT', body: input, token });
+}
+
+export function upsertPolicy(input: Omit<DiscountPolicy, 'id'> & { id?: string }, token: string) {
+  return apiRequest<DiscountPolicy>(`${ROOT}/catalog/policies`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
+}
+
+export function upsertChain(input: ApprovalChain, token: string) {
+  return apiRequest<ApprovalChain>(`${ROOT}/catalog/chains`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
 }
 
 export function getRecommendations(quoteId: string, token: string) {
@@ -220,6 +337,62 @@ export function completeQuote(quoteId: string, token: string, expectedVersion: n
   });
 }
 
+export function deleteQuote(quoteId: string, token: string, expectedVersion: number) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/quotes/${quoteId}`, {
+    method: 'DELETE',
+    body: { expectedVersion },
+    token,
+  });
+}
+
+export function voidQuote(quoteId: string, token: string, expectedVersion: number) {
+  return apiRequest<QuoteView>(`${ROOT}/quotes/${quoteId}/void`, {
+    method: 'POST',
+    body: { expectedVersion },
+    token,
+  });
+}
+
+export function deleteProduct(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/products/${id}`, { method: 'DELETE', token });
+}
+
+export function deletePolicy(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/policies/${id}`, { method: 'DELETE', token });
+}
+
+export function deleteChain(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/chains/${id}`, { method: 'DELETE', token });
+}
+
+export function deleteWarehouse(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/warehouses/${id}`, { method: 'DELETE', token });
+}
+
+export function upsertCustomer(input: { id?: string; name: string; email: string; tier?: Customer['tier'] }, token: string) {
+  return apiRequest<Customer>(`${ROOT}/catalog/customers`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
+}
+
+export function deleteCustomer(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/customers/${id}`, { method: 'DELETE', token });
+}
+
+export function upsertWarehouse(input: { id?: string; name: string; fulfillmentCostPerUnit: number }, token: string) {
+  return apiRequest<Warehouse>(`${ROOT}/catalog/warehouses`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
+}
+
+export function deleteStock(warehouseId: string, productId: string, token: string) {
+  return apiRequest<StockLevel[]>(`${ROOT}/catalog/stock/${warehouseId}/${productId}`, { method: 'DELETE', token });
+}
+
+export function upsertRelation(input: Omit<ProductRelation, 'id'> & { id?: string }, token: string) {
+  return apiRequest<ProductRelation>(`${ROOT}/catalog/relations`, { method: input.id ? 'PATCH' : 'POST', body: input, token });
+}
+
+export function deleteRelation(id: string, token: string) {
+  return apiRequest<{ id: string; deleted: true }>(`${ROOT}/catalog/relations/${id}`, { method: 'DELETE', token });
+}
+
 export function contactVendor(quoteId: string, input: { productId?: string; message: string }, token: string) {
   return apiRequest<{ recorded: true; delivered: false; channel: 'audit'; quoteId: string }>(`${ROOT}/quotes/${quoteId}/vendor-contact`, {
     method: 'POST',
@@ -240,6 +413,29 @@ export function applyPortalChange(
   return apiRequest<QuoteView>(`${ROOT}/portal/${encodeURIComponent(token)}`, {
     method: 'PATCH',
     body: { expectedVersion, lines },
+  });
+}
+
+export function createPortalNegotiation(
+  token: string,
+  input: {
+    expectedVersion: number;
+    note: string;
+    requestedDiscountPercent?: number | null;
+    requestedTargetAmount?: number | null;
+    requestedLines?: NegotiationRequest['requestedLines'];
+  },
+) {
+  return apiRequest<QuoteView>(`${ROOT}/portal/${encodeURIComponent(token)}/negotiations`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function agreePortalQuote(token: string, expectedVersion: number) {
+  return apiRequest<QuoteView>(`${ROOT}/portal/${encodeURIComponent(token)}/agree`, {
+    method: 'POST',
+    body: { expectedVersion },
   });
 }
 

@@ -7,18 +7,37 @@ import {
   applyRecommendationBodySchema,
   approvalParamSchema,
   billingParamSchema,
+  chainBodySchema,
+  chainPatchBodySchema,
   createQuoteBodySchema,
   decideBodySchema,
   expectedVersionSchema,
   fulfillmentPlanBodySchema,
   idParamSchema,
   lineParamSchema,
+  managerReviseBodySchema,
+  negotiationBodySchema,
+  negotiationParamSchema,
+  respondNegotiationBodySchema,
   patchGovernanceBodySchema,
   patchLineBodySchema,
+  policyBodySchema,
+  policyPatchBodySchema,
   portalChangeBodySchema,
   portalDecisionBodySchema,
+  portalNegotiationBodySchema,
+  productBodySchema,
+  productPatchBodySchema,
+  customerBodySchema,
+  customerPatchBodySchema,
+  relationBodySchema,
+  relationPatchBodySchema,
   replaceQuantityBreaksBodySchema,
   replaceRoleAuthoritiesBodySchema,
+  stockBodySchema,
+  stockKeySchema,
+  warehouseBodySchema,
+  warehousePatchBodySchema,
   tokenParamSchema,
   vendorContactBodySchema,
 } from './schemas';
@@ -47,6 +66,8 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
   const bill = [http.authenticate, http.requirePermission('dealflow.billing.write')];
   const catalog = [http.authenticate, http.requirePermission('dealflow.catalog.read')];
   const catalogWrite = [http.authenticate, http.requirePermission('dealflow.catalog.write')];
+  const catalogProductWrite = [http.authenticate, http.requirePermission('dealflow.catalog.products.write')];
+  const lock = [http.authenticate, http.requirePermission('dealflow.quotes.lock')];
 
   router.get(
     '/',
@@ -102,6 +123,243 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
     }),
   );
 
+  router.post(
+    '/catalog/products',
+    http.authenticatedRateLimit,
+    ...catalogProductWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(productBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertProduct(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.patch(
+    '/catalog/products',
+    http.authenticatedRateLimit,
+    ...catalogProductWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(productPatchBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertProduct(body as Parameters<DealflowService['upsertProduct']>[0], actorFrom(req)));
+    }),
+  );
+
+  router.delete(
+    '/catalog/products/:id',
+    http.authenticatedRateLimit,
+    ...catalogProductWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deleteProduct(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/catalog/customers',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(customerBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertCustomer(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.patch(
+    '/catalog/customers',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(customerPatchBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertCustomer(body, actorFrom(req)));
+    }),
+  );
+
+  router.delete(
+    '/catalog/customers/:id',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deleteCustomer(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/catalog/warehouses',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(warehouseBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertWarehouse(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.patch(
+    '/catalog/warehouses',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(warehousePatchBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertWarehouse(body, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/catalog/relations',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(relationBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertRelation(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.patch(
+    '/catalog/relations',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(relationPatchBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertRelation(body, actorFrom(req)));
+    }),
+  );
+
+  router.delete(
+    '/catalog/relations/:id',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deleteRelation(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.put(
+    '/catalog/stock',
+    http.authenticatedRateLimit,
+    ...catalogProductWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(stockBodySchema, req.body);
+      return http.sendSuccess(
+        res,
+        await service.upsertStock(
+          { ...body, reserved: body.reserved ?? 0, incoming: body.incoming ?? 0 },
+          actorFrom(req),
+        ),
+      );
+    }),
+  );
+
+  router.delete(
+    '/catalog/stock/:warehouseId/:productId',
+    http.authenticatedRateLimit,
+    ...catalogProductWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(stockKeySchema, req.params);
+      return http.sendSuccess(res, await service.deleteStock(params.warehouseId, params.productId, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/catalog/policies',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(policyBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertPolicy(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.patch(
+    '/catalog/policies',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(policyPatchBodySchema, req.body);
+      return http.sendSuccess(res, await service.upsertPolicy(body, actorFrom(req)));
+    }),
+  );
+
+  router.delete(
+    '/catalog/policies/:id',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deletePolicy(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/catalog/chains',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(chainBodySchema, req.body);
+      return http.sendSuccess(
+        res,
+        await service.upsertChain(
+          {
+            ...body,
+            steps: body.steps.map((step) => ({
+              id: step.id ?? crypto.randomUUID(),
+              chainId: step.chainId ?? body.id ?? '',
+              stepOrder: step.stepOrder,
+              roleKey: step.roleKey,
+              label: step.label,
+            })),
+          },
+          actorFrom(req),
+        ),
+        201,
+      );
+    }),
+  );
+
+  router.patch(
+    '/catalog/chains',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const body = http.parseBody(chainPatchBodySchema, req.body);
+      return http.sendSuccess(
+        res,
+        await service.upsertChain(
+          {
+            ...body,
+            steps: body.steps.map((step) => ({
+              id: step.id ?? crypto.randomUUID(),
+              chainId: body.id,
+              stepOrder: step.stepOrder,
+              roleKey: step.roleKey,
+              label: step.label,
+            })),
+          },
+          actorFrom(req),
+        ),
+      );
+    }),
+  );
+
+  router.delete(
+    '/catalog/chains/:id',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deleteChain(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.delete(
+    '/catalog/warehouses/:id',
+    http.authenticatedRateLimit,
+    ...catalogWrite,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.deleteWarehouse(params.id, actorFrom(req)));
+    }),
+  );
+
   router.get(
     '/me/quotes',
     http.authenticatedRateLimit,
@@ -123,6 +381,28 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
     http.asyncHandler(async (req, res) => {
       const body = http.parseBody(createQuoteBodySchema, req.body);
       return http.sendSuccess(res, await service.createQuote(body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.delete(
+    '/quotes/:id',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(res, await service.deleteQuote(params.id, actorFrom(req), body.expectedVersion));
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/void',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(res, await service.voidQuote(params.id, actorFrom(req), body.expectedVersion));
     }),
   );
 
@@ -211,6 +491,141 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
   );
 
   router.get(
+    '/quotes/:id/negotiations',
+    http.authenticatedRateLimit,
+    ...read,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      return http.sendSuccess(res, await service.listNegotiationRequests(params.id, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/negotiations',
+    http.authenticatedRateLimit,
+    http.authenticate,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(negotiationBodySchema, req.body);
+      return http.sendSuccess(res, await service.createNegotiationRequest(params.id, body, actorFrom(req)), 201);
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/negotiations/:nid/respond',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(negotiationParamSchema, req.params);
+      const body = http.parseBody(respondNegotiationBodySchema, req.body);
+      return http.sendSuccess(
+        res,
+        await service.respondToNegotiation(params.id, params.nid, body, actorFrom(req)),
+      );
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/negotiations/:nid/send-to-manager',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(negotiationParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(
+        res,
+        await service.sendNegotiationToManager(params.id, params.nid, actorFrom(req), body.expectedVersion),
+      );
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/send-to-manager',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(
+        res,
+        await service.sendNegotiationToManager(params.id, undefined, actorFrom(req), body.expectedVersion),
+      );
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/revise',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(managerReviseBodySchema, req.body);
+      return http.sendSuccess(res, await service.reviseAsManager(params.id, body, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/return',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(
+        res,
+        await service.returnRevisedQuote(params.id, undefined, actorFrom(req), body.expectedVersion),
+      );
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/negotiations/:nid/return',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(negotiationParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(
+        res,
+        await service.returnRevisedQuote(params.id, params.nid, actorFrom(req), body.expectedVersion),
+      );
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/agree',
+    http.authenticatedRateLimit,
+    http.authenticate,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(res, await service.agreeToFinal(params.id, body, actorFrom(req)));
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/finalize',
+    http.authenticatedRateLimit,
+    ...write,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(res, await service.finalizeQuotation(params.id, actorFrom(req), body.expectedVersion));
+    }),
+  );
+
+  router.post(
+    '/quotes/:id/lock',
+    http.authenticatedRateLimit,
+    ...lock,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(idParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      return http.sendSuccess(res, await service.lockDeal(params.id, actorFrom(req), body.expectedVersion));
+    }),
+  );
+
+  router.get(
     '/quotes/:id/recommendations',
     http.authenticatedRateLimit,
     ...read,
@@ -276,11 +691,11 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
   router.post(
     '/quotes/:id/confirm',
     http.authenticatedRateLimit,
-    ...write,
+    ...lock,
     http.asyncHandler(async (req, res) => {
       const params = http.parseParams(idParamSchema, req.params);
       const body = http.parseBody(expectedVersionSchema, req.body ?? {});
-      return http.sendSuccess(res, await service.confirm(params.id, actorFrom(req), body.expectedVersion));
+      return http.sendSuccess(res, await service.lockDeal(params.id, actorFrom(req), body.expectedVersion));
     }),
   );
 
@@ -355,6 +770,29 @@ export function createDealflowRouter(host: ProblemHost, service: DealflowService
       const body = http.parseBody(portalChangeBodySchema, req.body);
       const quote = await service.applyPortalChange(params.token, body);
       return http.sendSuccess(res, toPortalView(quote as Parameters<typeof toPortalView>[0]));
+    }),
+  );
+
+  router.post(
+    '/portal/:token/negotiations',
+    http.publicRateLimit,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(tokenParamSchema, req.params);
+      const body = http.parseBody(portalNegotiationBodySchema, req.body);
+      const quote = await service.createPortalNegotiation(params.token, body);
+      return http.sendSuccess(res, toPortalView(quote as Parameters<typeof toPortalView>[0]), 201);
+    }),
+  );
+
+  router.post(
+    '/portal/:token/agree',
+    http.publicRateLimit,
+    http.asyncHandler(async (req, res) => {
+      const params = http.parseParams(tokenParamSchema, req.params);
+      const body = http.parseBody(expectedVersionSchema, req.body ?? {});
+      const quote = await service.getQuoteByToken(params.token);
+      const agreed = await service.agreeToFinal((quote as { id: string }).id, body, { id: 'portal', role: 'user' });
+      return http.sendSuccess(res, toPortalView(agreed as Parameters<typeof toPortalView>[0]));
     }),
   );
 

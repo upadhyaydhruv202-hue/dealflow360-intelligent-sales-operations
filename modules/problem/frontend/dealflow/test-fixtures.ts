@@ -28,6 +28,7 @@ export const STAFF_SESSION: AuthSession = {
     roles: ['staff'],
     permissions: [
       'dealflow.catalog.read',
+      'dealflow.catalog.products.write',
       'dealflow.quotes.read',
       'dealflow.quotes.write',
       'dealflow.fulfillment.write',
@@ -97,6 +98,7 @@ export const SAMPLE_QUOTE: QuoteView = {
     requiredChainName: 'Sales Manager → Finance → Final',
     lines: [
       {
+        lineId: 'line-hw',
         productId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
         sku: 'HW-CORE-1',
         quantity: 8,

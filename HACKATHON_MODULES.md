@@ -6,7 +6,7 @@ Flags: [docs/features.md](docs/features.md). Capability catalog: [docs/capabilit
 
 ## Golden path (one sentence)
 
-Staff quote with a policy-breaking discount → approval chain → upsell → warehouse split/backorder → hybrid billing → customer portal negotiation → automatic re-approval → local confirm.
+Sales Rep quote → customer negotiation note → Manager revise/finalize → existing approval engine → provisional customer email → Finance lock → final bill email → fulfillment and hybrid billing.
 
 ## ENABLED
 
@@ -23,6 +23,7 @@ Staff quote with a policy-breaking discount → approval chain → upsell → wa
 | Automation / notifications / OTP | On in `.env.example` | Kit defaults |
 | PDF / reports | `FEATURE_PDF` (default on) | Kit |
 | Background jobs | Queue always; Redis via Compose | Optional worker for DealFlow demo |
+| Real-time SSE | `FEATURE_REALTIME=true` | Live DealFlow quote/approval/billing/anomaly updates |
 
 ## DISABLED (on purpose)
 
@@ -33,7 +34,6 @@ Staff quote with a policy-breaking discount → approval chain → upsell → wa
 | Search | `FEATURE_SEARCH=false` |
 | Analytics | `FEATURE_ANALYTICS=false` |
 | Anomaly insights | `FEATURE_ANOMALY_DETECTION=false` |
-| Real-time SSE | `FEATURE_REALTIME=false` |
 | SMS | `FEATURE_SMS=false` |
 | S3 | `FEATURE_S3=false` / `STORAGE_PROVIDER=local` |
 | Nginx profile | Compose `--profile nginx` (not started by default) |
@@ -58,7 +58,7 @@ FEATURE_CAPABILITY_RECOMMENDATIONS=true
 FEATURE_PROJECT_PLANNING=true
 FEATURE_PROJECT_GENERATOR=true
 FEATURE_ANOMALY_DETECTION=false
-FEATURE_REALTIME=false
+FEATURE_REALTIME=true
 FEATURE_PDF=true
 DEMO_MODE=true
 ```

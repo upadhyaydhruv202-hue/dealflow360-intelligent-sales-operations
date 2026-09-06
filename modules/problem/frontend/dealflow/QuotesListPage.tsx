@@ -3,10 +3,22 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
 import { hasPermission } from '@/lib/rbac';
-import { Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer, Pagination, Search } from '@/ui';
+import { getApiErrorMessage } from '@/services/api';
+import { Breadcrumb, DataTable, ErrorState, LoadingState, PageContainer, Pagination, Search, useToast } from '@/ui';
 
-import { CreateQuoteButton, DealflowGate, DecisionBadge, StatusBadge, StatusCards } from './components';
-import { formatDate, formatMoney, formatPercent, OPEN_STATUSES, ownerLabel } from './format';
+import { deleteQuote, voidQuote } from './api';
+
+import {
+  CreateQuoteButton,
+  DealflowGate,
+  DecisionBadge,
+  deleteRecordItem,
+  editRecordItem,
+  RecordMenu,
+  StatusBadge,
+  StatusCards,
+} from './components';
+import { canDeleteQuote, canVoidQuote, formatDate, formatMoney, formatPercent, OPEN_STATUSES, ownerLabel } from './format';
 import { useCatalog, useQuotes } from './hooks';
 import type { QuoteStatus, QuoteView } from './types';
 
@@ -19,12 +31,14 @@ const FILTERS: Array<{ value: 'all' | 'open' | QuoteStatus; label: string }> = [
   { value: 'approval_required', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
   { value: 'customer_negotiation', label: 'Negotiation' },
+  { value: 'manager_review', label: 'Manager review' },
   { value: 'rejected', label: 'Rejected' },
 ];
 
 export function QuotesListPage() {
   const { accessToken, user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [params, setParams] = useSearchParams();
   const quotes = useQuotes(accessToken);
   const catalog = useCatalog(accessToken);
@@ -49,6 +63,7 @@ export function QuotesListPage() {
     { id: 'approval_required', label: 'Pending approval', filter: 'approval_required' },
     { id: 'approved', label: 'Approved', filter: 'approved' },
     { id: 'customer_negotiation', label: 'Negotiation', filter: 'customer_negotiation' },
+    { id: 'manager_review', label: 'Manager review', filter: 'manager_review' },
     { id: 'rejected', label: 'Declined', filter: 'rejected' },
   ];
 
@@ -117,7 +132,7 @@ export function QuotesListPage() {
               rows={pageRows}
               onRowClick={(row) => navigate(`/dealflow/quotes/${row.id}`)}
               emptyTitle="No quotations match"
-              emptyDescription="Create a quote or clear filters. Seeded demo quote DF-00001 appears after login."
+              emptyDescription="Create a quote or clear filters."
               columns={[
                 { id: 'number', header: 'Quote', accessor: (row) => row.number, sortable: true },
                 { id: 'customer', header: 'Customer', accessor: (row) => row.customer?.name ?? '—' },
@@ -135,6 +150,64 @@ export function QuotesListPage() {
                   accessor: (row) => ownerLabel(row.ownerId, user?.id, user?.displayName),
                 },
                 { id: 'updated', header: 'Updated', accessor: (row) => formatDate(row.updatedAt) },
+                {
+                  id: 'actions',
+                  header: '',
+                  accessor: (row) => (
+                    <RecordMenu
+                      items={[
+                        editRecordItem(`Open ${row.number} in the workspace.`, () => navigate(`/dealflow/quotes/${row.id}`)),
+                        ...(canDeleteQuote(row.status) && hasPermission(user, 'dealflow.quotes.write')
+                          ? [
+                              deleteRecordItem(
+                                `Permanently delete ${row.number}. This is only allowed for draft or rejected quotations and cannot be undone.`,
+                                async () => {
+                                  if (!accessToken) return;
+                                  try {
+                                    await deleteQuote(row.id, accessToken, row.version);
+                                    toast({ title: 'Quotation deleted', variant: 'success' });
+                                    await quotes.reload();
+                                  } catch (caught) {
+                                    toast({ title: getApiErrorMessage(caught, 'Quotation could not be deleted'), variant: 'error' });
+                                  }
+                                },
+                                { confirmLabel: 'Delete quotation' },
+                              ),
+                            ]
+                          : [
+                              deleteRecordItem(`Cannot delete ${row.number}.`, () => undefined, {
+                                unavailable: `${row.number} is ${row.status.replaceAll('_', ' ')}. Delete is only for draft or rejected quotations. Void it instead if the deal should stop.`,
+                              }),
+                            ]),
+                        ...(canVoidQuote(row.status) &&
+                        hasPermission(user, 'dealflow.quotes.write') &&
+                        (row.status === 'customer_negotiation' ||
+                          row.status === 'manager_review' ||
+                          hasPermission(user, 'dealflow.quotes.approve'))
+                          ? [
+                              {
+                                id: 'void',
+                                label: 'Void',
+                                description: `Void ${row.number}. Historical commercial records stay intact; the quote becomes rejected.`,
+                                confirmLabel: 'Void quotation',
+                                destructive: true,
+                                onConfirm: async () => {
+                                  if (!accessToken) return;
+                                  try {
+                                    await voidQuote(row.id, accessToken, row.version);
+                                    toast({ title: 'Quotation voided', variant: 'success' });
+                                    await quotes.reload();
+                                  } catch (caught) {
+                                    toast({ title: getApiErrorMessage(caught, 'Quotation could not be voided'), variant: 'error' });
+                                  }
+                                },
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  ),
+                },
               ]}
             />
             <div className="mt-4">

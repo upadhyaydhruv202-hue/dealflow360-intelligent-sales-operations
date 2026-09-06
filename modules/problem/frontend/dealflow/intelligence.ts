@@ -1,7 +1,17 @@
 import type { BadgeTone } from '@/ui';
 
 import { OPEN_STATUSES } from './format';
-import type { DealflowCatalog, Product, QuantityBreak, QuoteStatus, QuoteView, Recommendation, StockLevel } from './types';
+import type {
+  DealflowCatalog,
+  LineAssessment,
+  Product,
+  QuantityBreak,
+  QuoteLine,
+  QuoteStatus,
+  QuoteView,
+  Recommendation,
+  StockLevel,
+} from './types';
 
 export type HealthLevel = 'healthy' | 'warning' | 'critical';
 
@@ -50,11 +60,6 @@ export interface HybridCommercials {
   dueToday: number;
   mixed: boolean;
 }
-
-export type AnomalyDisposition = 'open' | 'resolved' | 'ignored';
-
-const DISPOSITION_KEY = 'df.anomaly.disposition';
-const PORTAL_INTENT_KEY = 'df.portal.intent';
 
 export function hoursSince(value: string, now = Date.now()): number {
   const stamp = new Date(value).getTime();
@@ -231,6 +236,35 @@ export function availableProductUnits(stock: StockLevel[] | undefined, productId
     .reduce((sum, row) => sum + Math.max(0, row.quantityOnHand - row.reserved), 0);
 }
 
+export function assessmentForQuoteLine(
+  quote: Pick<QuoteView, 'lines' | 'assessment'>,
+  line: Pick<QuoteLine, 'id' | 'productId'>,
+): LineAssessment | undefined {
+  const assessed = quote.assessment?.lines ?? [];
+  const byLineId = assessed.find((item) => item.lineId === line.id);
+  if (byLineId) {
+    return byLineId;
+  }
+  const index = quote.lines.findIndex((item) => item.id === line.id);
+  const byIndex = index >= 0 ? assessed[index] : undefined;
+  if (byIndex && byIndex.productId === line.productId) {
+    return byIndex;
+  }
+  const sameProduct = assessed.filter((item) => item.productId === line.productId);
+  return sameProduct.length === 1 ? sameProduct[0] : undefined;
+}
+
+export function liveLineNet(
+  line: Pick<QuoteLine, 'quantity' | 'listPrice' | 'discountPercent'>,
+  assessed?: Pick<LineAssessment, 'appliedPrice'> | null,
+  draft?: { quantity?: number; unitPrice?: number; discountPercent?: number },
+): number {
+  const quantity = draft?.quantity ?? line.quantity;
+  const discountPercent = draft?.discountPercent ?? line.discountPercent;
+  const unitPrice = draft?.unitPrice ?? assessed?.appliedPrice ?? line.listPrice;
+  return Math.round(unitPrice * (1 - discountPercent / 100) * quantity * 100) / 100;
+}
+
 export function previewUnitPrice(
   product: Product,
   quantity: number,
@@ -284,19 +318,22 @@ export function detectAnomalies(
   const items: DealAnomaly[] = [];
   for (const quote of quotes) {
     const customerName = quote.customer?.name ?? 'Customer';
-    if (quote.blendedDiscountPercent >= 16) {
+    const unusual = catalog?.governance?.unusualDiscountPercent ?? 25;
+    if (quote.blendedDiscountPercent >= unusual || quote.assessment?.decision === 'approval_required') {
+      if (quote.blendedDiscountPercent >= unusual) {
       items.push({
         id: `${quote.id}-discount`,
         quoteId: quote.id,
         quoteNumber: quote.number,
         customerName,
-        severity: quote.blendedDiscountPercent >= 20 ? 'critical' : 'warning',
+        severity: quote.blendedDiscountPercent >= unusual + 5 ? 'critical' : 'warning',
         title: 'Discount above typical policy ceiling',
-        reason: `Blended discount ${quote.blendedDiscountPercent.toFixed(1)}% is well above the seeded 5% approval ceiling for standard hardware.`,
+        reason: `Blended discount ${quote.blendedDiscountPercent.toFixed(1)}% exceeds the configured unusual-discount threshold of ${unusual}%.`,
         impact: `${quote.discountTotal.toFixed(0)} list dollars given as discount`,
         action: 'Review the risk panel and required chain',
         href: `/dealflow/quotes/${quote.id}?tab=risk`,
       });
+      }
     }
     if (quote.marginPercent > 0 && quote.marginPercent < 30) {
       items.push({
@@ -400,7 +437,7 @@ export function contextualInsights(
     insights.push({
       id: 'cumulative',
       title: 'Two approval-required lines escalate quote risk.',
-      detail: 'Cumulative warnings and approval lines select the longest seeded chain when risk reaches 70.',
+      detail: 'Cumulative warnings and approval lines select the longest matching chain when risk reaches 70.',
       href: `/dealflow/quotes/${quote.id}?tab=risk`,
       tone: 'warning',
     });
@@ -470,11 +507,19 @@ export function contextualInsights(
     });
   }
 
-  if (quote.blendedDiscountPercent >= 12 && quote.blendedDiscountPercent < 20) {
+  const financeChain = catalog?.chains
+    ?.filter((chain) => chain.active !== false && chain.steps.some((step) => step.roleKey === 'finance'))
+    .filter((chain) => quote.blendedDiscountPercent >= chain.minBlendedDiscountPercent)
+    .sort((left, right) => right.minBlendedDiscountPercent - left.minBlendedDiscountPercent)[0];
+  if (financeChain || quote.assessment?.requiredChainName) {
     insights.push({
       id: 'pricing-pressure',
-      title: 'Competitor-style pricing pressure: blended discount is already in the finance-review band.',
-      detail: 'Seeded Finance chain qualifies at 12% blended. A further 2 pp portal move is a material change.',
+      title: quote.assessment?.requiredChainName
+        ? `Assessment selected ${quote.assessment.requiredChainName}.`
+        : 'Blended discount qualifies a finance approval chain.',
+      detail: financeChain
+        ? `${financeChain.name} qualifies at ${financeChain.minBlendedDiscountPercent}% blended. Customer agreement does not skip approval.`
+        : quote.assessment?.reasons?.[0] ?? 'Review the live assessment and configured chains.',
       href: `/dealflow/quotes/${quote.id}?tab=risk`,
       tone: 'info',
     });
@@ -494,7 +539,7 @@ export function contextualInsights(
     insights.push({
       id: 'clear',
       title: 'No contextual exceptions on this quotation.',
-      detail: 'Policy, stock, and billing look within the current seeded rules.',
+      detail: 'Policy, stock, and billing look within the current configured rules.',
       tone: 'success',
     });
   }
@@ -508,6 +553,11 @@ export function dashboardAnalytics(quotes: QuoteView[], now = Date.now()) {
     ['confirmed', 'fulfillment', 'billing', 'completed'].includes(item.status),
   );
   const pending = quotes.filter((item) => item.status === 'approval_required');
+  const negotiating = quotes.filter((item) => item.status === 'customer_negotiation' || item.status === 'manager_review');
+  const confirmed = quotes.filter((item) => item.customerDecision === 'accepted');
+  const requestedDiscounts = quotes.flatMap((item) =>
+    (item.negotiations ?? []).map((row) => row.requestedDiscountPercent).filter((value): value is number => value != null),
+  );
   const openValue = open.reduce((sum, item) => sum + item.netTotal, 0);
   const wonValue = won.reduce((sum, item) => sum + item.netTotal, 0);
   const conversion = quotes.length ? (won.length / quotes.length) * 100 : 0;
@@ -530,6 +580,11 @@ export function dashboardAnalytics(quotes: QuoteView[], now = Date.now()) {
     recurring,
     avgDiscount,
     avgMargin,
+    negotiating,
+    confirmationRate: quotes.length ? (confirmed.length / quotes.length) * 100 : 0,
+    avgRequestedDiscount: requestedDiscounts.length
+      ? requestedDiscounts.reduce((sum, value) => sum + value, 0) / requestedDiscounts.length
+      : 0,
     agingApprovals: pending.filter((item) => hoursSince(item.updatedAt, now) >= 24).length,
   };
 }
@@ -537,7 +592,7 @@ export function dashboardAnalytics(quotes: QuoteView[], now = Date.now()) {
 export function approvalPriority(quote: QuoteView, now = Date.now()): 'critical' | 'high' | 'normal' {
   const hours = hoursSince(quote.updatedAt, now);
   if (quote.riskScore >= 70 || hours >= 72) return 'critical';
-  if (quote.riskScore >= 40 || hours >= 24 || quote.blendedDiscountPercent >= 16) return 'high';
+  if (quote.riskScore >= 40 || hours >= 24 || quote.status === 'approval_required' || quote.assessment?.decision === 'approval_required') return 'high';
   return 'normal';
 }
 
@@ -550,6 +605,16 @@ export function approvalSlaLabel(quote: QuoteView, now = Date.now()): string {
 }
 
 export function hybridCommercials(quote: QuoteView): HybridCommercials {
+  if (quote.commercials) {
+    return {
+      oneTimeNet: quote.commercials.oneTimeNet,
+      recurringMonthly: quote.commercials.recurringMonthly,
+      recurringYearly: quote.commercials.recurringYearly,
+      discount: quote.discountTotal,
+      dueToday: quote.commercials.dueToday,
+      mixed: quote.commercials.oneTimeNet > 0 && (quote.commercials.recurringMonthly > 0 || quote.commercials.recurringYearly > 0),
+    };
+  }
   let oneTimeNet = 0;
   let recurringMonthly = 0;
   let recurringYearly = 0;
@@ -576,59 +641,19 @@ export function hybridCommercials(quote: QuoteView): HybridCommercials {
   };
 }
 
-export function portalStatusLabel(status: QuoteStatus): string {
-  switch (status) {
-    case 'draft':
-      return 'Draft';
-    case 'approval_required':
-      return 'In review';
-    case 'approved':
-      return 'Ready to accept';
-    case 'customer_negotiation':
-      return 'Negotiating';
-    case 'rejected':
-      return 'Returned';
-    case 'confirmed':
-    case 'fulfillment':
-    case 'billing':
-    case 'completed':
-      return 'Accepted';
-    default:
-      return stageLabel(status);
+export function portalStatusLabel(status: QuoteStatus, customerDecision?: string): string {
+  if (customerDecision === 'accepted' || status === 'finalized' || status === 'approved' || status === 'confirmed' || status === 'fulfillment' || status === 'billing' || status === 'completed') {
+    return 'Confirmed';
   }
-}
-
-export function loadAnomalyDispositions(): Record<string, AnomalyDisposition> {
-  if (typeof sessionStorage === 'undefined') return {};
-  try {
-    const raw = sessionStorage.getItem(DISPOSITION_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, AnomalyDisposition>) : {};
-  } catch {
-    return {};
+  if (status === 'customer_negotiation' || status === 'manager_review' || status === 'approval_required') {
+    return 'Under Negotiation';
   }
-}
-
-export function saveAnomalyDisposition(id: string, disposition: AnomalyDisposition): Record<string, AnomalyDisposition> {
-  const next = { ...loadAnomalyDispositions(), [id]: disposition };
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(DISPOSITION_KEY, JSON.stringify(next));
+  if (status === 'draft') {
+    return 'Sent';
   }
-  return next;
-}
-
-export type PortalIntent = 'accepted' | 'declined';
-
-export function loadPortalIntent(token: string): PortalIntent | undefined {
-  if (typeof sessionStorage === 'undefined') return undefined;
-  try {
-    const raw = sessionStorage.getItem(`${PORTAL_INTENT_KEY}.${token}`);
-    return raw === 'accepted' || raw === 'declined' ? raw : undefined;
-  } catch {
-    return undefined;
+  if (status === 'rejected') {
+    return 'Returned';
   }
+  return stageLabel(status);
 }
 
-export function savePortalIntent(token: string, intent: PortalIntent): void {
-  if (typeof sessionStorage === 'undefined') return;
-  sessionStorage.setItem(`${PORTAL_INTENT_KEY}.${token}`, intent);
-}

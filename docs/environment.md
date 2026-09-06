@@ -66,7 +66,7 @@ Set the matching flag to `false` (or omit it; missing flags default to **off** e
 | Project planning | `FEATURE_PROJECT_PLANNING=false` |
 | Project generator | `FEATURE_PROJECT_GENERATOR=false` |
 | Anomaly engine | `FEATURE_ANOMALY_DETECTION=false` |
-| Real-time SSE | `FEATURE_REALTIME=false` (REST polling still works) |
+| Real-time SSE | `FEATURE_REALTIME=false` in the registry; DealFlow360 `.env.example` sets `true` |
 | PDF/report HTTP | `FEATURE_PDF=false` (jobs/automation can still render PDFs) |
 | Email sending | `EMAIL_ENABLED=false` |
 | Scheduler ticks | `SCHEDULER_ENABLED=false` |
@@ -387,7 +387,7 @@ Missing flags default to **false** except `FEATURE_PDF` (**true**). `.env.exampl
 | `FEATURE_PROJECT_PLANNING` | Project planning and validated Project Configuration | No | `false` | `true` | API | No | Demo on | Only if needed |
 | `FEATURE_PROJECT_GENERATOR` | Deterministic project overlay from an approved configuration | No | `false` | `true` | API | No | Demo on | Only if needed |
 | `FEATURE_ANOMALY_DETECTION` | Anomaly HTTP | No | `false` | `false` | API | No | Off | Only if needed |
-| `FEATURE_REALTIME` | Allowlisted SSE live status | No | `false` | `false` | API, worker | No | Off | Only if needed |
+| `FEATURE_REALTIME` | Allowlisted SSE live status | No | `false` in the feature registry; `true` in DealFlow360 `.env.example` | `true` | API, worker | No | On | **`true` for DealFlow360** so quote/approval/billing/anomaly updates push over SSE |
 | `FEATURE_PDF` | PDF/report HTTP | No | `true` | `true` | API | No | On | On unless disabled |
 
 Copilot, intents, problem intelligence, and RAG also need a ready AI provider at runtime (`FEATURE_AI` / `AI_ENABLED`).

@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { Badge, Breadcrumb, DataTable, EmptyState, ErrorState, LoadingState, PageContainer } from '@/ui';
+import { hasPermission } from '@/lib/rbac';
+import { getApiErrorMessage } from '@/services/api';
+import { Badge, Breadcrumb, DataTable, EmptyState, ErrorState, LoadingState, PageContainer, useToast } from '@/ui';
 
+import { cancelBilling } from './api';
 import { billingTone, formatDate, formatMoney } from './format';
-import { DealflowGate } from './components';
+import { DealflowGate, editRecordItem, RecordMenu } from './components';
 import { useQuotes } from './hooks';
 import type { BillingSchedule, BillingStatus, QuoteView } from './types';
 
@@ -77,6 +80,8 @@ function StatusFilters({
 
 export function SubscriptionsPage() {
   const navigate = useNavigate();
+  const { accessToken, user } = useAuth();
+  const { toast } = useToast();
   const { quotes, rows } = useScheduleRows('recurring');
   const [status, setStatus] = useState<'all' | BillingStatus>('all');
   const visible = status === 'all' ? rows : rows.filter((row) => row.schedule.status === status);
@@ -111,6 +116,37 @@ export function SubscriptionsPage() {
                 header: 'Status',
                 accessor: (row) => <Badge tone={billingTone(row.schedule.status)}>{row.schedule.status}</Badge>,
               },
+              {
+                id: 'actions',
+                header: '',
+                accessor: (row) =>
+                  hasPermission(user, 'dealflow.billing.write') && row.schedule.status !== 'cancelled' ? (
+                    <RecordMenu
+                      items={[
+                        editRecordItem(`Open ${row.quote.number} billing.`, () =>
+                          navigate(`/dealflow/quotes/${row.quote.id}?tab=billing`),
+                        ),
+                        {
+                          id: 'cancel',
+                          label: 'Delete 🗑️',
+                          description: `Cancel this subscription schedule on ${row.quote.number}. Generated invoices are not hard-deleted; cancel preserves history.`,
+                          confirmLabel: 'Cancel schedule',
+                          destructive: true,
+                          onConfirm: async () => {
+                            if (!accessToken) return;
+                            try {
+                              await cancelBilling(row.quote.id, row.schedule.id, accessToken, row.quote.version);
+                              toast({ title: 'Subscription cancelled', variant: 'success' });
+                              await quotes.reload();
+                            } catch (caught) {
+                              toast({ title: getApiErrorMessage(caught, 'Schedule could not be cancelled'), variant: 'error' });
+                            }
+                          },
+                        },
+                      ]}
+                    />
+                  ) : null,
+              },
             ]}
           />
         ) : null}
@@ -121,6 +157,8 @@ export function SubscriptionsPage() {
 
 export function InvoicesPage() {
   const navigate = useNavigate();
+  const { accessToken, user } = useAuth();
+  const { toast } = useToast();
   const { quotes, rows } = useScheduleRows('one_time');
   const [status, setStatus] = useState<'all' | BillingStatus>('all');
   const visible = status === 'all' ? rows : rows.filter((row) => row.schedule.status === status);
@@ -155,6 +193,37 @@ export function InvoicesPage() {
                   id: 'status',
                   header: 'Status',
                   accessor: (row) => <Badge tone={billingTone(row.schedule.status)}>{row.schedule.status}</Badge>,
+                },
+                {
+                  id: 'actions',
+                  header: '',
+                  accessor: (row) =>
+                    hasPermission(user, 'dealflow.billing.write') && row.schedule.status !== 'cancelled' ? (
+                      <RecordMenu
+                        items={[
+                          editRecordItem(`Open ${row.quote.number} invoice workspace.`, () =>
+                            navigate(`/dealflow/quotes/${row.quote.id}?tab=billing`),
+                          ),
+                          {
+                            id: 'cancel',
+                            label: 'Delete 🗑️',
+                            description: `Cancel this invoice schedule on ${row.quote.number}. Generated invoices are not hard-deleted; cancel preserves history.`,
+                            confirmLabel: 'Cancel invoice',
+                            destructive: true,
+                            onConfirm: async () => {
+                              if (!accessToken) return;
+                              try {
+                                await cancelBilling(row.quote.id, row.schedule.id, accessToken, row.quote.version);
+                                toast({ title: 'Invoice cancelled', variant: 'success' });
+                                await quotes.reload();
+                              } catch (caught) {
+                                toast({ title: getApiErrorMessage(caught, 'Invoice could not be cancelled'), variant: 'error' });
+                              }
+                            },
+                          },
+                        ]}
+                      />
+                    ) : null,
                 },
               ]}
             />

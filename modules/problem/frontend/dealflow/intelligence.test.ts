@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   approvalPriority,
+  assessmentForQuoteLine,
   contextualInsights,
   dashboardAnalytics,
   detectAnomalies,
   hybridCommercials,
+  liveLineNet,
   portalStatusLabel,
   previewUnitPrice,
   summarizeDealHealth,
@@ -27,6 +29,14 @@ const catalog: DealflowCatalog = {
   ],
   policies: [],
   chains: [],
+  governance: {
+    cumulativeWarningLimit: 2,
+    materialDiscountDeltaPp: 2,
+    materialTotalDeltaRatio: 0.1,
+    highValueNetTotal: 25000,
+    maxApprovalLevels: 3,
+    unusualDiscountPercent: 10,
+  },
 };
 
 describe('deal intelligence', () => {
@@ -179,8 +189,44 @@ describe('deal intelligence', () => {
   });
 
   it('maps portal-facing status labels without exposing internals', () => {
-    expect(portalStatusLabel('approval_required')).toBe('In review');
-    expect(portalStatusLabel('approved')).toBe('Ready to accept');
+    expect(portalStatusLabel('draft')).toBe('Sent');
+    expect(portalStatusLabel('customer_negotiation')).toBe('Under Negotiation');
+    expect(portalStatusLabel('approved')).toBe('Confirmed');
     expect(approvalPriority(SAMPLE_QUOTE, Date.parse('2026-09-08T05:10:00.000Z'))).toBe('critical');
+  });
+
+  it('matches assessment by quote line id so duplicate SKUs keep their own net', () => {
+    const first = SAMPLE_QUOTE.lines[0];
+    const second = {
+      ...first,
+      id: 'line-hw-2',
+      quantity: 2,
+      discountPercent: 4,
+    };
+    const quote: QuoteView = {
+      ...SAMPLE_QUOTE,
+      lines: [first, second],
+      assessment: {
+        ...SAMPLE_QUOTE.assessment!,
+        lines: [
+          { ...SAMPLE_QUOTE.assessment!.lines[0], lineId: first.id, quantity: 8, netAmount: 26880 },
+          {
+            ...SAMPLE_QUOTE.assessment!.lines[0],
+            lineId: second.id,
+            quantity: 2,
+            discountPercent: 4,
+            listAmount: 8000,
+            netAmount: 7680,
+          },
+        ],
+      },
+    };
+
+    expect(assessmentForQuoteLine(quote, first)?.netAmount).toBe(26880);
+    expect(assessmentForQuoteLine(quote, second)?.netAmount).toBe(7680);
+    expect(liveLineNet(first, assessmentForQuoteLine(quote, first))).toBe(26880);
+    expect(liveLineNet(second, assessmentForQuoteLine(quote, second))).toBe(7680);
+    expect(liveLineNet(second, assessmentForQuoteLine(quote, second))).toBe(7680);
+    expect(liveLineNet(second, assessmentForQuoteLine(quote, first), { quantity: 1, discountPercent: 4 })).toBe(3840);
   });
 });

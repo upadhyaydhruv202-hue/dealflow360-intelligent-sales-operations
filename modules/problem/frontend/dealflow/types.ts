@@ -3,6 +3,8 @@ export type QuoteStatus =
   | 'approval_required'
   | 'approved'
   | 'customer_negotiation'
+  | 'manager_review'
+  | 'finalized'
   | 'confirmed'
   | 'fulfillment'
   | 'billing'
@@ -15,7 +17,46 @@ export type BillingType = 'one_time' | 'recurring';
 export type BillingFrequency = 'monthly' | 'quarterly' | 'yearly';
 export type BillingStatus = 'scheduled' | 'invoiced' | 'cancelled';
 export type ApprovalRoleKey = 'manager' | 'finance' | 'final';
-export type CustomerTier = 'standard' | 'silver' | 'gold' | 'strategic';
+export type CustomerTier = 'standard' | 'silver' | 'gold' | 'strategic' | 'platinum' | 'new';
+
+export interface NegotiationRequest {
+  id: string;
+  quoteId: string;
+  customerId: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  requestedDiscountPercent?: number | null;
+  requestedTargetAmount?: number | null;
+  requestedLines: Array<{
+    productId?: string;
+    lineId?: string;
+    quantity?: number;
+    discountPercent?: number;
+    action?: 'add' | 'remove' | 'update';
+    requestType?: 'question' | 'quantity_change' | 'product_change' | 'removal' | 'pricing' | 'discount' | 'general';
+    comment?: string;
+    originalQuantity?: number;
+    originalDiscountPercent?: number;
+  }>;
+  note: string;
+  quoteVersion?: number | null;
+  responseNote?: string | null;
+  respondedBy?: string | null;
+  respondedAt?: string | null;
+  status:
+    | 'open'
+    | 'in_review'
+    | 'sent_to_manager'
+    | 'manager_revised'
+    | 'returned_to_customer'
+    | 'accepted'
+    | 'rejected'
+    | 'resolved'
+    | 'agreed'
+    | 'withdrawn';
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Customer {
   id: string;
@@ -34,6 +75,22 @@ export interface Product {
   cost: number;
   billingType: BillingType;
   billingFrequency?: BillingFrequency | null;
+  description?: string | null;
+  taxCategory?: string | null;
+  taxRatePercent?: number | null;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProductRelation {
+  id: string;
+  productId: string;
+  recommendedProductId: string;
+  kind: 'upsell' | 'cross_sell';
+  reason: string;
+  promotion?: string | null;
+  minQuantity: number;
 }
 
 export interface Warehouse {
@@ -60,6 +117,8 @@ export interface DiscountPolicy {
   rejectPercent: number;
   maxMarginImpactPercent: number;
   priority: number;
+  description?: string | null;
+  active?: boolean;
 }
 
 export interface ApprovalChainStep {
@@ -76,6 +135,7 @@ export interface ApprovalChain {
   minRiskScore: number;
   minBlendedDiscountPercent: number;
   priority: number;
+  active?: boolean;
   steps: ApprovalChainStep[];
 }
 
@@ -128,9 +188,12 @@ export interface GovernanceSettings {
   staleQuoteDays?: number;
   unusualDiscountPercent?: number;
   largeDealNetTotal?: number;
+  maxCommercialDiscountPercent?: number;
+  allowLoyaltyStacking?: boolean;
 }
 
 export interface LineAssessment {
+  lineId: string;
   productId: string;
   sku: string;
   quantity: number;
@@ -260,7 +323,22 @@ export interface QuoteView {
   odooSaleOrderId?: number | null;
   taxTotal?: number;
   grandTotal?: number;
+  recurringMonthly?: number;
+  recurringAnnual?: number;
+  commercials?: {
+    oneTimeNet: number;
+    recurringMonthly: number;
+    recurringYearly: number;
+    recurringAnnual: number;
+    dueToday: number;
+    taxTotal: number;
+  };
+  loyalty?: { tier: string; wonPurchaseCount: number; bonusPercent: number };
+  negotiations?: NegotiationRequest[];
+  discountAuthority?: { roleMax: number; loyaltyBonus: number; ceiling: number; roleKey?: string };
   customerDecision?: 'none' | 'accepted' | 'declined';
+  commerciallyFrozenAt?: string | null;
+  financeLockedAt?: string | null;
   health?: {
     score: number;
     status: 'healthy' | 'at_risk' | 'critical';
@@ -281,6 +359,22 @@ export interface QuoteView {
   fulfillment: QuoteFulfillment;
   billing: BillingSchedule[];
   revisions: QuoteRevision[];
+  customerEmails?: QuoteEmailDelivery[];
+}
+
+export type QuoteEmailEvent = 'prelim_invoice' | 'final_invoice';
+export type QuoteEmailStatus = 'pending' | 'not_configured' | 'sent' | 'failed';
+
+export interface QuoteEmailDelivery {
+  id: string;
+  quoteId: string;
+  eventType: QuoteEmailEvent;
+  quoteVersion: number;
+  recipientEmail: string;
+  status: QuoteEmailStatus;
+  errorMessage?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
 }
 
 export interface CustomerQuote {
@@ -320,6 +414,7 @@ export interface DealflowCatalog {
   stock: StockLevel[];
   policies: DiscountPolicy[];
   chains: ApprovalChain[];
+  relations?: ProductRelation[];
   quantityBreaks?: QuantityBreak[];
   roleAuthorities?: RoleAuthority[];
   governance?: GovernanceSettings;

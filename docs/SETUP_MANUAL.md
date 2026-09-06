@@ -148,7 +148,8 @@ Demo users exist only when `DEMO_MODE` is on (default outside production). Passw
 | --- | --- |
 | `demo.admin@example.com` | admin |
 | `demo.manager@example.com` | manager |
-| `demo.staff@example.com` | staff |
+| `demo.staff@example.com` | staff (Sales Representative) |
+| `demo.finance@example.com` | finance (Finance Manager) |
 | `demo.user@example.com` | user |
 
 ### 7. Start the application
@@ -537,7 +538,7 @@ Missing `FEATURE_*` flags default to **false** except `FEATURE_PDF` (**true**). 
 | Project planning | `FEATURE_PROJECT_PLANNING=false` |
 | Project generator | `FEATURE_PROJECT_GENERATOR=false` |
 | Anomaly engine | `FEATURE_ANOMALY_DETECTION=false` |
-| Real-time SSE | `FEATURE_REALTIME=false` |
+| Real-time SSE | `FEATURE_REALTIME=true` in DealFlow360 `.env.example` (registry default remains off) |
 | PDF/report HTTP | `FEATURE_PDF=false` |
 | Email sending | `EMAIL_ENABLED=false` |
 | Scheduler ticks | `SCHEDULER_ENABLED=false` |

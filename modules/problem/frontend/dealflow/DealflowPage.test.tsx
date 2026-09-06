@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +11,7 @@ import { ApprovalDetailPage } from './ApprovalDetailPage';
 import { AssistantPage } from './AssistantPage';
 import { ProductDetailPage } from './CatalogDetailPages';
 import { DealflowDashboardPage } from './DashboardPage';
+import { CatalogPage } from './InsightsPages';
 import { CustomerPortalPage } from './PortalPage';
 import { QuoteWorkspacePage } from './QuoteWorkspacePage';
 import { QuotesListPage } from './QuotesListPage';
@@ -239,6 +240,99 @@ describe('DealFlow360 frontend', () => {
     expect(screen.getByText(/In which warehouse/)).toBeInTheDocument();
   });
 
+  it('shows a live line net for each duplicate product row', async () => {
+    const product = SAMPLE_QUOTE.lines[0].product!;
+    const quote = {
+      ...SAMPLE_QUOTE,
+      status: 'draft' as const,
+      assessmentDecision: 'warning' as const,
+      lines: [
+        { ...SAMPLE_QUOTE.lines[0], id: 'line-a', quantity: 3, discountPercent: 4, listPrice: 4000, product },
+        { ...SAMPLE_QUOTE.lines[0], id: 'line-b', quantity: 2, discountPercent: 4, listPrice: 4000, product },
+        { ...SAMPLE_QUOTE.lines[0], id: 'line-c', quantity: 1, discountPercent: 4, listPrice: 4000, product },
+      ],
+      assessment: {
+        ...SAMPLE_QUOTE.assessment!,
+        decision: 'warning' as const,
+        lines: [
+          {
+            ...SAMPLE_QUOTE.assessment!.lines[0],
+            lineId: 'line-a',
+            quantity: 3,
+            discountPercent: 4,
+            listAmount: 12000,
+            netAmount: 11520,
+            appliedPrice: 4000,
+          },
+          {
+            ...SAMPLE_QUOTE.assessment!.lines[0],
+            lineId: 'line-b',
+            quantity: 2,
+            discountPercent: 4,
+            listAmount: 8000,
+            netAmount: 7680,
+            appliedPrice: 4000,
+          },
+          {
+            ...SAMPLE_QUOTE.assessment!.lines[0],
+            lineId: 'line-c',
+            quantity: 1,
+            discountPercent: 4,
+            listAmount: 4000,
+            netAmount: 3840,
+            appliedPrice: 4000,
+          },
+        ],
+      },
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/recommendations')) {
+        return jsonResponse({ success: true, data: [], meta: {} });
+      }
+      if (url.includes('/catalog')) {
+        return jsonResponse({
+          success: true,
+          data: {
+            customers: [quote.customer],
+            products: [product],
+            warehouses: [],
+            stock: [],
+            policies: [],
+            chains: [],
+          },
+          meta: {},
+        });
+      }
+      return jsonResponse({ success: true, data: quote, meta: {} });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={[`/dealflow/quotes/${quote.id}`]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthProvider initialSession={STAFF_SESSION}>
+              <ApiClientProvider client={createApiClient({ fetchImpl: fetchMock as unknown as typeof fetch })}>
+                <Routes>
+                  <Route path="/dealflow/quotes/:quoteId" element={<QuoteWorkspacePage />} />
+                </Routes>
+              </ApiClientProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /DF-00002 · Northwind Retail/ })).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('$11,520.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$7,680.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$3,840.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Actions').length).toBeGreaterThan(0);
+  });
+
   it('keeps the customer portal free of internal approval controls', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ success: true, data: SAMPLE_QUOTE, meta: {} }));
     vi.stubGlobal('fetch', fetchMock);
@@ -258,9 +352,10 @@ describe('DealFlow360 frontend', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Your quotation')).toBeInTheDocument();
+      expect(screen.getByText('DF-00002')).toBeInTheDocument();
     });
-    expect(screen.getByText('Northwind Retail · Status approval required')).toBeInTheDocument();
+    expect(screen.getAllByText('Northwind Retail').length).toBeGreaterThan(0);
+    expect(screen.getByText('Under Negotiation')).toBeInTheDocument();
     expect(screen.queryByText('Approval center')).not.toBeInTheDocument();
     expect(screen.queryByText('Copy customer portal link')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument();
@@ -398,6 +493,8 @@ describe('DealFlow360 frontend', () => {
     expect(screen.getByText('HW-CORE-1')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Quantity breaks' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Role ranges' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Customers / contacts' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Recommendations' })).toBeInTheDocument();
   });
 
   it('renders quotation status cards from live quote counts', async () => {
@@ -474,7 +571,41 @@ describe('DealFlow360 frontend', () => {
     expect(screen.getByRole('button', { name: 'Open workspace' })).toBeInTheDocument();
   });
 
-  it('shows a read-only product detail from the catalog API', async () => {
+  it('lets a sales representative open add-product from the catalog', async () => {
+    const product = SAMPLE_QUOTE.lines[0].product;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/catalog')) {
+        return jsonResponse({
+          success: true,
+          data: {
+            customers: [SAMPLE_QUOTE.customer],
+            products: [product],
+            warehouses: [{ id: 'west', name: 'West DC', fulfillmentCostPerUnit: 18 }],
+            stock: [],
+            policies: [],
+            chains: [],
+            quantityBreaks: [],
+          },
+          meta: {},
+        });
+      }
+      return jsonResponse({ success: true, data: [], meta: {} });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderDealflow(<CatalogPage />, fetchMock as unknown as typeof fetch, '/dealflow/catalog');
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Product catalog' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: '+ Add new product' })).toBeInTheDocument();
+    expect(screen.getByText('HW-CORE-1')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions' })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Edit ✏️' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete 🗑️' })).toBeInTheDocument();
+  });
+
+  it('shows product detail with edit actions for a sales representative', async () => {
     const product = SAMPLE_QUOTE.lines[0].product;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -517,6 +648,50 @@ describe('DealFlow360 frontend', () => {
       expect(screen.getByRole('heading', { name: 'Core Gateway' })).toBeInTheDocument();
     });
     expect(screen.getAllByText('HW-CORE-1').length).toBeGreaterThan(0);
-    expect(screen.getByText('West DC')).toBeInTheDocument();
+    expect(screen.getAllByText('West DC').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Deactivate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save product' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+  });
+
+  it('shows Delete on draft quotations and Void on negotiation quotations', async () => {
+    const draft = { ...SAMPLE_QUOTE, status: 'draft' as const, number: 'DF-00090' };
+    const negotiation = { ...SAMPLE_QUOTE, id: 'nego-quote', status: 'customer_negotiation' as const, number: 'DF-00091' };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/catalog')) {
+        return jsonResponse({
+          success: true,
+          data: { customers: [], products: [], warehouses: [], stock: [], policies: [], chains: [] },
+          meta: {},
+        });
+      }
+      return jsonResponse({ success: true, data: [draft, negotiation], meta: {} });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderDealflow(<QuotesListPage />, fetchMock as unknown as typeof fetch, '/dealflow/quotes');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Quotations' })).toBeInTheDocument();
+    });
+    const menus = screen.getAllByRole('button', { name: 'Actions' });
+    expect(menus).toHaveLength(2);
+    const seen = new Set<string>();
+    for (const menu of menus) {
+      fireEvent.click(menu);
+      expect(screen.getByRole('menuitem', { name: 'Edit ✏️' })).toBeInTheDocument();
+      if (screen.queryByRole('menuitem', { name: 'Void' })) {
+        seen.add('Void');
+      }
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete 🗑️' }));
+      if (screen.queryByRole('button', { name: 'Delete quotation' })) {
+        seen.add('Delete');
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    }
+    expect(seen.has('Delete')).toBe(true);
+    expect(seen.has('Void')).toBe(true);
   });
 });

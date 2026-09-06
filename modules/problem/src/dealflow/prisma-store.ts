@@ -33,8 +33,16 @@ import type {
   DealflowAnomaly,
   AnomalySeverity,
   AnomalyStatus,
+  NegotiationRequest,
+  NegotiationRequestedLine,
+  NegotiationStatus,
+  QuoteEmailDelivery,
+  QuoteEmailDocument,
+  QuoteEmailEvent,
+  QuoteEmailStatus,
 } from './types';
 import { DEFAULT_GOVERNANCE, GOVERNANCE_CONFIG_ID } from './types';
+import { persistCustomerTier } from './loyalty';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,6 +56,7 @@ type PrismaDelegate = {
   create: (args?: unknown) => Promise<unknown>;
   update: (args?: unknown) => Promise<unknown>;
   upsert: (args?: unknown) => Promise<unknown>;
+  delete?: (args?: unknown) => Promise<unknown>;
   deleteMany: (args?: unknown) => Promise<unknown>;
   count: (args?: unknown) => Promise<unknown>;
 };
@@ -64,7 +73,12 @@ type PrismaLike = {
   dfRoleAuthority?: PrismaDelegate;
   dfGovernanceConfig?: PrismaDelegate;
   dfAnomaly?: PrismaDelegate;
+  dfNegotiationRequest?: PrismaDelegate;
+  dfQuoteEmailDelivery?: PrismaDelegate;
   quote: PrismaDelegate;
+  quoteLine?: PrismaDelegate;
+  quoteFulfillmentSplit?: PrismaDelegate;
+  quoteApproval?: PrismaDelegate;
   quoteRevision: PrismaDelegate;
   $queryRawUnsafe?: (query: string, ...values: unknown[]) => Promise<unknown>;
   $executeRawUnsafe?: (query: string, ...values: unknown[]) => Promise<unknown>;
@@ -105,8 +119,16 @@ function mapProduct(row: Record<string, unknown>): Product {
     cost: Number(row.cost),
     billingType: row.billingType as BillingType,
     billingFrequency: (row.billingFrequency as BillingFrequency | null) ?? null,
+    description: (field(row, 'description', 'description') as string | null) ?? null,
+    taxCategory: (field(row, 'taxCategory', 'tax_category') as string | null) ?? null,
+    taxRatePercent: field(row, 'taxRatePercent', 'tax_rate_percent') != null
+      ? Number(field(row, 'taxRatePercent', 'tax_rate_percent'))
+      : null,
+    active: field(row, 'active', 'active') !== false,
     taxable: row.taxable !== false,
     odooProductId: (row.odooProductId as number | null) ?? null,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt ? String(row.createdAt) : undefined,
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt ? String(row.updatedAt) : undefined,
   };
 }
 
@@ -138,6 +160,15 @@ function mapQuote(row: Record<string, unknown>): Quote {
     customerDecisionVersion: field(row, 'customerDecisionVersion', 'customer_decision_version')
       ? Number(field(row, 'customerDecisionVersion', 'customer_decision_version'))
       : null,
+    commerciallyFrozenAt: field(row, 'commerciallyFrozenAt', 'commercially_frozen_at')
+      ? new Date(field(row, 'commerciallyFrozenAt', 'commercially_frozen_at') as Date).toISOString()
+      : null,
+    commerciallyFrozenBy: (field(row, 'commerciallyFrozenBy', 'commercially_frozen_by') as string | null) ?? null,
+    financeLockedAt: field(row, 'financeLockedAt', 'finance_locked_at')
+      ? new Date(field(row, 'financeLockedAt', 'finance_locked_at') as Date).toISOString()
+      : null,
+    financeLockedBy: (field(row, 'financeLockedBy', 'finance_locked_by') as string | null) ?? null,
+    activeNegotiationId: (field(row, 'activeNegotiationId', 'active_negotiation_id') as string | null) ?? null,
     createdAt: new Date(row.createdAt as Date).toISOString(),
     updatedAt: new Date(row.updatedAt as Date).toISOString(),
   };
@@ -240,22 +271,43 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
       return rows.map(mapCustomer);
     },
     async upsertCustomer(input) {
-      const existing = (await this.findCustomersByEmail(input.email))[0];
-      if (existing) {
+      const current = input.id ? await this.getCustomer(input.id) : (await this.findCustomersByEmail(input.email))[0];
+      if (current) {
         const row = (await db.dfCustomer.update({
-          where: { id: existing.id },
-          data: { name: input.name, tier: input.tier ?? existing.tier },
+          where: { id: current.id },
+          data: {
+            name: input.name,
+            email: input.email.trim(),
+            tier: persistCustomerTier(input.tier ?? current.tier),
+          },
         })) as Record<string, unknown>;
         return mapCustomer(row);
       }
       const row = (await db.dfCustomer.create({
         data: {
+          ...(input.id ? { id: input.id } : {}),
           name: input.name,
           email: input.email.trim(),
-          tier: input.tier ?? 'standard',
+          tier: persistCustomerTier(input.tier ?? 'standard'),
         },
       })) as Record<string, unknown>;
       return mapCustomer(row);
+    },
+    async deleteCustomer(id) {
+      await db.dfCustomer.delete?.({ where: { id } });
+    },
+    async countCustomerQuotes(customerId) {
+      return Number(await db.quote.count({ where: { customerId } }));
+    },
+    async countWonPurchases(customerId) {
+      return Number(
+        await db.quote.count({
+          where: {
+            customerId,
+            status: { in: ['confirmed', 'fulfillment', 'billing', 'completed'] },
+          },
+        }),
+      );
     },
     async listProducts() {
       return (await loadProducts()).map(mapProduct);
@@ -263,6 +315,36 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
     async getProduct(id) {
       const row = (await db.dfProduct.findUnique({ where: { id } })) as Record<string, unknown> | null;
       return row ? mapProduct(row) : null;
+    },
+    async upsertProduct(product) {
+      const data = {
+        sku: product.sku,
+        name: product.name,
+        category: product.category,
+        listPrice: product.listPrice,
+        cost: product.cost,
+        billingType: product.billingType,
+        billingFrequency: product.billingFrequency ?? null,
+        description: product.description ?? null,
+        taxCategory: product.taxCategory ?? null,
+        taxRatePercent: product.taxRatePercent ?? null,
+        active: product.active !== false,
+        taxable: product.taxable !== false,
+        odooProductId: product.odooProductId ?? null,
+      };
+      const row = (await db.dfProduct.upsert({
+        where: { id: product.id },
+        update: data,
+        create: { id: product.id, ...data },
+      })) as Record<string, unknown>;
+      return mapProduct(row);
+    },
+    async deleteProduct(id) {
+      await db.dfProduct.delete?.({ where: { id } });
+    },
+    async countProductQuoteLines(productId) {
+      if (!db.quoteLine) return 0;
+      return Number(await db.quoteLine.count({ where: { productId } }));
     },
     async listWarehouses() {
       const rows = (await db.dfWarehouse.findMany({ orderBy: { name: 'asc' } })) as Record<string, unknown>[];
@@ -272,6 +354,31 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
         fulfillmentCostPerUnit: Number(row.fulfillmentCostPerUnit),
         odooWarehouseId: (row.odooWarehouseId as number | null) ?? null,
       })) as Warehouse[];
+    },
+    async upsertWarehouse(warehouse) {
+      const data = {
+        name: warehouse.name,
+        fulfillmentCostPerUnit: warehouse.fulfillmentCostPerUnit,
+        odooWarehouseId: warehouse.odooWarehouseId ?? null,
+      };
+      const row = (await db.dfWarehouse.upsert({
+        where: { id: warehouse.id },
+        update: data,
+        create: { id: warehouse.id, ...data },
+      })) as Record<string, unknown>;
+      return {
+        id: String(row.id),
+        name: String(row.name),
+        fulfillmentCostPerUnit: Number(row.fulfillmentCostPerUnit),
+        odooWarehouseId: (row.odooWarehouseId as number | null) ?? null,
+      };
+    },
+    async deleteWarehouse(id) {
+      await db.dfWarehouse.delete?.({ where: { id } });
+    },
+    async countWarehouseAllocations(warehouseId) {
+      if (!db.quoteFulfillmentSplit) return 0;
+      return Number(await db.quoteFulfillmentSplit.count({ where: { warehouseId } }));
     },
     async listStock() {
       const rows = (await db.dfStockLevel.findMany()) as Record<string, unknown>[];
@@ -292,19 +399,44 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
         });
       }
     },
+    async upsertStock(row) {
+      await db.dfStockLevel.upsert({
+        where: { warehouseId_productId: { warehouseId: row.warehouseId, productId: row.productId } },
+        update: { quantityOnHand: row.quantityOnHand, reserved: row.reserved, incoming: row.incoming ?? 0 },
+        create: { ...row, incoming: row.incoming ?? 0 },
+      });
+      return this.listStock();
+    },
+    async deleteStock(warehouseId, productId) {
+      await db.dfStockLevel.delete?.({ where: { warehouseId_productId: { warehouseId, productId } } });
+      return this.listStock();
+    },
     async listPolicies() {
       const rows = (await db.dfDiscountPolicy.findMany({ orderBy: { priority: 'asc' } })) as Record<string, unknown>[];
-      return rows.map((row) => ({
-        id: String(row.id),
-        name: String(row.name),
-        customerTier: (row.customerTier as Customer['tier'] | null) ?? null,
-        productCategory: (row.productCategory as string | null) ?? null,
-        warningPercent: Number(row.warningPercent),
-        approvalPercent: Number(row.approvalPercent),
-        rejectPercent: Number(row.rejectPercent),
-        maxMarginImpactPercent: Number(row.maxMarginImpactPercent),
-        priority: Number(row.priority),
-      })) as DiscountPolicy[];
+      return rows.map(mapPolicy);
+    },
+    async upsertPolicy(policy) {
+      const data = {
+        name: policy.name,
+        customerTier: policy.customerTier ?? null,
+        productCategory: policy.productCategory ?? null,
+        warningPercent: policy.warningPercent,
+        approvalPercent: policy.approvalPercent,
+        rejectPercent: policy.rejectPercent,
+        maxMarginImpactPercent: policy.maxMarginImpactPercent,
+        priority: policy.priority,
+        description: policy.description ?? null,
+        active: policy.active !== false,
+      };
+      const row = (await db.dfDiscountPolicy.upsert({
+        where: { id: policy.id },
+        update: data,
+        create: { id: policy.id, ...data },
+      })) as Record<string, unknown>;
+      return mapPolicy(row);
+    },
+    async deletePolicy(id) {
+      await db.dfDiscountPolicy.delete?.({ where: { id } });
     },
     async listChains() {
       const rows = (await db.dfApprovalChain.findMany({
@@ -319,6 +451,51 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
         include: { steps: { orderBy: { stepOrder: 'asc' } } },
       })) as Record<string, unknown> | null;
       return row ? mapChain(row) : null;
+    },
+    async upsertChain(chain) {
+      const data = {
+        name: chain.name,
+        minRiskScore: chain.minRiskScore,
+        minBlendedDiscountPercent: chain.minBlendedDiscountPercent,
+        priority: chain.priority,
+        active: chain.active !== false,
+      };
+      const existing = await db.dfApprovalChain.findUnique({ where: { id: chain.id } });
+      if (existing) {
+        await db.dfApprovalChain.update({
+          where: { id: chain.id },
+          data: {
+            ...data,
+            steps: { deleteMany: {} },
+          },
+        });
+      } else {
+        await db.dfApprovalChain.create({ data: { id: chain.id, ...data } });
+      }
+      if (chain.steps.length) {
+        await db.dfApprovalChain.update({
+          where: { id: chain.id },
+          data: {
+            steps: {
+              create: chain.steps.map((step) => ({
+                id: step.id,
+                stepOrder: step.stepOrder,
+                roleKey: step.roleKey,
+                label: step.label,
+              })),
+            },
+          },
+        });
+      }
+      return (await this.getChain(chain.id)) as ApprovalChain;
+    },
+    async deleteChain(id) {
+      await db.dfApprovalChain.delete?.({ where: { id } });
+    },
+    async countChainApprovals(chainId) {
+      const approvals = db.quoteApproval ? Number(await db.quoteApproval.count({ where: { chainId } })) : 0;
+      const required = Number(await db.quote.count({ where: { requiredChainId: chainId } }));
+      return approvals + required;
     },
     async listQuantityBreaks() {
       try {
@@ -435,6 +612,11 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
           staleQuoteDays: Number(field(row, 'staleQuoteDays', 'stale_quote_days') ?? DEFAULT_GOVERNANCE.staleQuoteDays),
           unusualDiscountPercent: Number(field(row, 'unusualDiscountPercent', 'unusual_discount_percent') ?? DEFAULT_GOVERNANCE.unusualDiscountPercent),
           largeDealNetTotal: Number(field(row, 'largeDealNetTotal', 'large_deal_net_total') ?? DEFAULT_GOVERNANCE.largeDealNetTotal),
+          maxCommercialDiscountPercent: Number(
+            field(row, 'maxCommercialDiscountPercent', 'max_commercial_discount_percent') ??
+              DEFAULT_GOVERNANCE.maxCommercialDiscountPercent,
+          ),
+          allowLoyaltyStacking: field(row, 'allowLoyaltyStacking', 'allow_loyalty_stacking') !== false,
         } satisfies GovernanceConfig;
       } catch {
         return structuredClone(DEFAULT_GOVERNANCE);
@@ -479,6 +661,33 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
         promotion: (row.promotion as string | null) ?? null,
         minQuantity: Number(row.minQuantity),
       })) as ProductRelation[];
+    },
+    async upsertRelation(relation) {
+      const data = {
+        productId: relation.productId,
+        recommendedProductId: relation.recommendedProductId,
+        kind: relation.kind,
+        reason: relation.reason,
+        promotion: relation.promotion ?? null,
+        minQuantity: relation.minQuantity,
+      };
+      const row = (await db.dfProductRelation.upsert({
+        where: { id: relation.id },
+        update: data,
+        create: { id: relation.id, ...data },
+      })) as Record<string, unknown>;
+      return {
+        id: String(row.id),
+        productId: String(row.productId),
+        recommendedProductId: String(row.recommendedProductId),
+        kind: row.kind as RelationKind,
+        reason: String(row.reason),
+        promotion: (row.promotion as string | null) ?? null,
+        minQuantity: Number(row.minQuantity),
+      };
+    },
+    async deleteRelation(id) {
+      await db.dfProductRelation.delete?.({ where: { id } });
     },
     async nextQuoteNumber() {
       const count = Number(await db.quote.count());
@@ -536,6 +745,13 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
         customerDecisionAt: aggregate.quote.customerDecisionAt ? new Date(aggregate.quote.customerDecisionAt) : null,
         customerDecisionComment: aggregate.quote.customerDecisionComment ?? null,
         customerDecisionVersion: aggregate.quote.customerDecisionVersion ?? null,
+        commerciallyFrozenAt: aggregate.quote.commerciallyFrozenAt
+          ? new Date(aggregate.quote.commerciallyFrozenAt)
+          : null,
+        commerciallyFrozenBy: uuidOrNull(aggregate.quote.commerciallyFrozenBy),
+        financeLockedAt: aggregate.quote.financeLockedAt ? new Date(aggregate.quote.financeLockedAt) : null,
+        financeLockedBy: uuidOrNull(aggregate.quote.financeLockedBy),
+        activeNegotiationId: uuidOrNull(aggregate.quote.activeNegotiationId),
       };
 
       await db.$transaction(async (tx) => {
@@ -674,6 +890,9 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
       })) as Record<string, unknown>;
       return toAggregate(saved, products);
     },
+    async deleteQuote(id) {
+      await db.quote.delete?.({ where: { id } });
+    },
     async listAnomalies() {
       if (!db.dfAnomaly) return [];
       const rows = (await db.dfAnomaly.findMany({ orderBy: { detectedAt: 'desc' } })) as Record<string, unknown>[];
@@ -707,6 +926,89 @@ export function createPrismaStore(prisma: unknown): DealflowStore {
       })) as Record<string, unknown>;
       return mapAnomaly(row);
     },
+    async listNegotiations(quoteId) {
+      if (!db.dfNegotiationRequest) return [];
+      const rows = (await db.dfNegotiationRequest.findMany({
+        where: { quoteId },
+        orderBy: { createdAt: 'asc' },
+      })) as Record<string, unknown>[];
+      return rows.map(mapNegotiation);
+    },
+    async getNegotiation(id) {
+      if (!db.dfNegotiationRequest) return null;
+      const row = (await db.dfNegotiationRequest.findUnique({ where: { id } })) as Record<string, unknown> | null;
+      return row ? mapNegotiation(row) : null;
+    },
+    async saveNegotiation(item) {
+      if (!db.dfNegotiationRequest) return item;
+      const data = {
+        quoteId: item.quoteId,
+        customerId: item.customerId,
+        actorId: uuidOrNull(item.actorId),
+        actorRole: item.actorRole ?? null,
+        requestedDiscountPercent: item.requestedDiscountPercent ?? null,
+        requestedTargetAmount: item.requestedTargetAmount ?? null,
+        requestedLines: item.requestedLines,
+        note: item.note,
+        quoteVersion: item.quoteVersion ?? null,
+        responseNote: item.responseNote ?? null,
+        respondedBy: uuidOrNull(item.respondedBy),
+        respondedAt: item.respondedAt ? new Date(item.respondedAt) : null,
+        status: item.status,
+      };
+      const row = (await db.dfNegotiationRequest.upsert({
+        where: { id: item.id },
+        update: data,
+        create: { id: item.id, ...data },
+      })) as Record<string, unknown>;
+      return mapNegotiation(row);
+    },
+    async listQuoteEmails(quoteId) {
+      if (!db.dfQuoteEmailDelivery) return [];
+      const rows = (await db.dfQuoteEmailDelivery.findMany({
+        where: { quoteId },
+        orderBy: { createdAt: 'asc' },
+      })) as Record<string, unknown>[];
+      return rows.map(mapQuoteEmail);
+    },
+    async findQuoteEmailByKey(idempotencyKey) {
+      if (!db.dfQuoteEmailDelivery) return null;
+      const row = (await db.dfQuoteEmailDelivery.findUnique({
+        where: { idempotencyKey },
+      })) as Record<string, unknown> | null;
+      return row ? mapQuoteEmail(row) : null;
+    },
+    async saveQuoteEmail(item) {
+      if (!db.dfQuoteEmailDelivery) return item;
+      const data = {
+        quoteId: item.quoteId,
+        eventType: item.eventType,
+        quoteVersion: item.quoteVersion,
+        recipientEmail: item.recipientEmail,
+        status: item.status,
+        idempotencyKey: item.idempotencyKey,
+        notificationDeliveryId: uuidOrNull(item.notificationDeliveryId),
+        provider: item.provider ?? null,
+        providerMessageId: item.providerMessageId ?? null,
+        errorMessage: item.errorMessage ?? null,
+        payload: item.payload,
+        sentAt: item.sentAt ? new Date(item.sentAt) : null,
+      };
+      try {
+        const row = (await db.dfQuoteEmailDelivery.upsert({
+          where: { id: item.id },
+          update: data,
+          create: { id: item.id, ...data },
+        })) as Record<string, unknown>;
+        return mapQuoteEmail(row);
+      } catch {
+        const existing = (await db.dfQuoteEmailDelivery.findUnique({
+          where: { idempotencyKey: item.idempotencyKey },
+        })) as Record<string, unknown> | null;
+        if (existing) return mapQuoteEmail(existing);
+        throw new Error('Could not persist customer email delivery');
+      }
+    },
   };
 }
 
@@ -727,6 +1029,75 @@ function mapAnomaly(row: Record<string, unknown>): DealflowAnomaly {
   };
 }
 
+function mapPolicy(row: Record<string, unknown>): DiscountPolicy {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    customerTier: (row.customerTier as Customer['tier'] | null) ?? null,
+    productCategory: (row.productCategory as string | null) ?? null,
+    warningPercent: Number(row.warningPercent),
+    approvalPercent: Number(row.approvalPercent),
+    rejectPercent: Number(row.rejectPercent),
+    maxMarginImpactPercent: Number(row.maxMarginImpactPercent),
+    priority: Number(row.priority),
+    description: (row.description as string | null) ?? null,
+    active: row.active !== false,
+  };
+}
+
+function mapNegotiation(row: Record<string, unknown>): NegotiationRequest {
+  const requestedLines = field(row, 'requestedLines', 'requested_lines');
+  return {
+    id: String(row.id),
+    quoteId: String(field(row, 'quoteId', 'quote_id')),
+    customerId: String(field(row, 'customerId', 'customer_id')),
+    actorId: (field(row, 'actorId', 'actor_id') as string | null) ?? null,
+    actorRole: (field(row, 'actorRole', 'actor_role') as string | null) ?? null,
+    requestedDiscountPercent:
+      field(row, 'requestedDiscountPercent', 'requested_discount_percent') == null
+        ? null
+        : Number(field(row, 'requestedDiscountPercent', 'requested_discount_percent')),
+    requestedTargetAmount:
+      field(row, 'requestedTargetAmount', 'requested_target_amount') == null
+        ? null
+        : Number(field(row, 'requestedTargetAmount', 'requested_target_amount')),
+    requestedLines: (Array.isArray(requestedLines) ? requestedLines : []) as NegotiationRequestedLine[],
+    note: String(row.note ?? ''),
+    quoteVersion: field(row, 'quoteVersion', 'quote_version') == null ? null : Number(field(row, 'quoteVersion', 'quote_version')),
+    responseNote: (field(row, 'responseNote', 'response_note') as string | null) ?? null,
+    respondedBy: (field(row, 'respondedBy', 'responded_by') as string | null) ?? null,
+    respondedAt: field(row, 'respondedAt', 'responded_at')
+      ? new Date(field(row, 'respondedAt', 'responded_at') as Date).toISOString()
+      : null,
+    status: (row.status as NegotiationStatus) ?? 'open',
+    createdAt: new Date((field(row, 'createdAt', 'created_at') as Date)).toISOString(),
+    updatedAt: new Date((field(row, 'updatedAt', 'updated_at') as Date)).toISOString(),
+  };
+}
+
+function mapQuoteEmail(row: Record<string, unknown>): QuoteEmailDelivery {
+  const payload = field(row, 'payload', 'payload');
+  return {
+    id: String(row.id),
+    quoteId: String(field(row, 'quoteId', 'quote_id')),
+    eventType: (field(row, 'eventType', 'event_type') as QuoteEmailEvent) ?? 'prelim_invoice',
+    quoteVersion: Number(field(row, 'quoteVersion', 'quote_version') ?? 1),
+    recipientEmail: String(field(row, 'recipientEmail', 'recipient_email') ?? ''),
+    status: (row.status as QuoteEmailStatus) ?? 'pending',
+    idempotencyKey: String(field(row, 'idempotencyKey', 'idempotency_key')),
+    notificationDeliveryId: (field(row, 'notificationDeliveryId', 'notification_delivery_id') as string | null) ?? null,
+    provider: (row.provider as string | null) ?? null,
+    providerMessageId: (field(row, 'providerMessageId', 'provider_message_id') as string | null) ?? null,
+    errorMessage: (field(row, 'errorMessage', 'error_message') as string | null) ?? null,
+    payload: (payload && typeof payload === 'object' ? payload : {}) as QuoteEmailDocument,
+    sentAt: field(row, 'sentAt', 'sent_at')
+      ? new Date(field(row, 'sentAt', 'sent_at') as Date).toISOString()
+      : null,
+    createdAt: new Date(field(row, 'createdAt', 'created_at') as Date).toISOString(),
+    updatedAt: new Date(field(row, 'updatedAt', 'updated_at') as Date).toISOString(),
+  };
+}
+
 function mapChain(row: Record<string, unknown>): ApprovalChain {
   return {
     id: String(row.id),
@@ -734,6 +1105,7 @@ function mapChain(row: Record<string, unknown>): ApprovalChain {
     minRiskScore: Number(row.minRiskScore),
     minBlendedDiscountPercent: Number(row.minBlendedDiscountPercent),
     priority: Number(row.priority),
+    active: row.active !== false,
     steps: ((row.steps as Record<string, unknown>[]) ?? []).map((step) => ({
       id: String(step.id),
       chainId: String(step.chainId),

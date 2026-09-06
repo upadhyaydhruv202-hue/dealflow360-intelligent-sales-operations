@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@/auth/AuthProvider';
-import { hasPermission } from '@/lib/rbac';
+import { hasPermission, hasRole } from '@/lib/rbac';
 import { getApiErrorMessage } from '@/services/api';
 import {
   Alert,
@@ -16,6 +16,7 @@ import {
   ErrorState,
   Input,
   LoadingState,
+  Modal,
   PageContainer,
   Select,
   Tabs,
@@ -29,14 +30,22 @@ import {
   confirmQuote,
   contactVendor,
   decideApproval,
+  deleteQuote,
+  removeQuoteLine,
   downloadCustomerQuotePdf,
+  finalizeQuote,
   generateBilling,
   getRecommendations,
   listQuoteAudit,
+  lockQuote,
   planFulfillment,
+  respondToNegotiation,
+  returnRevisedQuote,
+  sendToManager,
   startNegotiation,
   submitQuote,
   updateQuoteLine,
+  voidQuote,
 } from './api';
 import {
   ApprovalTimeline,
@@ -47,19 +56,28 @@ import {
   HealthBadge,
   NegotiationStory,
   OverrideForm,
+  deleteRecordItem,
+  RecordMenu,
   RelatedDealLinks,
   RiskPanel,
   StatusBadge,
 } from './components';
+import { ProductEditor, canWriteDealflowProducts } from './CatalogEditors';
 import {
   canApplyRecommendation,
   canBill,
   canConfirm,
   canDecide,
+  canDeleteQuote,
   canEditLines,
+  canFinalize,
   canNegotiate,
   canPlan,
+  canSendToManager,
   canSubmit,
+  canVoidQuote,
+  emailEventLabel,
+  emailStatusLabel,
   formatDate,
   formatMoney,
   formatPercent,
@@ -67,12 +85,21 @@ import {
   ownerLabel,
   workspaceToast,
 } from './format';
-import { useCatalog, useDealflowRealtime, useQuote } from './hooks';
-import { contextualInsights, hybridCommercials, previewUnitPrice, summarizeDealHealth, warehouseAvailability } from './intelligence';
-import type { AuditEvent, QuoteView, Recommendation } from './types';
+import { useCatalog, useQuote } from './hooks';
+import {
+  assessmentForQuoteLine,
+  contextualInsights,
+  hybridCommercials,
+  liveLineNet,
+  previewUnitPrice,
+  summarizeDealHealth,
+  warehouseAvailability,
+} from './intelligence';
+import type { AuditEvent, DiscountPolicy, QuoteLine, QuoteView, Recommendation } from './types';
 
 export function QuoteWorkspacePage() {
   const { quoteId } = useParams<{ quoteId: string }>();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { accessToken, user } = useAuth();
   const { toast } = useToast();
@@ -80,10 +107,6 @@ export function QuoteWorkspacePage() {
   const quoteState = useQuote(quoteId, accessToken);
   const catalog = useCatalog(accessToken);
   const quote = quoteState.data;
-  useDealflowRealtime(accessToken, () => {
-    void quoteState.reload();
-    void catalog.reload();
-  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [productId, setProductId] = useState('');
@@ -97,13 +120,23 @@ export function QuoteWorkspacePage() {
   const [vendorProductId, setVendorProductId] = useState('');
   const [vendorMessage, setVendorMessage] = useState('');
   const [stale, setStale] = useState(false);
+  const [creatingProduct, setCreatingProduct] = useState(false);
   const inflight = useRef(false);
 
+  const selectableProducts = useMemo(
+    () =>
+      (catalog.data?.products ?? []).filter((item) => {
+        if (item.active === false) return false;
+        return `${item.sku} ${item.name} ${item.category}`.toLowerCase().includes(productQuery.trim().toLowerCase());
+      }),
+    [catalog.data?.products, productQuery],
+  );
+
   useEffect(() => {
-    if (productId || !catalog.data?.products.length) return;
-    const hardware = catalog.data.products.find((item) => item.sku === 'HW-CORE-1');
-    setProductId(hardware?.id ?? catalog.data.products[0].id);
-  }, [catalog.data, productId]);
+    if (productId || !selectableProducts.length) return;
+    const hardware = selectableProducts.find((item) => item.sku === 'HW-CORE-1');
+    setProductId(hardware?.id ?? selectableProducts[0].id);
+  }, [selectableProducts, productId]);
 
   useEffect(() => {
     if (!quote || !accessToken) return;
@@ -188,6 +221,50 @@ export function QuoteWorkspacePage() {
               {quote.health ? (
                 <span className="max-w-xl text-caption text-foreground-muted">{quote.health.explanation}</span>
               ) : null}
+              <RecordMenu
+                items={[
+                  ...(canDeleteQuote(quote.status) && hasPermission(user, 'dealflow.quotes.write')
+                    ? [
+                        {
+                          id: 'delete',
+                          label: 'Delete',
+                          description: `Permanently delete ${quote.number}. Only draft or rejected quotations can be deleted.`,
+                          confirmLabel: 'Delete quotation',
+                          destructive: true,
+                          onConfirm: async () => {
+                            if (!accessToken) return;
+                            try {
+                              await deleteQuote(quote.id, accessToken, quote.version);
+                              toast({ title: 'Quotation deleted', variant: 'success' });
+                              navigate('/dealflow/quotes');
+                            } catch (caught) {
+                              toast({ title: getApiErrorMessage(caught, 'Quotation could not be deleted'), variant: 'error' });
+                            }
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(canVoidQuote(quote.status) &&
+                  hasPermission(user, 'dealflow.quotes.write') &&
+                  (quote.status === 'customer_negotiation' ||
+                    quote.status === 'manager_review' ||
+                    hasPermission(user, 'dealflow.quotes.approve'))
+                    ? [
+                        {
+                          id: 'void',
+                          label: 'Void',
+                          description: `Void ${quote.number}. The quote becomes rejected. Historical lines stay as they were.`,
+                          confirmLabel: 'Void quotation',
+                          destructive: true,
+                          onConfirm: async () => {
+                            if (!accessToken) return;
+                            await run('void', () => voidQuote(quote.id, accessToken, quote.version));
+                          },
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
           ) : null
         }
@@ -296,7 +373,21 @@ export function QuoteWorkspacePage() {
               accessToken={accessToken}
               onSubmit={() => accessToken && void run('submit', () => submitQuote(quote.id, accessToken))}
               onNegotiate={() => accessToken && void run('negotiate', () => startNegotiation(quote.id, accessToken))}
-              onConfirm={() => accessToken && void run('confirm', () => confirmQuote(quote.id, accessToken, quote.version))}
+              onSendToManager={() =>
+                accessToken && void run('send', () => sendToManager(quote.id, quote.version, accessToken, quote.negotiations?.at(-1)?.id))
+              }
+              onReturn={() =>
+                accessToken && void run('return', () => returnRevisedQuote(quote.id, quote.version, accessToken, quote.negotiations?.at(-1)?.id))
+              }
+              onFinalize={() => accessToken && void run('finalize', () => finalizeQuote(quote.id, accessToken, quote.version))}
+              onConfirm={() =>
+                accessToken &&
+                void run('lock', () =>
+                  hasPermission(user, 'dealflow.quotes.lock')
+                    ? lockQuote(quote.id, accessToken, quote.version)
+                    : confirmQuote(quote.id, accessToken, quote.version),
+                )
+              }
               onBill={() => accessToken && void run('bill', () => generateBilling(quote.id, accessToken, quote.version))}
               onCopyPortal={() => {
                 void navigator.clipboard.writeText(`${window.location.origin}/portal/${quote.portalToken}`);
@@ -310,10 +401,96 @@ export function QuoteWorkspacePage() {
               }}
             />
 
+            {(quote.negotiations?.length ?? 0) > 0 ? (
+              <Card>
+                <CardTitle>Customer negotiations</CardTitle>
+                <CardDescription className="mt-1">
+                  Requests are stored in PostgreSQL. Accepting a request applies authorized quantity/discount only. An 8%
+                  request exceeds the Sales Rep 5% ceiling and must be escalated.
+                </CardDescription>
+                {quote.discountAuthority ? (
+                  <p className="mt-2 text-caption">
+                    Your authority: {quote.discountAuthority.ceiling}% ({quote.discountAuthority.roleKey ?? 'role'}{' '}
+                    {quote.discountAuthority.roleMax}% + loyalty {quote.discountAuthority.loyaltyBonus}%).
+                  </p>
+                ) : null}
+                <ul className="mt-3 space-y-3 text-sm">
+                  {quote.negotiations?.map((item) => (
+                    <li key={item.id} className="rounded-lg border border-edge px-3 py-2">
+                      <p className="font-medium capitalize">{item.status.replaceAll('_', ' ')}</p>
+                      <p className="text-foreground-muted">{item.note}</p>
+                      {item.requestedDiscountPercent != null ? (
+                        <p className="text-caption">
+                          Requested discount {item.requestedDiscountPercent}%
+                          {item.requestedDiscountPercent > 5
+                            ? ' · Sales Rep authority 5% — escalate to Sales Manager'
+                            : ''}
+                        </p>
+                      ) : null}
+                      {item.requestedTargetAmount != null ? (
+                        <p className="text-caption">Target amount {formatMoney(item.requestedTargetAmount, true)}</p>
+                      ) : null}
+                      {item.requestedLines.map((line, index) =>
+                        line.comment || line.requestType ? (
+                          <p key={`${item.id}-${index}`} className="text-caption">
+                            {(line.requestType ?? 'change').replaceAll('_', ' ')}
+                            {line.originalQuantity != null && line.quantity != null
+                              ? ` · qty ${line.originalQuantity} → ${line.quantity}`
+                              : ''}
+                            {line.comment ? ` · ${line.comment}` : ''}
+                          </p>
+                        ) : null,
+                      )}
+                      {item.responseNote ? <p className="mt-2 text-sm">Response: {item.responseNote}</p> : null}
+                      {item.status === 'open' && hasPermission(user, 'dealflow.quotes.write') && accessToken ? (
+                        <NegotiationRespondForm
+                          busy={busy}
+                          onRespond={(decision, responseNote) =>
+                            void run('respond', () =>
+                              respondToNegotiation(
+                                quote.id,
+                                item.id,
+                                { expectedVersion: quote.version, decision, responseNote },
+                                accessToken,
+                              ),
+                            )
+                          }
+                        />
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
+
+            {(quote.customerEmails?.length ?? 0) > 0 ? (
+              <Card>
+                <CardTitle>Customer emails</CardTitle>
+                <CardDescription className="mt-1">
+                  Triggered by Manager approval and Finance lock. Delivery is recorded in PostgreSQL and is never marked
+                  sent unless a real email provider is configured.
+                </CardDescription>
+                <ul className="mt-3 space-y-3 text-sm">
+                  {quote.customerEmails?.map((item) => (
+                    <li key={item.id} className="rounded-lg border border-edge px-3 py-2">
+                      <p className="font-medium">
+                        {emailEventLabel(item.eventType)} · {emailStatusLabel(item.status)}
+                      </p>
+                      <p className="text-foreground-muted">
+                        {item.recipientEmail} · version {item.quoteVersion}
+                      </p>
+                      <p className="text-caption">{formatDate(item.sentAt ?? item.createdAt)}</p>
+                      {item.errorMessage ? <p className="text-caption">{item.errorMessage}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
+
             {quote.assessment?.highValue ? (
               <Alert variant="warning" title="High-value approval required">
-                Net {formatMoney(quote.netTotal, true)} meets the configured high-value threshold. The seeded chain
-                applies; Admin is not inserted unless a step already requires that role.
+                Net {formatMoney(quote.netTotal, true)} meets the configured high-value threshold. The configured
+                chain applies; Admin is not inserted unless a step already requires that role.
               </Alert>
             ) : null}
             {quote.assessment?.mergeRisk ? (
@@ -353,67 +530,31 @@ export function QuoteWorkspacePage() {
                     <div className="space-y-4">
                       <ul className="space-y-3 lg:hidden">
                         {quote.lines.map((line) => {
-                          const assessed = quote.assessment?.lines.find((item) => item.productId === line.productId);
-                          const canEdit = canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write');
+                          const canEdit =
+                            canEditLines(quote.status) &&
+                            hasPermission(user, 'dealflow.quotes.write') &&
+                            (quote.status !== 'manager_review' || hasRole(user, 'manager', 'admin'));
                           return (
-                            <li key={`${line.id}-card`} className="rounded-lg border border-edge p-3">
-                              <p className="font-medium">{line.product?.name ?? line.productId}</p>
-                              <p className="text-xs text-foreground-muted">{line.product?.sku}</p>
-                              {canEdit && accessToken ? (
-                                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                  <DiscountInput
-                                    key={`${line.id}-m-qty-${line.quantity}`}
-                                    label={`Quantity for ${line.product?.sku ?? 'line'}`}
-                                    value={line.quantity}
-                                    min={1}
-                                    onCommit={(next) => {
-                                      if (next === line.quantity) return;
+                            <QuoteLineMobileCard
+                              key={`${line.id}-card`}
+                              quote={quote}
+                              line={line}
+                              canEdit={Boolean(canEdit && accessToken)}
+                              onUpdate={(patch) => {
+                                if (!accessToken) return;
+                                void run('line', () =>
+                                  updateQuoteLine(quote.id, line.id, { ...patch, expectedVersion: quote.version }, accessToken),
+                                );
+                              }}
+                              onRemove={
+                                canEdit && accessToken
+                                  ? () =>
                                       void run('line', () =>
-                                        updateQuoteLine(quote.id, line.id, { quantity: next, expectedVersion: quote.version }, accessToken),
-                                      );
-                                    }}
-                                  />
-                                  <DiscountInput
-                                    key={`${line.id}-m-price-${line.listPrice}`}
-                                    label={`Unit price for ${line.product?.sku ?? 'line'}`}
-                                    value={assessed?.appliedPrice ?? line.listPrice}
-                                    min={0}
-                                    max={1_000_000}
-                                    onCommit={(next) => {
-                                      if (next === (assessed?.appliedPrice ?? line.listPrice)) return;
-                                      void run('line', () =>
-                                        updateQuoteLine(quote.id, line.id, { unitPrice: next, expectedVersion: quote.version }, accessToken),
-                                      );
-                                    }}
-                                  />
-                                  <DiscountInput
-                                    key={`${line.id}-m-disc-${line.discountPercent}`}
-                                    label={`Discount for ${line.product?.sku ?? 'line'}`}
-                                    value={line.discountPercent}
-                                    onCommit={(next) => {
-                                      if (next === line.discountPercent) return;
-                                      void run('line', () =>
-                                        updateQuoteLine(
-                                          quote.id,
-                                          line.id,
-                                          { discountPercent: next, expectedVersion: quote.version },
-                                          accessToken,
-                                        ),
-                                      );
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <p className="mt-1 text-sm">
-                                  Qty {line.quantity} · {formatMoney(assessed?.appliedPrice ?? line.listPrice, true)} ·{' '}
-                                  {formatPercent(line.discountPercent)}
-                                </p>
-                              )}
-                              <p className="mt-1 text-sm">Line {assessed ? formatMoney(assessed.netAmount, true) : '—'}</p>
-                              {assessed?.decision && assessed.decision !== 'allowed' ? (
-                                <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
-                              ) : null}
-                            </li>
+                                        removeQuoteLine(quote.id, line.id, quote.version, accessToken),
+                                      )
+                                  : undefined
+                              }
+                            />
                           );
                         })}
                       </ul>
@@ -428,119 +569,36 @@ export function QuoteWorkspacePage() {
                               <th className="py-2 pr-3">Discount</th>
                               <th className="py-2 pr-3">Margin</th>
                               <th className="py-2 pr-3">Warehouses</th>
-                              <th className="py-2">Line net</th>
+                              <th className="py-2 pr-3">Line net</th>
+                              <th className="py-2">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {quote.lines.map((line) => {
-                              const assessed = quote.assessment?.lines.find((item) => item.productId === line.productId);
-                              const policy = catalog.data?.policies.find((item) => item.id === assessed?.policyId);
-                              return (
-                                <tr key={line.id} className="border-t border-edge">
-                                  <td className="py-3 pr-3">
-                                    <p className="font-medium">{line.product?.name ?? line.productId}</p>
-                                    <p className="text-xs text-foreground-muted">{line.product?.sku} · {line.product?.billingType}</p>
-                                    {assessed?.decision && assessed.decision !== 'allowed' ? (
-                                      <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
-                                    ) : null}
-                                  </td>
-                                  <td className="py-3 pr-3">
-                                    {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
-                                      <DiscountInput
-                                        key={`${line.id}-qty-${line.quantity}`}
-                                        label={`Quantity for ${line.product?.sku ?? 'line'}`}
-                                        value={line.quantity}
-                                        min={1}
-                                        onCommit={(next) => {
-                                          if (next === line.quantity || !accessToken) return;
-                                          void run('line', () =>
-                                            updateQuoteLine(quote.id, line.id, { quantity: next, expectedVersion: quote.version }, accessToken),
-                                          );
-                                        }}
-                                      />
-                                    ) : (
-                                      line.quantity
-                                    )}
-                                  </td>
-                                  <td className="py-3 pr-3">
-                                    {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
-                                      <DiscountInput
-                                        key={`${line.id}-price-${assessed?.appliedPrice ?? line.listPrice}`}
-                                        label={`Unit price for ${line.product?.sku ?? 'line'}`}
-                                        value={assessed?.appliedPrice ?? line.listPrice}
-                                        min={0}
-                                        max={1_000_000}
-                                        onCommit={(next) => {
-                                          if (next === (assessed?.appliedPrice ?? line.listPrice) || !accessToken) return;
-                                          void run('line', () =>
-                                            updateQuoteLine(
-                                              quote.id,
-                                              line.id,
-                                              { unitPrice: next, expectedVersion: quote.version },
-                                              accessToken,
-                                            ),
-                                          );
-                                        }}
-                                      />
-                                    ) : (
-                                      <p>{formatMoney(assessed?.appliedPrice ?? line.listPrice, true)}</p>
-                                    )}
-                                    <p className="text-xs text-foreground-muted">
-                                      List {formatMoney(assessed?.basePrice ?? line.listPrice, true)}
-                                      {assessed?.pricingRuleName ? ` · ${assessed.pricingRuleName}` : ''}
-                                    </p>
-                                  </td>
-                                  <td className="py-3 pr-3">
-                                    {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
-                                      <DiscountInput
-                                        key={`${line.id}-${line.discountPercent}`}
-                                        label={`Discount for ${line.product?.sku ?? 'line'}`}
-                                        value={line.discountPercent}
-                                        onCommit={(next) => {
-                                          if (next === line.discountPercent || !accessToken) return;
-                                          void run('line', () =>
-                                            updateQuoteLine(
-                                              quote.id,
-                                              line.id,
-                                              { discountPercent: next, expectedVersion: quote.version },
-                                              accessToken,
-                                            ),
-                                          );
-                                        }}
-                                      />
-                                    ) : (
-                                      formatPercent(line.discountPercent)
-                                    )}
-                                    {policy ? (
-                                      <p className="text-xs text-foreground-muted">Policy {formatPercent(policy.approvalPercent)}</p>
-                                    ) : null}
-                                    {assessed?.roleLimitExceeded ? (
-                                      <p className="text-xs text-warning">Exceeds your authorized range</p>
-                                    ) : null}
-                                  </td>
-                                  <td className="py-3 pr-3">
-                                    {assessed ? formatPercent(assessed.marginPercent) : '—'}
-                                  </td>
-                                  <td className="py-3 pr-3">
-                                    {assessed?.warehouses?.length ? (
-                                      <ul className="text-xs text-foreground-muted">
-                                        {assessed.warehouses.map((row) => (
-                                          <li key={row.warehouseId}>
-                                            {row.name}: {row.available}
-                                          </li>
-                                        ))}
-                                        {(assessed.shortfall ?? 0) > 0 ? (
-                                          <li className="text-warning">Shortfall {assessed.shortfall}</li>
-                                        ) : null}
-                                      </ul>
-                                    ) : (
-                                      '—'
-                                    )}
-                                  </td>
-                                  <td className="py-3">{assessed ? formatMoney(assessed.netAmount, true) : '—'}</td>
-                                </tr>
-                              );
-                            })}
+                            {quote.lines.map((line) => (
+                              <QuoteLineTableRow
+                                key={line.id}
+                                quote={quote}
+                                line={line}
+                                policy={catalog.data?.policies.find(
+                                  (item) => item.id === assessmentForQuoteLine(quote, line)?.policyId,
+                                )}
+                                canEdit={canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write')}
+                                onUpdate={(patch) => {
+                                  if (!accessToken) return;
+                                  void run('line', () =>
+                                    updateQuoteLine(quote.id, line.id, { ...patch, expectedVersion: quote.version }, accessToken),
+                                  );
+                                }}
+                                onRemove={
+                                  canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') && accessToken
+                                    ? () =>
+                                        void run('line', () =>
+                                          removeQuoteLine(quote.id, line.id, quote.version, accessToken),
+                                        )
+                                    : undefined
+                                }
+                              />
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -575,24 +633,49 @@ export function QuoteWorkspacePage() {
                             label="Product"
                             value={productId}
                             onChange={(event) => setProductId(event.target.value)}
-                            options={(catalog.data?.products ?? [])
-                              .filter((item) =>
-                                `${item.sku} ${item.name} ${item.category}`.toLowerCase().includes(productQuery.trim().toLowerCase()),
-                              )
-                              .map((item) => ({
-                                value: item.id,
-                                label: `${item.sku} · ${item.name} (${item.billingType})`,
-                              }))}
+                            options={selectableProducts.map((item) => ({
+                              value: item.id,
+                              label: `${item.sku} · ${item.name} (${item.billingType === 'recurring' ? 'subscription' : 'one-time'})`,
+                            }))}
                           />
                           <Input label="Quantity" type="number" min={1} value={quantity} onChange={(event) => setQuantity(event.target.value)} />
                           <Input label="Discount %" type="number" min={0} max={100} value={discount} onChange={(event) => setDiscount(event.target.value)} />
-                          <div className="flex items-end">
+                          <div className="flex items-end gap-2">
                             <Button type="submit" loading={busy}>
                               Add product
                             </Button>
                           </div>
                         </form>
                       ) : null}
+                      {canEditLines(quote.status) && hasPermission(user, 'dealflow.quotes.write') && canWriteDealflowProducts(user) ? (
+                        <div>
+                          {selectableProducts.length === 0 ? (
+                            <p className="text-sm text-foreground-muted">No product found?</p>
+                          ) : null}
+                          <Button type="button" variant="secondary" size="sm" onClick={() => setCreatingProduct(true)}>
+                            + Create new product
+                          </Button>
+                        </div>
+                      ) : null}
+                      <Modal
+                        open={creatingProduct}
+                        onClose={() => setCreatingProduct(false)}
+                        title="Create new product"
+                        description="The current quotation stays open. After save, the new SKU can be added as a line."
+                        size="lg"
+                      >
+                        {catalog.data ? (
+                          <ProductEditor
+                            catalog={catalog.data}
+                            compact
+                            onSaved={async (product) => {
+                              await catalog.reload();
+                              if (product?.id) setProductId(product.id);
+                              setCreatingProduct(false);
+                            }}
+                          />
+                        ) : null}
+                      </Modal>
                       {(() => {
                         const product = catalog.data?.products.find((item) => item.id === productId);
                         if (!product) return null;
@@ -877,6 +960,9 @@ function QuoteActions({
   accessToken,
   onSubmit,
   onNegotiate,
+  onSendToManager,
+  onReturn,
+  onFinalize,
   onConfirm,
   onBill,
   onCopyPortal,
@@ -888,6 +974,9 @@ function QuoteActions({
   accessToken?: string;
   onSubmit: () => void;
   onNegotiate: () => void;
+  onSendToManager: () => void;
+  onReturn: () => void;
+  onFinalize: () => void;
   onConfirm: () => void;
   onBill: () => void;
   onCopyPortal: () => void;
@@ -908,23 +997,44 @@ function QuoteActions({
       ) : null}
       {canConfirm(quote.status) && quote.odooIntegration?.configured === false ? (
         <p className="mt-2 text-xs text-foreground-muted">
-          Confirmation is local only. Odoo is not configured, so no remote sale order will be created.
+          Finance lock is local only. Odoo is not configured, so no remote sale order will be created.
+        </p>
+      ) : null}
+      {quote.loyalty ? (
+        <p className="mt-2 text-xs text-foreground-muted">
+          Loyalty {quote.loyalty.tier} · {quote.loyalty.wonPurchaseCount} won deals · +{quote.loyalty.bonusPercent}% stacking
+          {quote.discountAuthority ? ` · your ceiling ${quote.discountAuthority.ceiling}%` : ''}
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        {canSubmit(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
-          <Button loading={busy} disabled={!accessToken} onClick={onSubmit}>
-            Submit for approval
-          </Button>
-        ) : null}
         {canNegotiate(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
           <Button variant="outline" loading={busy} disabled={!accessToken} onClick={onNegotiate}>
             Open customer negotiation
           </Button>
         ) : null}
-        {canConfirm(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+        {canSendToManager(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+          <Button variant="outline" loading={busy} disabled={!accessToken} onClick={onSendToManager}>
+            Send to manager
+          </Button>
+        ) : null}
+        {quote.status === 'manager_review' && hasPermission(user, 'dealflow.quotes.write') ? (
+          <Button variant="outline" loading={busy} disabled={!accessToken} onClick={onReturn}>
+            Return revised quote
+          </Button>
+        ) : null}
+        {canFinalize(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+          <Button loading={busy} disabled={!accessToken} onClick={onFinalize}>
+            Finalize quotation
+          </Button>
+        ) : null}
+        {canSubmit(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+          <Button loading={busy} disabled={!accessToken} onClick={onSubmit}>
+            Submit for approval
+          </Button>
+        ) : null}
+        {canConfirm(quote.status) && hasPermission(user, 'dealflow.quotes.lock') ? (
           <Button variant="secondary" loading={busy} disabled={!accessToken} onClick={onConfirm}>
-            Confirm quote
+            Finance lock
           </Button>
         ) : null}
         {canBill(quote.status) && hasPermission(user, 'dealflow.billing.write') ? (
@@ -944,6 +1054,54 @@ function QuoteActions({
         ) : null}
       </div>
     </Card>
+  );
+}
+
+function NegotiationRespondForm({
+  busy,
+  onRespond,
+}: {
+  busy: boolean;
+  onRespond: (decision: 'accepted' | 'rejected' | 'in_review', responseNote: string) => void;
+}) {
+  const [note, setNote] = useState('');
+  return (
+    <div className="mt-3 space-y-2">
+      <Input
+        label="Response to customer"
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Request forwarded to Sales Manager."
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          loading={busy}
+          disabled={!note.trim()}
+          onClick={() => onRespond('accepted', note.trim())}
+        >
+          Accept request
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          loading={busy}
+          disabled={!note.trim()}
+          onClick={() => onRespond('in_review', note.trim())}
+        >
+          Mark in review
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          loading={busy}
+          disabled={!note.trim()}
+          onClick={() => onRespond('rejected', note.trim())}
+        >
+          Reject request
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -994,10 +1152,259 @@ function RecommendationList({
   );
 }
 
+function useLiveQuoteLine(quote: QuoteView, line: QuoteLine) {
+  const assessed = assessmentForQuoteLine(quote, line);
+  const committedPrice = assessed?.appliedPrice ?? line.listPrice;
+  const [quantity, setQuantity] = useState(line.quantity);
+  const [unitPrice, setUnitPrice] = useState(committedPrice);
+  const [discountPercent, setDiscountPercent] = useState(line.discountPercent);
+
+  useEffect(() => {
+    setQuantity(line.quantity);
+  }, [line.id, line.quantity]);
+  useEffect(() => {
+    setUnitPrice(committedPrice);
+  }, [line.id, committedPrice]);
+  useEffect(() => {
+    setDiscountPercent(line.discountPercent);
+  }, [line.id, line.discountPercent]);
+
+  const net = liveLineNet(line, assessed, { quantity, unitPrice, discountPercent });
+  const shortfall =
+    assessed?.totalAvailable != null ? Math.max(0, quantity - assessed.totalAvailable) : (assessed?.shortfall ?? 0);
+
+  return {
+    assessed,
+    quantity,
+    unitPrice,
+    discountPercent,
+    net,
+    shortfall,
+    setQuantity,
+    setUnitPrice,
+    setDiscountPercent,
+  };
+}
+
+function QuoteLineMobileCard({
+  quote,
+  line,
+  canEdit,
+  onUpdate,
+  onRemove,
+}: {
+  quote: QuoteView;
+  line: QuoteLine;
+  canEdit: boolean;
+  onUpdate: (patch: { quantity?: number; unitPrice?: number; discountPercent?: number }) => void;
+  onRemove?: () => void;
+}) {
+  const live = useLiveQuoteLine(quote, line);
+  const assessed = live.assessed;
+  return (
+    <li className="rounded-lg border border-edge p-3">
+      <p className="font-medium">{line.product?.name ?? line.productId}</p>
+      <p className="text-xs text-foreground-muted">{line.product?.sku}</p>
+      {canEdit ? (
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <DiscountInput
+            key={`${line.id}-m-qty-${line.quantity}`}
+            label={`Quantity for ${line.product?.sku ?? 'line'}`}
+            value={line.quantity}
+            min={1}
+            onDraftChange={live.setQuantity}
+            onCommit={(next) => {
+              live.setQuantity(next);
+              if (next === line.quantity) return;
+              onUpdate({ quantity: next });
+            }}
+          />
+          <DiscountInput
+            key={`${line.id}-m-price-${live.unitPrice}`}
+            label={`Unit price for ${line.product?.sku ?? 'line'}`}
+            value={assessed?.appliedPrice ?? line.listPrice}
+            min={0}
+            max={1_000_000}
+            onDraftChange={live.setUnitPrice}
+            onCommit={(next) => {
+              live.setUnitPrice(next);
+              if (next === (assessed?.appliedPrice ?? line.listPrice)) return;
+              onUpdate({ unitPrice: next });
+            }}
+          />
+          <DiscountInput
+            key={`${line.id}-m-disc-${line.discountPercent}`}
+            label={`Discount for ${line.product?.sku ?? 'line'}`}
+            value={line.discountPercent}
+            onDraftChange={live.setDiscountPercent}
+            onCommit={(next) => {
+              live.setDiscountPercent(next);
+              if (next === line.discountPercent) return;
+              onUpdate({ discountPercent: next });
+            }}
+          />
+        </div>
+      ) : (
+        <p className="mt-1 text-sm">
+          Qty {line.quantity} · {formatMoney(assessed?.appliedPrice ?? line.listPrice, true)} ·{' '}
+          {formatPercent(line.discountPercent)}
+        </p>
+      )}
+      <p className="mt-1 text-sm">Line {formatMoney(live.net, true)}</p>
+      {assessed?.decision && assessed.decision !== 'allowed' ? (
+        <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
+      ) : null}
+      {onRemove ? (
+        <div className="mt-2">
+          <RecordMenu
+            items={[
+              deleteRecordItem(
+                `Permanently remove ${line.product?.sku ?? 'this line'} from the quotation. This cannot be undone.`,
+                onRemove,
+                { confirmLabel: 'Delete line' },
+              ),
+            ]}
+          />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function QuoteLineTableRow({
+  quote,
+  line,
+  policy,
+  canEdit,
+  onUpdate,
+  onRemove,
+}: {
+  quote: QuoteView;
+  line: QuoteLine;
+  policy?: DiscountPolicy;
+  canEdit: boolean;
+  onUpdate: (patch: { quantity?: number; unitPrice?: number; discountPercent?: number }) => void;
+  onRemove?: () => void;
+}) {
+  const live = useLiveQuoteLine(quote, line);
+  const assessed = live.assessed;
+  return (
+    <tr className="border-t border-edge">
+      <td className="py-3 pr-3">
+        <p className="font-medium">{line.product?.name ?? line.productId}</p>
+        <p className="text-xs text-foreground-muted">
+          {line.product?.sku} · {line.product?.billingType}
+        </p>
+        {assessed?.decision && assessed.decision !== 'allowed' ? (
+          <p className="mt-1 text-xs text-warning">{assessed.decision.replaceAll('_', ' ')}</p>
+        ) : null}
+      </td>
+      <td className="py-3 pr-3">
+        {canEdit ? (
+          <DiscountInput
+            key={`${line.id}-qty-${line.quantity}`}
+            label={`Quantity for ${line.product?.sku ?? 'line'}`}
+            value={line.quantity}
+            min={1}
+            onDraftChange={live.setQuantity}
+            onCommit={(next) => {
+              live.setQuantity(next);
+              if (next === line.quantity) return;
+              onUpdate({ quantity: next });
+            }}
+          />
+        ) : (
+          line.quantity
+        )}
+      </td>
+      <td className="py-3 pr-3">
+        {canEdit ? (
+          <DiscountInput
+            key={`${line.id}-price-${assessed?.appliedPrice ?? line.listPrice}`}
+            label={`Unit price for ${line.product?.sku ?? 'line'}`}
+            value={assessed?.appliedPrice ?? line.listPrice}
+            min={0}
+            max={1_000_000}
+            onDraftChange={live.setUnitPrice}
+            onCommit={(next) => {
+              live.setUnitPrice(next);
+              if (next === (assessed?.appliedPrice ?? line.listPrice)) return;
+              onUpdate({ unitPrice: next });
+            }}
+          />
+        ) : (
+          <p>{formatMoney(assessed?.appliedPrice ?? line.listPrice, true)}</p>
+        )}
+        <p className="text-xs text-foreground-muted">
+          List {formatMoney(assessed?.basePrice ?? line.listPrice, true)}
+          {assessed?.pricingRuleName ? ` · ${assessed.pricingRuleName}` : ''}
+        </p>
+      </td>
+      <td className="py-3 pr-3">
+        {canEdit ? (
+          <DiscountInput
+            key={`${line.id}-${line.discountPercent}`}
+            label={`Discount for ${line.product?.sku ?? 'line'}`}
+            value={line.discountPercent}
+            onDraftChange={live.setDiscountPercent}
+            onCommit={(next) => {
+              live.setDiscountPercent(next);
+              if (next === line.discountPercent) return;
+              onUpdate({ discountPercent: next });
+            }}
+          />
+        ) : (
+          formatPercent(line.discountPercent)
+        )}
+        {policy ? <p className="text-xs text-foreground-muted">Policy {formatPercent(policy.approvalPercent)}</p> : null}
+        {assessed?.roleLimitExceeded ? <p className="text-xs text-warning">Exceeds your authorized range</p> : null}
+      </td>
+      <td className="py-3 pr-3">{assessed ? formatPercent(assessed.marginPercent) : '—'}</td>
+      <td className="py-3 pr-3">
+        {assessed?.warehouses?.length ? (
+          <ul className="text-xs text-foreground-muted">
+            {assessed.warehouses.map((row) => (
+              <li key={row.warehouseId}>
+                {row.name}: {row.available}
+              </li>
+            ))}
+            {live.shortfall > 0 ? <li className="text-warning">Shortfall {live.shortfall}</li> : null}
+          </ul>
+        ) : (
+          '—'
+        )}
+      </td>
+      <td className="py-3 pr-3">{formatMoney(live.net, true)}</td>
+      <td className="py-3">
+        {onRemove ? (
+          <RecordMenu
+            items={[
+              deleteRecordItem(
+                `Permanently remove ${line.product?.sku ?? 'this line'} from the quotation. This cannot be undone.`,
+                onRemove,
+                { confirmLabel: 'Delete line' },
+              ),
+            ]}
+          />
+        ) : canEdit ? null : (
+          <RecordMenu
+            items={[
+              deleteRecordItem(`Cannot delete this line.`, () => undefined, {
+                unavailable: `Line items cannot be deleted while the quotation is ${quote.status.replaceAll('_', ' ')}.`,
+              }),
+            ]}
+          />
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function DiscountInput({
   label,
   value,
   onCommit,
+  onDraftChange,
   min = 0,
   max,
 }: {
@@ -1006,11 +1413,21 @@ function DiscountInput({
   min?: number;
   max?: number;
   onCommit: (next: number) => void;
+  onDraftChange?: (next: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => {
     setDraft(String(value));
   }, [value]);
+
+  function publishDraft(raw: string) {
+    const next = Number(raw);
+    if (Number.isNaN(next) || next < min || (max !== undefined && next > max)) {
+      return;
+    }
+    onDraftChange?.(next);
+  }
+
   return (
     <Input
       aria-label={label}
@@ -1018,11 +1435,15 @@ function DiscountInput({
       min={min}
       max={max ?? (min > 0 ? undefined : 100)}
       value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        publishDraft(event.target.value);
+      }}
       onBlur={() => {
         const next = Number(draft);
         if (Number.isNaN(next) || next < min || (max !== undefined && next > max)) {
           setDraft(String(value));
+          onDraftChange?.(value);
           return;
         }
         onCommit(next);

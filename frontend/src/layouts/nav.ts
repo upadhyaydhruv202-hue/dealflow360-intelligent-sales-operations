@@ -49,6 +49,7 @@ export const appNavGroups: AppNavGroup[] = [
     label: 'Operations',
     items: [
       { to: '/dealflow/quotes', label: 'Quotations', icon: FileText, command: 'Open quotations', rail: true },
+      { to: '/dealflow/negotiations', label: 'Negotiations', icon: FileText, command: 'Open customer negotiations', rail: true },
       { to: '/dealflow/approvals', label: 'Approvals', icon: ShieldCheck, command: 'Open approvals', rail: true },
       { to: '/dealflow/fulfillment', label: 'Fulfillment', icon: Warehouse, command: 'Open fulfillment', rail: true },
     ],

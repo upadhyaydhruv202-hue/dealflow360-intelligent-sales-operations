@@ -1,5 +1,7 @@
-export const CUSTOMER_TIERS = ['standard', 'silver', 'gold', 'strategic'] as const;
+export const CUSTOMER_TIERS = ['standard', 'silver', 'gold', 'strategic', 'platinum'] as const;
 export type CustomerTier = (typeof CUSTOMER_TIERS)[number];
+export const LOYALTY_API_TIERS = ['new', 'gold', 'platinum'] as const;
+export type LoyaltyApiTier = (typeof LOYALTY_API_TIERS)[number];
 
 export const BILLING_TYPES = ['one_time', 'recurring'] as const;
 export type BillingType = (typeof BILLING_TYPES)[number];
@@ -12,6 +14,8 @@ export const QUOTE_STATUSES = [
   'approval_required',
   'approved',
   'customer_negotiation',
+  'manager_review',
+  'finalized',
   'confirmed',
   'fulfillment',
   'billing',
@@ -37,6 +41,116 @@ export type ApprovalRoleKey = (typeof APPROVAL_ROLE_KEYS)[number];
 
 export const CUSTOMER_DECISIONS = ['none', 'accepted', 'declined'] as const;
 export type CustomerDecision = (typeof CUSTOMER_DECISIONS)[number];
+
+export const QUOTE_EMAIL_EVENTS = ['prelim_invoice', 'final_invoice'] as const;
+export type QuoteEmailEvent = (typeof QUOTE_EMAIL_EVENTS)[number];
+
+export const QUOTE_EMAIL_STATUSES = ['pending', 'not_configured', 'sent', 'failed'] as const;
+export type QuoteEmailStatus = (typeof QUOTE_EMAIL_STATUSES)[number];
+
+export interface QuoteEmailLine {
+  sku: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  lineNet: number;
+  billingType: BillingType;
+  billingFrequency?: BillingFrequency | null;
+}
+
+export interface QuoteEmailDocument {
+  kind: QuoteEmailEvent;
+  customerName: string;
+  quoteNumber: string;
+  quoteVersion: number;
+  status: QuoteStatus;
+  approvalStatus: string;
+  lines: QuoteEmailLine[];
+  listTotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  netTotal: number;
+  grandTotal: number;
+  payableAmount: number;
+  recurringMonthly: number;
+  recurringAnnual: number;
+  financeLocked: boolean;
+}
+
+export interface QuoteEmailDelivery {
+  id: string;
+  quoteId: string;
+  eventType: QuoteEmailEvent;
+  quoteVersion: number;
+  recipientEmail: string;
+  status: QuoteEmailStatus;
+  idempotencyKey: string;
+  notificationDeliveryId?: string | null;
+  provider?: string | null;
+  providerMessageId?: string | null;
+  errorMessage?: string | null;
+  payload: QuoteEmailDocument;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const NEGOTIATION_STATUSES = [
+  'open',
+  'in_review',
+  'sent_to_manager',
+  'manager_revised',
+  'returned_to_customer',
+  'accepted',
+  'rejected',
+  'resolved',
+  'agreed',
+  'withdrawn',
+] as const;
+export type NegotiationStatus = (typeof NEGOTIATION_STATUSES)[number];
+
+export const NEGOTIATION_REQUEST_TYPES = [
+  'question',
+  'quantity_change',
+  'product_change',
+  'removal',
+  'pricing',
+  'discount',
+  'general',
+] as const;
+export type NegotiationRequestType = (typeof NEGOTIATION_REQUEST_TYPES)[number];
+
+export interface NegotiationRequestedLine {
+  productId?: string;
+  lineId?: string;
+  quantity?: number;
+  discountPercent?: number;
+  action?: 'add' | 'remove' | 'update';
+  requestType?: NegotiationRequestType;
+  comment?: string;
+  originalQuantity?: number;
+  originalDiscountPercent?: number;
+}
+
+export interface NegotiationRequest {
+  id: string;
+  quoteId: string;
+  customerId: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  requestedDiscountPercent?: number | null;
+  requestedTargetAmount?: number | null;
+  requestedLines: NegotiationRequestedLine[];
+  note: string;
+  quoteVersion?: number | null;
+  responseNote?: string | null;
+  respondedBy?: string | null;
+  respondedAt?: string | null;
+  status: NegotiationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export const ANOMALY_SEVERITIES = ['warning', 'critical'] as const;
 export type AnomalySeverity = (typeof ANOMALY_SEVERITIES)[number];
@@ -102,8 +216,14 @@ export interface Product {
   cost: number;
   billingType: BillingType;
   billingFrequency?: BillingFrequency | null;
+  description?: string | null;
+  taxCategory?: string | null;
+  taxRatePercent?: number | null;
+  active?: boolean;
   taxable?: boolean;
   odooProductId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductRelation {
@@ -141,6 +261,8 @@ export interface DiscountPolicy {
   rejectPercent: number;
   maxMarginImpactPercent: number;
   priority: number;
+  description?: string | null;
+  active?: boolean;
 }
 
 export type QuantityAdjustmentKind = 'fixed' | 'percent';
@@ -187,6 +309,7 @@ export interface ApprovalChain {
   minRiskScore: number;
   minBlendedDiscountPercent: number;
   priority: number;
+  active?: boolean;
   steps: ApprovalChainStep[];
 }
 
@@ -224,6 +347,11 @@ export interface Quote {
   customerDecisionAt?: string | null;
   customerDecisionComment?: string | null;
   customerDecisionVersion?: number | null;
+  commerciallyFrozenAt?: string | null;
+  commerciallyFrozenBy?: string | null;
+  financeLockedAt?: string | null;
+  financeLockedBy?: string | null;
+  activeNegotiationId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -300,6 +428,7 @@ export interface QuoteAggregate {
 }
 
 export interface LineAssessment {
+  lineId: string;
   productId: string;
   sku: string;
   quantity: number;
@@ -373,6 +502,8 @@ export interface GovernanceConfig {
   staleQuoteDays: number;
   unusualDiscountPercent: number;
   largeDealNetTotal: number;
+  maxCommercialDiscountPercent: number;
+  allowLoyaltyStacking: boolean;
 }
 
 export const DEFAULT_GOVERNANCE: GovernanceConfig = {
@@ -385,6 +516,8 @@ export const DEFAULT_GOVERNANCE: GovernanceConfig = {
   staleQuoteDays: 7,
   unusualDiscountPercent: 25,
   largeDealNetTotal: 50_000,
+  maxCommercialDiscountPercent: 25,
+  allowLoyaltyStacking: true,
 };
 
 export const GOVERNANCE_CONFIG_ID = '99999999-9999-4999-8999-999999999901';

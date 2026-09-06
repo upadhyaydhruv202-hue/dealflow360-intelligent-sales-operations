@@ -143,7 +143,7 @@ Keys for login:
 
 Window: `AUTH_LOGIN_RATE_LIMIT_WINDOW` (default `15m`).
 
-When `DEMO_MODE=true`, login brute-force limits are skipped **only** for the four seeded demo emails (`demo.staff@example.com`, `demo.manager@example.com`, `demo.admin@example.com`, `demo.user@example.com`). Password validation, JWT issuance, and RBAC are unchanged. Arbitrary accounts stay limited. Production (`DEMO_MODE=false`) keeps the defaults.
+When `DEMO_MODE=true`, login brute-force limits are skipped **only** for the seeded demo emails (`demo.staff@example.com`, `demo.manager@example.com`, `demo.finance@example.com`, `demo.admin@example.com`, `demo.user@example.com`). There is no Operations demo account. Password validation, JWT issuance, and RBAC are unchanged. Arbitrary accounts stay limited. Production (`DEMO_MODE=false`) keeps the defaults.
 
 Local reset (destructive): `npm run db:reset` drops the database, migrates, and re-seeds those demo users. Restarting the API process also clears in-memory rate-limit counters; Redis-backed counters persist until the window expires unless you flush Redis locally.
 

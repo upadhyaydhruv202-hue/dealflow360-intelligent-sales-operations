@@ -11,6 +11,7 @@ import { CatalogPage, DealHealthPage, ReportsPage } from './dealflow/InsightsPag
 import { DealflowDashboardPage } from './dealflow/DashboardPage';
 import { FulfillmentDetailPage } from './dealflow/FulfillmentDetailPage';
 import { FulfillmentPage } from './dealflow/FulfillmentPage';
+import { NegotiationsPage } from './dealflow/NegotiationsPage';
 import { QuoteWorkspacePage } from './dealflow/QuoteWorkspacePage';
 import { QuotesListPage } from './dealflow/QuotesListPage';
 import { SettingsPage } from './dealflow/SettingsPage';
@@ -33,6 +34,7 @@ export interface ProblemRoute {
 export const problemNav: ProblemNavItem[] = [
   { to: '/dealflow', label: 'Dashboard', end: true },
   { to: '/dealflow/quotes', label: 'Quotations' },
+  { to: '/dealflow/negotiations', label: 'Negotiations' },
   { to: '/dealflow/approvals', label: 'Approvals' },
   { to: '/dealflow/fulfillment', label: 'Fulfillment' },
   { to: '/dealflow/subscriptions', label: 'Subscriptions' },
@@ -49,6 +51,7 @@ export const problemRoutes: ProblemRoute[] = [
   { path: '/dealflow', element: createElement(DealflowDashboardPage) },
   { path: '/dealflow/quotes', element: createElement(QuotesListPage) },
   { path: '/dealflow/quotes/:quoteId', element: createElement(QuoteWorkspacePage) },
+  { path: '/dealflow/negotiations', element: createElement(NegotiationsPage) },
   { path: '/dealflow/approvals', element: createElement(ApprovalsPage) },
   { path: '/dealflow/approvals/:quoteId', element: createElement(ApprovalDetailPage) },
   { path: '/dealflow/fulfillment', element: createElement(FulfillmentPage) },

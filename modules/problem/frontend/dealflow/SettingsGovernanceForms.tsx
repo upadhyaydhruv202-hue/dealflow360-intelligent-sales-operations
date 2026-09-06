@@ -109,6 +109,11 @@ export function QuantityBreakEditor({
               { value: 'false', label: 'Inactive' },
             ]}
           />
+          <div className="flex items-end">
+            <Button type="button" variant="ghost" onClick={() => setItems(items.filter((_, idx) => idx !== index))}>
+              Delete 🗑️
+            </Button>
+          </div>
         </fieldset>
       ))}
       <div className="flex flex-wrap gap-2">
@@ -236,6 +241,16 @@ export function RoleAuthorityEditor({
                 { value: 'false', label: 'No' },
               ]}
             />
+            <div className="flex items-end">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setItems(items.filter((_, idx) => idx !== index))}
+                disabled={items.length <= 1}
+              >
+                Delete 🗑️
+              </Button>
+            </div>
           </fieldset>
         ))}
         <Button type="submit" loading={busy}>

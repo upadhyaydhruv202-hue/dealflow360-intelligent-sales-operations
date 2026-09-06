@@ -6,7 +6,7 @@ import { hasPermission } from '@/lib/rbac';
 import { getApiErrorMessage } from '@/services/api';
 import { Breadcrumb, Button, ErrorState, LoadingState, PageContainer, useToast } from '@/ui';
 
-import { completeQuote, confirmQuote, planFulfillment } from './api';
+import { completeQuote, lockQuote, planFulfillment } from './api';
 import { DealflowGate, FulfillmentBoard, OverrideForm, StatusBadge } from './components';
 import { canConfirm, canPlan, formatMoney } from './format';
 import { useCatalog, useQuote } from './hooks';
@@ -98,13 +98,13 @@ export function FulfillmentDetailPage() {
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              {canConfirm(quote.status) && hasPermission(user, 'dealflow.quotes.write') ? (
+              {canConfirm(quote.status) && hasPermission(user, 'dealflow.quotes.lock') ? (
                 <Button
                   variant="secondary"
                   loading={busy}
-                  onClick={() => accessToken && void run(() => confirmQuote(quote.id, accessToken, quote.version))}
+                  onClick={() => accessToken && void run(() => lockQuote(quote.id, accessToken, quote.version))}
                 >
-                  Confirm quote
+                  Finance lock
                 </Button>
               ) : null}
               {canComplete ? (

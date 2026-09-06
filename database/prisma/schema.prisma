@@ -583,6 +583,7 @@ enum DfCustomerTier {
   silver
   gold
   strategic
+  platinum
 }
 
 enum DfBillingType {
@@ -601,6 +602,8 @@ enum DfQuoteStatus {
   approval_required
   approved
   customer_negotiation
+  manager_review
+  finalized
   confirmed
   fulfillment
   billing
@@ -645,6 +648,31 @@ enum DfAuthorityExceedAction {
   block
 }
 
+enum DfNegotiationStatus {
+  open
+  in_review
+  sent_to_manager
+  manager_revised
+  returned_to_customer
+  accepted
+  rejected
+  resolved
+  agreed
+  withdrawn
+}
+
+enum DfQuoteEmailEvent {
+  prelim_invoice
+  final_invoice
+}
+
+enum DfQuoteEmailStatus {
+  pending
+  not_configured
+  sent
+  failed
+}
+
 model DfCustomer {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
@@ -654,7 +682,8 @@ model DfCustomer {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 
-  quotes Quote[]
+  quotes       Quote[]
+  negotiations DfNegotiationRequest[]
 
   @@map("df_customers")
 }
@@ -668,6 +697,10 @@ model DfProduct {
   cost           Float
   billingType    DfBillingType      @map("billing_type")
   billingFrequency DfBillingFrequency? @map("billing_frequency")
+  description    String?
+  taxCategory    String?            @map("tax_category")
+  taxRatePercent Float?             @map("tax_rate_percent")
+  active         Boolean            @default(true)
   taxable        Boolean            @default(true)
   odooProductId  Int?               @map("odoo_product_id")
   createdAt      DateTime           @default(now()) @map("created_at")
@@ -738,6 +771,8 @@ model DfDiscountPolicy {
   rejectPercent          Float           @map("reject_percent")
   maxMarginImpactPercent Float           @map("max_margin_impact_percent")
   priority               Int             @default(100)
+  description            String?
+  active                 Boolean         @default(true)
   createdAt              DateTime        @default(now()) @map("created_at")
 
   @@index([priority])
@@ -750,6 +785,7 @@ model DfApprovalChain {
   minRiskScore            Float    @map("min_risk_score")
   minBlendedDiscountPercent Float  @map("min_blended_discount_percent")
   priority                Int      @default(100)
+  active                  Boolean  @default(true)
   createdAt               DateTime @default(now()) @map("created_at")
 
   steps      DfApprovalChainStep[]
@@ -815,6 +851,8 @@ model DfGovernanceConfig {
   staleQuoteDays           Float    @default(7) @map("stale_quote_days")
   unusualDiscountPercent   Float    @default(25) @map("unusual_discount_percent")
   largeDealNetTotal        Float    @default(50000) @map("large_deal_net_total")
+  maxCommercialDiscountPercent Float @default(25) @map("max_commercial_discount_percent")
+  allowLoyaltyStacking     Boolean  @default(true) @map("allow_loyalty_stacking")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
   @@map("df_governance_config")
@@ -843,6 +881,11 @@ model Quote {
   customerDecisionAt      DateTime?          @map("customer_decision_at")
   customerDecisionComment String?            @map("customer_decision_comment")
   customerDecisionVersion Int?               @map("customer_decision_version")
+  commerciallyFrozenAt    DateTime?          @map("commercially_frozen_at")
+  commerciallyFrozenBy    String?            @map("commercially_frozen_by") @db.Uuid
+  financeLockedAt         DateTime?          @map("finance_locked_at")
+  financeLockedBy         String?            @map("finance_locked_by") @db.Uuid
+  activeNegotiationId     String?            @map("active_negotiation_id") @db.Uuid
   createdAt               DateTime           @default(now()) @map("created_at")
   updatedAt               DateTime           @updatedAt @map("updated_at")
 
@@ -855,6 +898,8 @@ model Quote {
   schedules    QuoteBillingSchedule[]
   revisions    QuoteRevision[]
   anomalies    DfAnomaly[]
+  negotiations DfNegotiationRequest[]
+  emails       DfQuoteEmailDelivery[]
 
   @@index([status, createdAt])
   @@index([customerId])
@@ -991,4 +1036,55 @@ model DfAnomaly {
   @@index([entityType, entityId])
   @@index([quoteId])
   @@map("df_anomalies")
+}
+
+model DfNegotiationRequest {
+  id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId                  String               @map("quote_id") @db.Uuid
+  customerId               String               @map("customer_id") @db.Uuid
+  actorId                  String?              @map("actor_id") @db.Uuid
+  actorRole                String?              @map("actor_role")
+  requestedDiscountPercent Float?               @map("requested_discount_percent")
+  requestedTargetAmount    Float?               @map("requested_target_amount")
+  requestedLines           Json                 @default("[]") @map("requested_lines")
+  note                     String
+  quoteVersion             Int?                 @map("quote_version")
+  responseNote             String?              @map("response_note")
+  respondedBy              String?              @map("responded_by") @db.Uuid
+  respondedAt              DateTime?            @map("responded_at")
+  status                   DfNegotiationStatus  @default(open)
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+
+  quote    Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  customer DfCustomer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([quoteId, createdAt])
+  @@index([customerId])
+  @@index([status])
+  @@map("df_negotiation_requests")
+}
+
+model DfQuoteEmailDelivery {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId                 String             @map("quote_id") @db.Uuid
+  eventType               DfQuoteEmailEvent  @map("event_type")
+  quoteVersion            Int                @map("quote_version")
+  recipientEmail          String             @map("recipient_email")
+  status                  DfQuoteEmailStatus @default(pending)
+  idempotencyKey          String             @unique @map("idempotency_key")
+  notificationDeliveryId  String?            @map("notification_delivery_id") @db.Uuid
+  provider                String?
+  providerMessageId       String?            @map("provider_message_id")
+  errorMessage            String?            @map("error_message")
+  payload                 Json               @default("{}")
+  sentAt                  DateTime?          @map("sent_at")
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, eventType])
+  @@index([status, createdAt])
+  @@map("df_quote_email_deliveries")
 }

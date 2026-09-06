@@ -65,6 +65,7 @@ Current indexes:
 - `notifications (user_id, read_at)` for unread counts
 - unique `notification_deliveries.idempotency_key` for duplicate event suppression
 - `notification_deliveries (status, created_at)` and `(channel, status)` for delivery tracking
+- unique `df_quote_email_deliveries.idempotency_key` plus `(quote_id, event_type)` and `(status, created_at)` for DealFlow customer quotation emails
 - unique `notification_preferences (user_id, category, channel)`
 - `refresh_tokens (user_id)`, `(family_id)`, and `(expires_at)` for revocation and lookup
 - `documents (user_id, created_at)` and `documents (status)` for listing a user's uploads
@@ -119,13 +120,14 @@ npm run db:seed
 npm run db:reset    # drop database, migrate, seed (destructive)
 ```
 
-Seed data is **demo-only** and runs when `DEMO_MODE` is on (the default outside production). Production with `DEMO_MODE=false` still seeds the RBAC catalog and skips demo users. It is not a real credential set:
+Seed data is **demo-only** and runs when `DEMO_MODE` is on (the default outside production). That path loads a connected sales-ops history (customers through quotations, fulfillment, and billing) plus the golden-path Northwind draft. Production with `DEMO_MODE=false` still seeds the RBAC catalog plus DealFlow configuration (products, policies, chains, governance) and skips login users, customers, inventory, and quotations. It is not a real credential set:
 
 | Email | Role | Password |
 | --- | --- | --- |
 | `demo.admin@example.com` | admin | `demo-password` |
 | `demo.manager@example.com` | manager | `demo-password` |
-| `demo.staff@example.com` | staff | `demo-password` |
+| `demo.staff@example.com` | staff (Sales Representative) | `demo-password` |
+| `demo.finance@example.com` | finance (Finance Manager) | `demo-password` |
 | `demo.user@example.com` | user | `demo-password` |
 
 Also seeded: roles (`admin`, `manager`, `staff`, `user`) and the default permission catalog (`users.read`, `users.write`, `roles.read`, `roles.write`, `reports.generate`, `notifications.read`, `notifications.write`, `odoo.read`, `odoo.write`, `ai.use`, `copilot.use`, `intents.use`, `rag.use`, `documents.analyze`, `documents.read`, `automations.read`, `automations.write`, `automations.execute`, `jobs.read`, `admin.settings`). USER can log in but does not receive `odoo.read` or `odoo.write`. See [rbac.md](rbac.md).

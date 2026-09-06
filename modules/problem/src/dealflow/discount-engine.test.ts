@@ -80,7 +80,7 @@ describe('discount engine', () => {
     expect(assessment.reasons.some((reason) => reason.includes('Within Default ceiling'))).toBe(true);
   });
 
-  it('requires approval when staff exceed their configured discount range', () => {
+  it('rejects staff discounts that exceed their configured range', () => {
     const assessment = assessQuote({
       customerTier: 'standard',
       policies: DEFAULT_POLICIES,
@@ -102,7 +102,7 @@ describe('discount engine', () => {
         },
       ],
     });
-    expect(assessment.decision).toBe('approval_required');
+    expect(assessment.decision).toBe('rejected');
     expect(assessment.lines[0]?.roleLimitExceeded).toBe(true);
     expect(assessment.reasons.some((reason) => reason.includes('authorized range 5%'))).toBe(true);
   });
@@ -193,7 +193,7 @@ describe('discount engine', () => {
         },
       ],
     });
-    expect(assessment.decision).toBe('approval_required');
+    expect(assessment.decision).toBe('rejected');
     expect(assessment.lines[0]?.appliedPrice).toBe(3900);
     expect(assessment.lines[0]?.roleLimitExceeded).toBe(true);
     expect(assessment.reasons.some((reason) => reason.includes('Unit price override'))).toBe(true);
@@ -225,5 +225,59 @@ describe('discount engine', () => {
     expect(assessment.decision).toBe('allowed');
     expect(assessment.lines[0]?.appliedPrice).toBe(3900);
     expect(assessment.reasons.some((reason) => reason.includes('Unit price override'))).toBe(false);
+  });
+
+  it('assesses duplicate products as separate line nets', () => {
+    const product = DEFAULT_PRODUCTS[0];
+    const assessment = assessQuote({
+      customerTier: 'standard',
+      policies: DEFAULT_POLICIES,
+      chains: DEFAULT_CHAINS,
+      lines: [
+        {
+          line: {
+            id: 'line-a',
+            quoteId: 'q',
+            productId: product.id,
+            quantity: 3,
+            listPrice: 4000,
+            discountPercent: 4,
+            unitCost: product.cost,
+          },
+          product,
+        },
+        {
+          line: {
+            id: 'line-b',
+            quoteId: 'q',
+            productId: product.id,
+            quantity: 2,
+            listPrice: 4000,
+            discountPercent: 4,
+            unitCost: product.cost,
+          },
+          product,
+        },
+        {
+          line: {
+            id: 'line-c',
+            quoteId: 'q',
+            productId: product.id,
+            quantity: 1,
+            listPrice: 4000,
+            discountPercent: 4,
+            unitCost: product.cost,
+          },
+          product,
+        },
+      ],
+    });
+
+    expect(assessment.lines.map((line) => ({ id: line.lineId, net: line.netAmount }))).toEqual([
+      { id: 'line-a', net: 11520 },
+      { id: 'line-b', net: 7680 },
+      { id: 'line-c', net: 3840 },
+    ]);
+    expect(assessment.netTotal).toBe(23040);
   });
 });

@@ -8,14 +8,15 @@ Sales teams need one workspace that prices a mixed hardware + subscription quote
 
 ## Users
 
-- Sales staff (create, submit, fulfill, bill, confirm)
-- Sales manager (first approval step)
-- Finance / final approver (admin in the seeded demo)
-- Customer (token portal only)
+- Sales Representative (create, send to manager, fulfill, bill)
+- Manager (revise, finalize, first approval step)
+- Finance Manager (finance approval and commercial lock)
+- Admin (may act on manager/finance approval steps; catalog write)
+- Customer (`/account` + token portal)
 
 ## Actors
 
-`demo.staff@example.com`, `demo.manager@example.com`, `demo.admin@example.com`, portal token holder. Customer login `demo.user@example.com` cannot open the staff workspace.
+`demo.staff@example.com`, `demo.manager@example.com`, `demo.finance@example.com`, `demo.admin@example.com`, portal token holder. Customer login `demo.user@example.com` cannot open the staff workspace. There is no Operations demo account.
 
 ## Pain Points
 
@@ -23,11 +24,11 @@ Discount given without a visible ceiling, unclear who must approve, inventory sh
 
 ## Current Workflow
 
-Implemented in `modules/problem` against PostgreSQL. FEATURE_ODOO is off; confirmation is local.
+Implemented in `modules/problem` against PostgreSQL. FEATURE_ODOO is off; Finance Manager lock is local.
 
 ## Proposed Workflow
 
-See README **Demo Workflow**: quote → discount violation → approval → upsell → warehouse split → hybrid billing → portal negotiation → re-approval → confirm → audit.
+See README **Demo Workflow**: quote → customer negotiation note → manager revise/finalize → approval engine → provisional customer email → Finance lock → final bill email → upsell → warehouse split → hybrid billing → audit.
 
 ## Functional Requirements
 
@@ -61,7 +62,7 @@ Kit jobs/Redis exist for email, PDF, and sync. The golden path does not require 
 
 ## Notification Requirements
 
-Staff see API toasts. Portal is token-based. No payment or Odoo confirmation emails are sent by default.
+Staff see API toasts. Portal is token-based. Manager approval emails a customer-safe provisional invoice; Finance lock emails the final bill. Both writes go to `df_quote_email_deliveries` and `notification_deliveries`. Demo/mock email is recorded as pending / not configured, never as sent.
 
 ## Reporting Requirements
 

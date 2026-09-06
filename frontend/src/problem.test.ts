@@ -8,6 +8,7 @@ describe('problem frontend registration', () => {
       expect.arrayContaining([
         { to: '/dealflow', label: 'Dashboard', end: true },
         { to: '/dealflow/quotes', label: 'Quotations' },
+        { to: '/dealflow/negotiations', label: 'Negotiations' },
         { to: '/dealflow/approvals', label: 'Approvals' },
       ]),
     );
@@ -16,6 +17,7 @@ describe('problem frontend registration', () => {
         '/dealflow',
         '/dealflow/quotes',
         '/dealflow/quotes/:quoteId',
+        '/dealflow/negotiations',
         '/dealflow/approvals',
         '/dealflow/approvals/:quoteId',
         '/dealflow/fulfillment/:quoteId',

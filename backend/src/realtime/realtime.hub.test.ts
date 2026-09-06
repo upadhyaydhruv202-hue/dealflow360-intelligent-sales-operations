@@ -113,6 +113,20 @@ describe('RealtimeHub', () => {
     expect(received[0]?.type).toBe('notification.created');
   });
 
+  it('delivers DealFlow dashboard events to callers who may subscribe to dashboard', () => {
+    const actor = user({ permissions: [PERMISSIONS.NOTIFICATIONS_READ] });
+    const dealflow = event({
+      channel: 'dashboard',
+      type: 'dashboard.updated',
+      audience: undefined,
+      payload: { kind: 'dealflow', source: 'dealflow', event: 'quote.updated', quoteId: 'quote-1' },
+    });
+    expect(canDeliverRealtimeEvent(dealflow, actor)).toBe(true);
+    expect(
+      canDeliverRealtimeEvent(dealflow, user({ permissions: [], roles: [ROLES.USER], role: ROLES.USER })),
+    ).toBe(false);
+  });
+
   it('does not project other users’ jobs onto a notifications-only dashboard', () => {
     const hub = new RealtimeHub();
     const received: RealtimeEvent[] = [];

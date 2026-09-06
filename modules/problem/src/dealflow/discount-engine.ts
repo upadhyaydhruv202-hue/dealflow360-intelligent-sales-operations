@@ -16,6 +16,7 @@ import type {
   Warehouse,
 } from './types';
 import { DEFAULT_GOVERNANCE } from './types';
+import { matchDiscountAuthority, normalizeCustomerTier } from './loyalty';
 
 function round(value: number, digits = 4): number {
   const factor = 10 ** digits;
@@ -37,6 +38,7 @@ export function selectPolicy(
 ): DiscountPolicy {
   const matches = policies.filter(
     (policy) =>
+      policy.active !== false &&
       (policy.customerTier == null || policy.customerTier === tier) &&
       (policy.productCategory == null || policy.productCategory === category),
   );
@@ -110,7 +112,8 @@ export function selectApprovalChain(
   return [...chains]
     .filter(
       (chain) =>
-        riskScore >= chain.minRiskScore || blendedDiscountPercent >= chain.minBlendedDiscountPercent,
+        chain.active !== false &&
+        (riskScore >= chain.minRiskScore || blendedDiscountPercent >= chain.minBlendedDiscountPercent),
     )
     .sort((left, right) => {
       const severity =
@@ -137,11 +140,7 @@ export function selectRoleAuthority(
   authorities: readonly RoleAuthority[] | undefined,
   actor?: Actor,
 ): RoleAuthority | undefined {
-  if (!authorities?.length || !actor) return undefined;
-  const keys = new Set([actor.role, ...(actor.roles ?? [])].filter(Boolean));
-  return [...authorities]
-    .filter((item) => keys.has(item.roleKey))
-    .sort((left, right) => right.maxDiscountPercent - left.maxDiscountPercent)[0];
+  return matchDiscountAuthority(authorities, actor);
 }
 
 export function assessQuote(input: {
@@ -158,6 +157,7 @@ export function assessQuote(input: {
 }): QuoteAssessment {
   const config = input.config ?? DEFAULT_GOVERNANCE;
   const authority = selectRoleAuthority(input.roleAuthorities, input.actor);
+  const customerTier = normalizeCustomerTier(input.customerTier) === 'new' ? 'standard' : normalizeCustomerTier(input.customerTier);
   const lineResults: LineAssessment[] = [];
 
   let listTotal = 0;
@@ -172,7 +172,7 @@ export function assessQuote(input: {
       product,
       quantity: line.quantity,
       breaks: input.quantityBreaks,
-      customerTier: input.customerTier,
+      customerTier: customerTier as CustomerTier,
     });
     const rulePrice = priced.unitPrice;
     const appliedPrice = Math.abs(line.listPrice - rulePrice) > 0.005 ? line.listPrice : rulePrice;
@@ -185,7 +185,7 @@ export function assessQuote(input: {
     const marginPercent = netAmount === 0 ? 0 : round((actualMargin / netAmount) * 100, 2);
     const marginErosionPercent =
       standardMargin <= 0 ? (line.discountPercent > 0 ? 100 : 0) : round(((standardMargin - actualMargin) / standardMargin) * 100, 2);
-    const policy = selectPolicy(input.policies, input.customerTier, product.category);
+    const policy = selectPolicy(input.policies, customerTier as CustomerTier, product.category);
     const decided = decideLineDiscount({
       discountPercent: line.discountPercent,
       marginErosionPercent,
@@ -249,6 +249,7 @@ export function assessQuote(input: {
     costTotal += costAmount;
 
     lineResults.push({
+      lineId: line.id,
       productId: product.id,
       sku: product.sku,
       quantity: line.quantity,

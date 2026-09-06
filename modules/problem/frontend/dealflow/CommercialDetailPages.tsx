@@ -7,7 +7,7 @@ import { getApiErrorMessage } from '@/services/api';
 import { Badge, Breadcrumb, Button, Card, CardTitle, EmptyState, ErrorState, LoadingState, PageContainer, useToast } from '@/ui';
 
 import { cancelBilling, downloadCustomerQuotePdf, generateBilling } from './api';
-import { DealflowGate, StatusBadge } from './components';
+import { DealflowGate, RecordMenu, StatusBadge } from './components';
 import { billingTone, canBill, formatDate, formatMoney } from './format';
 import { useQuote } from './hooks';
 import type { BillingSchedule, BillingType, QuoteView } from './types';
@@ -69,9 +69,21 @@ function ScheduleList({
               <Badge tone={billingTone(item.status)}>{item.status}</Badge>
             </div>
             {canCancel && item.status !== 'cancelled' ? (
-              <Button className="mt-3" size="sm" variant="outline" onClick={() => onCancel(item)}>
-                Cancel schedule
-              </Button>
+              <div className="mt-3">
+                <RecordMenu
+                  buttonLabel="Cancel"
+                  items={[
+                    {
+                      id: 'cancel',
+                      label: 'Delete 🗑️',
+                      description: 'Cancel this billing schedule. Generated invoices are not hard-deleted; cancel preserves history.',
+                      confirmLabel: 'Cancel schedule',
+                      destructive: true,
+                      onConfirm: () => onCancel(item),
+                    },
+                  ]}
+                />
+              </div>
             ) : null}
           </li>
         );

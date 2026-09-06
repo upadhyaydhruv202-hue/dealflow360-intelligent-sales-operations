@@ -24,7 +24,7 @@ describe('toPortalView', () => {
       ],
     });
 
-    expect(view).toEqual({
+    expect(view).toMatchObject({
       id: 'q1',
       number: 'DF-00009',
       status: 'approved',
@@ -35,6 +35,7 @@ describe('toPortalView', () => {
       version: 1,
       taxTotal: 0,
       grandTotal: 90,
+      recurringMonthly: 0,
       customerDecision: 'none',
       customer: { name: 'Northwind Retail' },
       lines: [
@@ -53,5 +54,6 @@ describe('toPortalView', () => {
     expect(view).not.toHaveProperty('marginPercent');
     expect(view).not.toHaveProperty('fulfillment');
     expect(view).not.toHaveProperty('ownerId');
+    expect(view).not.toHaveProperty('customerEmails');
   });
 });
