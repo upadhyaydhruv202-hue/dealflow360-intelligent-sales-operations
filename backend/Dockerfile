@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
@@ -35,7 +35,7 @@ COPY backend ./backend
 COPY modules/problem ./modules/problem
 RUN npm run build -w @hackathon/api-contract && npm run build -w @hackathon/problem && npm run build -w backend
 
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
